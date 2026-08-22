@@ -147,7 +147,7 @@
   </main>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-  <script async src="https://docs.opencv.org/4.10.0/opencv.js" id="opencv-script"></script>
+  <script src="{{ url_for('static', filename='vendor/opencv.js') }}"></script>
   <script>
     (() => {
       const pdfUrl = {{ url_for('static', filename='sample.pdf') | tojson }};
@@ -163,28 +163,40 @@
         'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
       let opencvReady = false;
+      let readinessTimer = null;
+      let readinessAttempts = 0;
 
       function markOpenCvReady() {
+        if (opencvReady) return;
         opencvReady = true;
+        if (readinessTimer) window.clearInterval(readinessTimer);
         status.textContent = '準備完了。対象ページを指定して検出してください。';
       }
 
-      const waitForOpenCv = window.setInterval(() => {
-        if (!window.cv) return;
-        if (cv.Mat) {
-          window.clearInterval(waitForOpenCv);
+      function checkOpenCv() {
+        readinessAttempts += 1;
+        if (window.cv && cv.Mat) {
           markOpenCvReady();
           return;
         }
-        if (typeof cv.then === 'function') {
-          window.clearInterval(waitForOpenCv);
-          cv.then(markOpenCvReady);
+        if (window.cv && typeof cv.then === 'function') {
+          cv.then(markOpenCvReady).catch(() => {
+            status.textContent = 'OpenCV.jsの初期化に失敗しました。';
+          });
+          return;
         }
-      }, 250);
+        if (readinessAttempts >= 120) {
+          window.clearInterval(readinessTimer);
+          status.textContent = 'OpenCV.jsを30秒以内に初期化できませんでした。';
+        }
+      }
+
+      readinessTimer = window.setInterval(checkOpenCv, 250);
+      checkOpenCv();
 
       async function detectCircles() {
         if (!opencvReady) {
-          status.textContent = 'OpenCV.jsの読み込み待ちです。少し待ってから再実行してください。';
+          status.textContent = 'OpenCV.jsの準備がまだ完了していません。';
           return;
         }
 
