@@ -12,6 +12,7 @@ on:
       - feature/always-edit-entry-ui
       - feature/save-number-map
       - feature/weld-progress-entry
+      - feature/project-list-screen
   workflow_dispatch:
 
 permissions:
@@ -89,6 +90,7 @@ jobs:
             page_ok=false
             map_ok=false
             progress_ok=false
+            prototype_ok=false
 
             if curl --fail --silent --show-error --location \
               --max-time 20 \
@@ -111,7 +113,14 @@ jobs:
               progress_ok=true
             fi
 
-            if [ "$page_ok" = true ] && [ "$map_ok" = true ] && [ "$progress_ok" = true ]; then
+            if curl --fail --silent --show-error --location \
+              --max-time 20 \
+              "https://nakagawach.pythonanywhere.com/weld/static/project-list-prototype.html" \
+              | grep -q "工事一覧"; then
+              prototype_ok=true
+            fi
+
+            if [ "$page_ok" = true ] && [ "$map_ok" = true ] && [ "$progress_ok" = true ] && [ "$prototype_ok" = true ]; then
               echo "Smoke test passed."
               exit 0
             fi
