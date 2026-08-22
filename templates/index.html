@@ -35,16 +35,16 @@
   <iframe class="pdf-frame" src="{{ url_for('static', filename='sample.pdf') }}" title="配管図サンプルPDF"></iframe>
   <p class="fallback">PDFが枠内に表示されない場合は <a href="{{ url_for('static', filename='sample.pdf') }}" target="_blank" rel="noopener noreferrer">新しいタブでPDFを開く</a> を使ってください。</p>
   <section class="detect-panel" aria-labelledby="ocr-title">
-    <h2 id="ocr-title">Google Vision OCR 4分割テスト</h2>
-    <p>指定した1ページを4分割し、各領域を拡大してGoogle Vision OCRへ送ります。取得座標は元のページ画像へ戻して重ねます。</p>
+    <h2 id="ocr-title">丸囲み番号候補の抽出テスト</h2>
+    <p>4分割Google Vision OCRの結果から、単独の1〜99だけを番号候補として抽出します。今回は円形判定はまだ行わず、候補抽出だけを確認します。</p>
     <div class="controls">
       <label>対象ページ<input id="page-number" type="number" min="1" value="1" inputmode="numeric"></label>
-      <button id="ocr-button" type="button">4分割でOCR</button>
+      <button id="ocr-button" type="button">番号候補を抽出</button>
     </div>
     <p id="ocr-status" aria-live="polite">未実行</p>
     <div class="preview-wrap" id="preview-wrap" hidden><canvas id="preview-canvas"></canvas></div>
-    <div class="result-wrap"><table id="ocr-table" hidden><thead><tr><th>文字</th><th>X</th><th>Y</th><th>幅</th><th>高さ</th></tr></thead><tbody id="ocr-body"></tbody></table></div>
-    <p class="note">A/BテストとしてOCR方法だけを4分割へ変更しています。結果はDBへ保存しません。</p>
+    <div class="result-wrap"><table id="ocr-table" hidden><thead><tr><th>番号候補</th><th>X</th><th>Y</th><th>幅</th><th>高さ</th></tr></thead><tbody id="ocr-body"></tbody></table></div>
+    <p class="note">青枠が1〜99の番号候補です。DB保存・既存PDF表示・Google Vision API側の処理は変更していません。</p>
   </section>
 </section></main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -57,6 +57,13 @@
   const canvas = document.getElementById('preview-canvas'), table = document.getElementById('ocr-table'), tbody = document.getElementById('ocr-body');
   if (!window.pdfjsLib) { status.textContent = 'PDF解析ライブラリを読み込めませんでした。'; button.disabled = true; return; }
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+  function isNumberCandidate(text) {
+    const normalized = String(text || '').trim();
+    if (!/^\d{1,2}$/.test(normalized)) return false;
+    const value = Number(normalized);
+    return value >= 1 && value <= 99;
+  }
 
   async function ocrTile(sourceCanvas, sx, sy, sw, sh, tileNo) {
     const tile = document.createElement('canvas');
@@ -90,15 +97,17 @@
       const tiles = [[0,0,halfW,halfH],[halfW,0,canvas.width-halfW,halfH],[0,halfH,halfW,canvas.height-halfH],[halfW,halfH,canvas.width-halfW,canvas.height-halfH]];
       const words = [];
       for (let i=0;i<tiles.length;i++) words.push(...await ocrTile(canvas, ...tiles[i], i+1));
-      ctx.lineWidth = Math.max(1, canvas.width/1000); ctx.strokeStyle = '#d93025';
-      for (const word of words) {
+      const candidates = words.filter(word => isNumberCandidate(word.text));
+      ctx.lineWidth = Math.max(2, canvas.width/800); ctx.strokeStyle = '#1967d2';
+      for (const word of candidates) {
         const xs=word.vertices.map(v=>v.x), ys=word.vertices.map(v=>v.y); if (!xs.length) continue;
         const minX=Math.min(...xs), maxX=Math.max(...xs), minY=Math.min(...ys), maxY=Math.max(...ys);
-        ctx.strokeRect(minX,minY,Math.max(1,maxX-minX),Math.max(1,maxY-minY));
+        const pad = Math.max(3, Math.max(maxX-minX,maxY-minY)*0.35);
+        ctx.strokeRect(minX-pad,minY-pad,Math.max(1,maxX-minX)+pad*2,Math.max(1,maxY-minY)+pad*2);
         const row=document.createElement('tr'); for (const value of [word.text,Math.round(minX),Math.round(minY),Math.round(maxX-minX),Math.round(maxY-minY)]) { const cell=document.createElement('td'); cell.textContent=String(value); row.appendChild(cell); } tbody.appendChild(row);
       }
-      previewWrap.hidden=false; table.hidden=words.length===0;
-      status.textContent=`ページ${pageNumber}: 4分割OCRで${words.length}件の文字要素を取得しました。`;
+      previewWrap.hidden=false; table.hidden=candidates.length===0;
+      status.textContent=`ページ${pageNumber}: OCR ${words.length}件から、1〜99の番号候補を${candidates.length}件抽出しました。`;
     } catch(err) { console.error(err); status.textContent=`OCRエラー: ${err.message}`; }
     finally { button.disabled=false; }
   }
