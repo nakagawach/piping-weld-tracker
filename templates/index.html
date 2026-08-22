@@ -18,6 +18,8 @@
     .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
     label { display: grid; gap: 6px; }
     input[type="number"] { width: 90px; min-height: 40px; padding: 0 10px; border: 1px solid #b7b7b7; border-radius: 8px; font: inherit; }
+    input[type="date"], select, textarea { box-sizing: border-box; width: 100%; padding: 9px 10px; border: 1px solid #b7b7b7; border-radius: 8px; font: inherit; background: #fff; }
+    textarea { min-height: 110px; resize: vertical; }
     button { min-height: 44px; padding: 0 18px; border: 1px solid #b7b7b7; border-radius: 8px; background: #fff; color: #202124; font: inherit; cursor: pointer; }
     button.primary { border-color: #1967d2; background: #1967d2; color: #fff; font-weight: 700; }
     button:disabled { cursor: wait; opacity: 0.55; }
@@ -31,6 +33,13 @@
     .candidate { font-weight: 700; }
     .summary { margin-top: 12px; padding: 12px; border-radius: 8px; background: #f7f8fa; }
     .note { color: #5f6368; font-size: 0.9rem; }
+    dialog { width: min(520px, calc(100vw - 32px)); border: 0; border-radius: 12px; padding: 0; box-shadow: 0 10px 36px rgba(0,0,0,.25); }
+    dialog::backdrop { background: rgba(0,0,0,.35); }
+    .dialog-body { padding: 20px; }
+    .dialog-body h3 { margin: 0 0 16px; }
+    .dialog-fields { display: grid; gap: 14px; }
+    .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+    .mode-badge { font-weight: 700; }
     @media (max-width: 700px) { .pdf-frame { height: 560px; } }
   </style>
 </head>
@@ -42,20 +51,21 @@
   <p class="fallback">PDFが枠内に表示されない場合は <a href="{{ url_for('static', filename='sample.pdf') }}" target="_blank" rel="noopener noreferrer">新しいタブでPDFを開く</a> を使ってください。</p>
 
   <section class="detect-panel" aria-labelledby="ocr-title">
-    <h2 id="ocr-title">番号マップ保存テスト（6,000px基準）</h2>
-    <p>保存済み番号マップがあればDBから読み込みます。未登録ページだけ長辺6,000pxでGoogle Visionへ1回送信し、青枠をそのまま修正・追加して確定保存できます。</p>
+    <h2 id="ocr-title">溶接進捗入力テスト（6,000px基準）</h2>
+    <p>保存済み番号マップはそのまま利用します。番号配置が確定したページでは、図面上の番号をクリックして施工状態・完了日・作業内容を入力できます。</p>
     <div class="controls">
       <label>対象ページ<input id="page-number" type="number" min="1" value="1" inputmode="numeric"></label>
       <button id="ocr-button" type="button">再OCR</button>
       <button id="reset-button" type="button" disabled>読込時に戻す</button>
-      <button id="save-button" class="primary" type="button" disabled>確定して保存</button>
+      <button id="save-button" class="primary" type="button" disabled>番号配置を確定保存</button>
+      <button id="mode-button" type="button" disabled>番号配置を編集</button>
     </div>
     <p id="ocr-status" aria-live="polite">保存済みデータを確認します…</p>
     <div class="summary" id="candidate-summary" hidden></div>
     <div class="preview-wrap" id="preview-wrap" hidden><canvas id="preview-canvas"></canvas></div>
     <div class="result-wrap">
       <table id="candidate-table" hidden>
-        <thead><tr><th>由来</th><th>番号</th><th>X</th><th>Y</th></tr></thead>
+        <thead><tr><th>由来</th><th>番号</th><th>状態</th><th>X</th><th>Y</th></tr></thead>
         <tbody id="candidate-body"></tbody>
       </table>
     </div>
@@ -65,9 +75,31 @@
         <tbody id="ocr-body"></tbody>
       </table>
     </div>
-    <p class="note">青枠クリックで番号変更・削除、空いている位置をクリックして手動追加できます。「確定して保存」でこのページの番号と座標だけをSQLiteへ保存します。保存済みページを再表示するとGoogle Vision APIは呼びません。</p>
+    <p class="note"><span class="mode-badge" id="mode-label">番号配置編集</span>。番号配置を確定保存すると施工入力モードへ切り替わります。施工入力モードでは番号をクリックすると状態・完了日・作業内容を保存できます。</p>
   </section>
 </section></main>
+
+<dialog id="progress-dialog">
+  <form id="progress-form" method="dialog" class="dialog-body">
+    <h3 id="progress-title">施工情報</h3>
+    <div class="dialog-fields">
+      <label>状態
+        <select id="progress-status">
+          <option value="未着手">未着手</option>
+          <option value="施工中">施工中</option>
+          <option value="完了">完了</option>
+        </select>
+      </label>
+      <label>完了日<input id="progress-date" type="date"></label>
+      <label>作業内容<textarea id="progress-detail" maxlength="1000" placeholder="何を実施したかを入力"></textarea></label>
+    </div>
+    <div class="dialog-actions">
+      <button id="progress-cancel" type="button">キャンセル</button>
+      <button id="progress-save" class="primary" type="submit">保存</button>
+    </div>
+  </form>
+</dialog>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
 (() => {
@@ -75,10 +107,15 @@
   const ocrUrl = {{ url_for('ocr') | tojson }};
   const numberMapUrl = {{ url_for('get_number_map') | tojson }};
   const saveNumberMapUrl = {{ url_for('save_number_map') | tojson }};
+  const progressUrl = {{ url_for('get_weld_progress') | tojson }};
+  const saveProgressUrl = {{ url_for('save_weld_progress') | tojson }};
+
   const pageInput = document.getElementById('page-number');
   const ocrButton = document.getElementById('ocr-button');
   const resetButton = document.getElementById('reset-button');
   const saveButton = document.getElementById('save-button');
+  const modeButton = document.getElementById('mode-button');
+  const modeLabel = document.getElementById('mode-label');
   const status = document.getElementById('ocr-status');
   const previewWrap = document.getElementById('preview-wrap');
   const canvas = document.getElementById('preview-canvas');
@@ -89,12 +126,23 @@
   const ocrBody = document.getElementById('ocr-body');
   const sourceCanvas = document.createElement('canvas');
 
+  const progressDialog = document.getElementById('progress-dialog');
+  const progressForm = document.getElementById('progress-form');
+  const progressTitle = document.getElementById('progress-title');
+  const progressStatus = document.getElementById('progress-status');
+  const progressDate = document.getElementById('progress-date');
+  const progressDetail = document.getElementById('progress-detail');
+  const progressCancel = document.getElementById('progress-cancel');
+
   let pdfDocument = null;
   let words = [];
   let originalCandidates = [];
   let candidates = [];
   let nextId = 1;
   let currentPageNumber = 1;
+  let editMode = true;
+  let currentProgressTarget = null;
+  let progressByPosition = new Map();
 
   if (!window.pdfjsLib) {
     status.textContent = 'PDF解析ライブラリを読み込めませんでした。';
@@ -124,12 +172,33 @@
     return list.map(item => ({ ...item, bbox: { ...item.bbox } }));
   }
 
+  function candidateCenter(item) {
+    return {
+      x: Math.round(item.bbox.x + item.bbox.w / 2),
+      y: Math.round(item.bbox.y + item.bbox.h / 2),
+    };
+  }
+
+  function positionKey(item) {
+    const center = candidateCenter(item);
+    return `${center.x}:${center.y}`;
+  }
+
   function eventPoint(event) {
     const rect = canvas.getBoundingClientRect();
     return {
       x: (event.clientX - rect.left) * canvas.width / rect.width,
       y: (event.clientY - rect.top) * canvas.height / rect.height,
     };
+  }
+
+  function setMode(nextEditMode) {
+    editMode = nextEditMode;
+    modeLabel.textContent = editMode ? '番号配置編集' : '施工入力';
+    modeButton.textContent = editMode ? '施工入力へ戻る' : '番号配置を編集';
+    saveButton.disabled = !editMode || candidates.length === 0;
+    resetButton.disabled = !editMode || originalCandidates.length === 0;
+    drawCandidates();
   }
 
   function drawCandidates() {
@@ -140,9 +209,14 @@
     for (const item of candidates) {
       const { x, y, w, h } = item.bbox;
       const pad = Math.max(4, Math.max(w, h) * 0.35);
+      const progress = progressByPosition.get(positionKey(item));
+      let color = item.source === 'manual' ? '#188038' : '#1967d2';
+      if (!editMode && progress?.status === '完了') color = '#188038';
+      if (!editMode && progress?.status === '施工中') color = '#b06000';
+
       ctx.save();
-      ctx.strokeStyle = item.source === 'manual' ? '#188038' : '#1967d2';
-      ctx.fillStyle = item.source === 'manual' ? '#188038' : '#1967d2';
+      ctx.strokeStyle = color;
+      ctx.fillStyle = color;
       ctx.lineWidth = Math.max(2, canvas.width / 1000);
       ctx.strokeRect(x - pad, y - pad, w + pad * 2, h + pad * 2);
       ctx.font = `${Math.max(20, h * 0.8)}px system-ui`;
@@ -151,14 +225,16 @@
     }
 
     candidateSummary.hidden = false;
-    candidateSummary.textContent = `現在の番号候補: ${candidates.length}件（OCR ${candidates.filter(c => c.source === 'ocr').length}件 / 手動 ${candidates.filter(c => c.source === 'manual').length}件）`;
+    const progressCount = [...progressByPosition.values()].filter(item => item.status !== '未着手').length;
+    candidateSummary.textContent = `番号 ${candidates.length}件 / 施工情報入力済み ${progressCount}件 / モード: ${editMode ? '番号配置編集' : '施工入力'}`;
 
     candidateBody.replaceChildren();
     for (const item of candidates) {
       const row = document.createElement('tr');
-      const centerX = Math.round(item.bbox.x + item.bbox.w / 2);
-      const centerY = Math.round(item.bbox.y + item.bbox.h / 2);
-      for (const value of [item.source === 'manual' ? '手動' : 'OCR', item.number, centerX, centerY]) {
+      const center = candidateCenter(item);
+      const progress = progressByPosition.get(positionKey(item));
+      const values = [item.source === 'manual' ? '手動' : 'OCR', item.number, progress?.status || '未着手', center.x, center.y];
+      for (const value of values) {
         const cell = document.createElement('td');
         cell.textContent = String(value);
         row.appendChild(cell);
@@ -166,7 +242,7 @@
       candidateBody.appendChild(row);
     }
     candidateTable.hidden = candidates.length === 0;
-    saveButton.disabled = false;
+    modeButton.disabled = candidates.length === 0;
   }
 
   function findCandidateAt(point) {
@@ -189,7 +265,6 @@
     if (!Number.isInteger(pageNumber) || pageNumber < 1 || pageNumber > pdf.numPages) {
       throw new Error(`ページ番号は1〜${pdf.numPages}で指定してください。`);
     }
-
     const page = await pdf.getPage(pageNumber);
     const base = page.getViewport({ scale: 1 });
     const targetLongSide = 6000;
@@ -208,20 +283,42 @@
       id: nextId++,
       number: String(item.number),
       source: item.source === 'ocr' ? 'ocr' : 'manual',
-      bbox: {
-        x: Number(item.bbox.x), y: Number(item.bbox.y),
-        w: Number(item.bbox.w), h: Number(item.bbox.h),
-      },
+      bbox: { x: Number(item.bbox.x), y: Number(item.bbox.y), w: Number(item.bbox.w), h: Number(item.bbox.h) },
     }));
     originalCandidates = cloneCandidates(candidates);
     drawCandidates();
-    resetButton.disabled = false;
+  }
+
+  async function loadProgress(pageNumber) {
+    progressByPosition = new Map();
+    const response = await fetch(`${progressUrl}?page=${encodeURIComponent(pageNumber)}`, { cache: 'no-store' });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || '施工情報を取得できませんでした。');
+    for (const item of (Array.isArray(result.items) ? result.items : [])) {
+      progressByPosition.set(`${item.x}:${item.y}`, item);
+    }
+  }
+
+  function openProgress(target) {
+    const key = positionKey(target);
+    const existing = progressByPosition.get(key) || { status: '未着手', completedDate: '', workDetail: '' };
+    currentProgressTarget = target;
+    progressTitle.textContent = `番号 ${target.number} の施工情報`;
+    progressStatus.value = existing.status || '未着手';
+    progressDate.value = existing.completedDate || '';
+    progressDetail.value = existing.workDetail || '';
+    progressDialog.showModal();
   }
 
   canvas.addEventListener('click', event => {
     if (previewWrap.hidden || !sourceCanvas.width) return;
     const point = eventPoint(event);
     const target = findCandidateAt(point);
+
+    if (!editMode) {
+      if (target) openProgress(target);
+      return;
+    }
 
     if (target) {
       const entered = window.prompt(`番号 ${target.number} を変更します。\n削除する場合は空欄にしてOKを押してください。`, target.number);
@@ -256,7 +353,41 @@
     status.textContent = `番号 ${number} を手動追加しました。保存するまではDBへ反映されません。`;
   });
 
+  progressCancel.addEventListener('click', () => progressDialog.close());
+
+  progressForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (!currentProgressTarget) return;
+    const center = candidateCenter(currentProgressTarget);
+    try {
+      status.textContent = `番号 ${currentProgressTarget.number} の施工情報を保存しています…`;
+      const response = await fetch(saveProgressUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pageNumber: currentPageNumber,
+          number: currentProgressTarget.number,
+          x: center.x,
+          y: center.y,
+          status: progressStatus.value,
+          completedDate: progressDate.value,
+          workDetail: progressDetail.value,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || '施工情報の保存に失敗しました。');
+      progressByPosition.set(`${result.x}:${result.y}`, result);
+      progressDialog.close();
+      drawCandidates();
+      status.textContent = `番号 ${result.number} の施工情報を保存しました（${result.status}）。`;
+    } catch (err) {
+      console.error(err);
+      status.textContent = `施工情報保存エラー: ${err.message}`;
+    }
+  });
+
   resetButton.addEventListener('click', () => {
+    if (!editMode) return;
     candidates = cloneCandidates(originalCandidates);
     nextId = Math.max(1, ...candidates.map(c => c.id + 1));
     drawCandidates();
@@ -278,11 +409,12 @@
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || '保存に失敗しました。');
       originalCandidates = cloneCandidates(candidates);
-      status.textContent = `保存しました。ページ${result.pageNumber}・${result.count}件。再読み込みしてもこの配置を復元します。`;
+      await loadProgress(currentPageNumber);
+      setMode(false);
+      status.textContent = `番号配置を保存しました。ページ${result.pageNumber}・${result.count}件。番号をクリックすると施工情報を入力できます。`;
     } catch (err) {
       console.error(err);
       status.textContent = `保存エラー: ${err.message}`;
-    } finally {
       saveButton.disabled = false;
     }
   }
@@ -291,17 +423,19 @@
     ocrButton.disabled = true;
     resetButton.disabled = true;
     saveButton.disabled = true;
+    modeButton.disabled = true;
     ocrTable.hidden = true;
     ocrBody.replaceChildren();
     words = [];
     candidates = [];
     originalCandidates = [];
+    progressByPosition = new Map();
+    setMode(true);
 
     try {
       const pageNumber = Number(pageInput.value);
       status.textContent = 'PDFを6,000px基準で画像化しています…';
       await renderPage(pageNumber);
-
       const dataUrl = sourceCanvas.toDataURL('image/jpeg', 0.90);
       const imageBase64 = dataUrl.split(',', 2)[1];
       const approxRequestMiB = imageBase64.length / 1024 / 1024;
@@ -338,8 +472,9 @@
       }
 
       adoptCandidates(detected);
+      setMode(true);
       ocrTable.hidden = words.length === 0;
-      status.textContent = `API 1回: OCR ${words.length}件、番号候補 ${candidates.length}件。補正後に「確定して保存」を押してください。`;
+      status.textContent = `API 1回: OCR ${words.length}件、番号候補 ${candidates.length}件。補正後に番号配置を確定保存してください。`;
     } catch (err) {
       console.error(err);
       status.textContent = `OCRエラー: ${err.message}`;
@@ -352,6 +487,7 @@
     ocrButton.disabled = true;
     resetButton.disabled = true;
     saveButton.disabled = true;
+    modeButton.disabled = true;
     candidateSummary.hidden = true;
     candidateTable.hidden = true;
     ocrTable.hidden = true;
@@ -360,6 +496,7 @@
     words = [];
     candidates = [];
     originalCandidates = [];
+    progressByPosition = new Map();
 
     try {
       const pageNumber = Number(pageInput.value);
@@ -371,7 +508,9 @@
 
       if (result.saved && Array.isArray(result.candidates) && result.candidates.length) {
         adoptCandidates(result.candidates);
-        status.textContent = `保存済み番号マップ ${candidates.length}件を読み込みました。Google Vision APIは使用していません。`;
+        await loadProgress(pageNumber);
+        setMode(false);
+        status.textContent = `保存済み番号マップ ${candidates.length}件を読み込みました。番号をクリックすると施工情報を入力できます。Google Vision APIは使用していません。`;
         return;
       }
 
@@ -386,6 +525,7 @@
 
   saveButton.addEventListener('click', saveCurrentMap);
   ocrButton.addEventListener('click', runOcr);
+  modeButton.addEventListener('click', () => setMode(!editMode));
   pageInput.addEventListener('change', loadPage);
 
   loadPage();
