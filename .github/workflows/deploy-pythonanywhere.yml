@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/deploy-automation
+      - feature/google-vision-ocr
   workflow_dispatch:
 
 permissions:
@@ -23,6 +24,7 @@ jobs:
       - name: Upload weld app files
         env:
           PYTHONANYWHERE_API_TOKEN: ${{ secrets.PYTHONANYWHERE_API_TOKEN }}
+          GOOGLE_VISION_API_KEY: ${{ secrets.GOOGLE_VISION_API_KEY }}
         shell: bash
         run: |
           set -euo pipefail
@@ -53,6 +55,13 @@ jobs:
             done < <(find static -type f -print0)
           fi
 
+          if [ -z "${GOOGLE_VISION_API_KEY:-}" ]; then
+            echo "GOOGLE_VISION_API_KEY secret is not configured."
+            exit 1
+          fi
+          printf 'GOOGLE_VISION_API_KEY=%s\n' "$GOOGLE_VISION_API_KEY" > .env
+          upload_file ".env"
+
       - name: Reload PythonAnywhere web app
         env:
           PYTHONANYWHERE_API_TOKEN: ${{ secrets.PYTHONANYWHERE_API_TOKEN }}
@@ -73,13 +82,12 @@ jobs:
             if curl --fail --silent --show-error --location \
               --max-time 20 \
               "https://nakagawach.pythonanywhere.com/weld/" \
-              | grep -q "溶接進捗管理"; then
+              | grep -q "Google Vision OCR テスト"; then
               echo "Smoke test passed."
               exit 0
             fi
             echo "Smoke test attempt ${attempt} failed; retrying..."
             sleep 5
           done
-
           echo "Smoke test failed after retries."
           exit 1
