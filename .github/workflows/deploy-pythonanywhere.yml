@@ -3,6 +3,7 @@ name: Deploy weld app to PythonAnywhere
 on:
   push:
     branches:
+      - feature/deploy-automation
       - feature/pdf-number-detection
   workflow_dispatch:
 
@@ -73,7 +74,7 @@ jobs:
             if curl --fail --silent --show-error --location \
               --max-time 20 \
               "https://nakagawach.pythonanywhere.com/weld/" \
-              | grep -q "番号候補の検出テスト"; then
+              | grep -q "溶接進捗管理"; then
               echo "Smoke test passed."
               exit 0
             fi
