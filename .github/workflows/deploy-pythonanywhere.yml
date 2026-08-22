@@ -5,6 +5,7 @@ on:
     branches:
       - feature/deploy-automation
       - feature/google-vision-ocr
+      - feature/manual-number-map-editor
   workflow_dispatch:
 
 permissions:
@@ -82,7 +83,7 @@ jobs:
             if curl --fail --silent --show-error --location \
               --max-time 20 \
               "https://nakagawach.pythonanywhere.com/weld/" \
-              | grep -q "Google Vision OCR テスト"; then
+              | grep -q "丸囲み番号候補の抽出テスト"; then
               echo "Smoke test passed."
               exit 0
             fi
