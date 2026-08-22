@@ -11,6 +11,7 @@ on:
       - feature/manual-number-correction-ui
       - feature/always-edit-entry-ui
       - feature/save-number-map
+      - feature/weld-progress-entry
   workflow_dispatch:
 
 permissions:
@@ -86,12 +87,13 @@ jobs:
           set -euo pipefail
           for attempt in 1 2 3 4 5 6; do
             page_ok=false
-            api_ok=false
+            map_ok=false
+            progress_ok=false
 
             if curl --fail --silent --show-error --location \
               --max-time 20 \
               "https://nakagawach.pythonanywhere.com/weld/" \
-              | grep -q "番号マップ保存テスト"; then
+              | grep -q "溶接進捗入力テスト"; then
               page_ok=true
             fi
 
@@ -99,10 +101,17 @@ jobs:
               --max-time 20 \
               "https://nakagawach.pythonanywhere.com/weld/number-map?page=1" \
               | grep -q '"pageNumber":1'; then
-              api_ok=true
+              map_ok=true
             fi
 
-            if [ "$page_ok" = true ] && [ "$api_ok" = true ]; then
+            if curl --fail --silent --show-error --location \
+              --max-time 20 \
+              "https://nakagawach.pythonanywhere.com/weld/weld-progress?page=1" \
+              | grep -q '"pageNumber":1'; then
+              progress_ok=true
+            fi
+
+            if [ "$page_ok" = true ] && [ "$map_ok" = true ] && [ "$progress_ok" = true ]; then
               echo "Smoke test passed."
               exit 0
             fi
