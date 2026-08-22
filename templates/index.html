@@ -8,12 +8,9 @@
     body { margin: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f6f8; color: #202124; }
     main { max-width: 1200px; margin: 0 auto; padding: 24px 16px 40px; }
     .card { background: #fff; border: 1px solid #ddd; border-radius: 12px; padding: 20px; }
-    h1 { margin: 0 0 8px; }
-    h2 { margin: 26px 0 8px; font-size: 1.2rem; }
-    p { line-height: 1.7; }
+    h1 { margin: 0 0 8px; } h2 { margin: 26px 0 8px; font-size: 1.2rem; } p { line-height: 1.7; }
     .pdf-frame { width: 100%; height: 760px; border: 1px solid #ccc; border-radius: 8px; background: #eee; }
-    .fallback { margin-top: 12px; }
-    .fallback a { color: #0b57d0; }
+    .fallback { margin-top: 12px; } .fallback a { color: #0b57d0; }
     .detect-panel { margin-top: 22px; padding-top: 4px; border-top: 1px solid #e0e0e0; }
     .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
     label { display: grid; gap: 6px; }
@@ -32,128 +29,80 @@
   </style>
 </head>
 <body>
-  <main>
-    <section class="card">
-      <h1>溶接進捗管理</h1>
-      <p>PythonAnywhere内に保存したPDFを表示しています。</p>
-      <iframe class="pdf-frame" src="{{ url_for('static', filename='sample.pdf') }}" title="配管図サンプルPDF"></iframe>
-      <p class="fallback">PDFが枠内に表示されない場合は <a href="{{ url_for('static', filename='sample.pdf') }}" target="_blank" rel="noopener noreferrer">新しいタブでPDFを開く</a> を使ってください。</p>
+<main><section class="card">
+  <h1>溶接進捗管理</h1>
+  <p>PythonAnywhere内に保存したPDFを表示しています。</p>
+  <iframe class="pdf-frame" src="{{ url_for('static', filename='sample.pdf') }}" title="配管図サンプルPDF"></iframe>
+  <p class="fallback">PDFが枠内に表示されない場合は <a href="{{ url_for('static', filename='sample.pdf') }}" target="_blank" rel="noopener noreferrer">新しいタブでPDFを開く</a> を使ってください。</p>
+  <section class="detect-panel" aria-labelledby="ocr-title">
+    <h2 id="ocr-title">Google Vision OCR 4分割テスト</h2>
+    <p>指定した1ページを4分割し、各領域を拡大してGoogle Vision OCRへ送ります。取得座標は元のページ画像へ戻して重ねます。</p>
+    <div class="controls">
+      <label>対象ページ<input id="page-number" type="number" min="1" value="1" inputmode="numeric"></label>
+      <button id="ocr-button" type="button">4分割でOCR</button>
+    </div>
+    <p id="ocr-status" aria-live="polite">未実行</p>
+    <div class="preview-wrap" id="preview-wrap" hidden><canvas id="preview-canvas"></canvas></div>
+    <div class="result-wrap"><table id="ocr-table" hidden><thead><tr><th>文字</th><th>X</th><th>Y</th><th>幅</th><th>高さ</th></tr></thead><tbody id="ocr-body"></tbody></table></div>
+    <p class="note">A/BテストとしてOCR方法だけを4分割へ変更しています。結果はDBへ保存しません。</p>
+  </section>
+</section></main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+(() => {
+  const pdfUrl = {{ url_for('static', filename='sample.pdf') | tojson }};
+  const ocrUrl = {{ url_for('ocr') | tojson }};
+  const button = document.getElementById('ocr-button'), status = document.getElementById('ocr-status');
+  const pageInput = document.getElementById('page-number'), previewWrap = document.getElementById('preview-wrap');
+  const canvas = document.getElementById('preview-canvas'), table = document.getElementById('ocr-table'), tbody = document.getElementById('ocr-body');
+  if (!window.pdfjsLib) { status.textContent = 'PDF解析ライブラリを読み込めませんでした。'; button.disabled = true; return; }
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-      <section class="detect-panel" aria-labelledby="ocr-title">
-        <h2 id="ocr-title">Google Vision OCR テスト</h2>
-        <p>指定した1ページだけを高解像度で画像化し、Google Visionから文字と座標を取得します。今回は丸囲み番号の判定や保存はまだ行いません。</p>
-        <div class="controls">
-          <label>対象ページ<input id="page-number" type="number" min="1" value="1" inputmode="numeric"></label>
-          <button id="ocr-button" type="button">このページをOCR</button>
-        </div>
-        <p id="ocr-status" aria-live="polite">未実行</p>
-        <div class="preview-wrap" id="preview-wrap" hidden><canvas id="preview-canvas"></canvas></div>
-        <div class="result-wrap">
-          <table id="ocr-table" hidden>
-            <thead><tr><th>文字</th><th>X</th><th>Y</th><th>幅</th><th>高さ</th></tr></thead>
-            <tbody id="ocr-body"></tbody>
-          </table>
-        </div>
-        <p class="note">座標はOCRに送ったページ画像のピクセル座標です。取得結果はこのテストではDBへ保存しません。</p>
-      </section>
-    </section>
-  </main>
+  async function ocrTile(sourceCanvas, sx, sy, sw, sh, tileNo) {
+    const tile = document.createElement('canvas');
+    const targetLongSide = 3000;
+    const factor = targetLongSide / Math.max(sw, sh);
+    tile.width = Math.round(sw * factor); tile.height = Math.round(sh * factor);
+    tile.getContext('2d').drawImage(sourceCanvas, sx, sy, sw, sh, 0, 0, tile.width, tile.height);
+    status.textContent = `Google Visionで4分割OCR中… ${tileNo}/4`;
+    const imageBase64 = tile.toDataURL('image/jpeg', 0.95).split(',', 2)[1];
+    const response = await fetch(ocrUrl, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ pageNumber:Number(pageInput.value), imageBase64 }) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || `領域${tileNo}のOCRに失敗しました。`);
+    return (Array.isArray(result.words) ? result.words : []).map(word => {
+      const vertices = (word.vertices || []).map(v => ({ x: sx + (Number(v.x)||0) / factor, y: sy + (Number(v.y)||0) / factor }));
+      return { text: word.text, vertices };
+    });
+  }
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-  <script>
-    (() => {
-      const pdfUrl = {{ url_for('static', filename='sample.pdf') | tojson }};
-      const ocrUrl = {{ url_for('ocr') | tojson }};
-      const button = document.getElementById('ocr-button');
-      const status = document.getElementById('ocr-status');
-      const pageInput = document.getElementById('page-number');
-      const previewWrap = document.getElementById('preview-wrap');
-      const canvas = document.getElementById('preview-canvas');
-      const table = document.getElementById('ocr-table');
-      const tbody = document.getElementById('ocr-body');
-
-      if (!window.pdfjsLib) {
-        status.textContent = 'PDF解析ライブラリを読み込めませんでした。';
-        button.disabled = true;
-        return;
+  async function runOcr() {
+    button.disabled = true; table.hidden = true; previewWrap.hidden = true; tbody.replaceChildren();
+    try {
+      status.textContent = '対象ページを画像化しています…';
+      const pdf = await pdfjsLib.getDocument(pdfUrl).promise;
+      const pageNumber = Number(pageInput.value); pageInput.max = String(pdf.numPages);
+      if (!Number.isInteger(pageNumber) || pageNumber < 1 || pageNumber > pdf.numPages) { status.textContent = `ページ番号は1〜${pdf.numPages}で指定してください。`; return; }
+      const page = await pdf.getPage(pageNumber), base = page.getViewport({scale:1});
+      const scale = Math.min(5, 4000 / Math.max(base.width, base.height)), viewport = page.getViewport({scale});
+      canvas.width = Math.ceil(viewport.width); canvas.height = Math.ceil(viewport.height);
+      const ctx = canvas.getContext('2d'); await page.render({canvasContext:ctx, viewport}).promise;
+      const halfW = canvas.width / 2, halfH = canvas.height / 2;
+      const tiles = [[0,0,halfW,halfH],[halfW,0,canvas.width-halfW,halfH],[0,halfH,halfW,canvas.height-halfH],[halfW,halfH,canvas.width-halfW,canvas.height-halfH]];
+      const words = [];
+      for (let i=0;i<tiles.length;i++) words.push(...await ocrTile(canvas, ...tiles[i], i+1));
+      ctx.lineWidth = Math.max(1, canvas.width/1000); ctx.strokeStyle = '#d93025';
+      for (const word of words) {
+        const xs=word.vertices.map(v=>v.x), ys=word.vertices.map(v=>v.y); if (!xs.length) continue;
+        const minX=Math.min(...xs), maxX=Math.max(...xs), minY=Math.min(...ys), maxY=Math.max(...ys);
+        ctx.strokeRect(minX,minY,Math.max(1,maxX-minX),Math.max(1,maxY-minY));
+        const row=document.createElement('tr'); for (const value of [word.text,Math.round(minX),Math.round(minY),Math.round(maxX-minX),Math.round(maxY-minY)]) { const cell=document.createElement('td'); cell.textContent=String(value); row.appendChild(cell); } tbody.appendChild(row);
       }
-      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-
-      async function runOcr() {
-        button.disabled = true;
-        table.hidden = true;
-        previewWrap.hidden = true;
-        tbody.replaceChildren();
-        try {
-          status.textContent = '対象ページを高解像度で画像化しています…';
-          const pdf = await pdfjsLib.getDocument(pdfUrl).promise;
-          const pageNumber = Number(pageInput.value);
-          pageInput.max = String(pdf.numPages);
-          if (!Number.isInteger(pageNumber) || pageNumber < 1 || pageNumber > pdf.numPages) {
-            status.textContent = `ページ番号は1〜${pdf.numPages}で指定してください。`;
-            return;
-          }
-
-          const page = await pdf.getPage(pageNumber);
-          const baseViewport = page.getViewport({ scale: 1 });
-          // A/B test: only increase the OCR render resolution. Keep the API and UI logic unchanged.
-          const maxSide = 4000;
-          const scale = Math.min(5, maxSide / Math.max(baseViewport.width, baseViewport.height));
-          const viewport = page.getViewport({ scale });
-          canvas.width = Math.ceil(viewport.width);
-          canvas.height = Math.ceil(viewport.height);
-          const ctx = canvas.getContext('2d');
-          await page.render({ canvasContext: ctx, viewport }).promise;
-
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
-          const imageBase64 = dataUrl.split(',', 2)[1];
-          status.textContent = `Google VisionでOCRしています… (${canvas.width}×${canvas.height}px)`;
-
-          const response = await fetch(ocrUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ pageNumber, imageBase64 }),
-          });
-          const result = await response.json();
-          if (!response.ok) {
-            const detail = result.detail ? ` ${typeof result.detail === 'string' ? result.detail : JSON.stringify(result.detail)}` : '';
-            throw new Error((result.error || 'OCRに失敗しました。') + detail);
-          }
-
-          const words = Array.isArray(result.words) ? result.words : [];
-          ctx.lineWidth = Math.max(1, canvas.width / 1000);
-          ctx.strokeStyle = '#d93025';
-
-          for (const word of words) {
-            const vertices = Array.isArray(word.vertices) ? word.vertices : [];
-            const xs = vertices.map(v => Number(v.x) || 0);
-            const ys = vertices.map(v => Number(v.y) || 0);
-            const minX = Math.min(...xs); const maxX = Math.max(...xs);
-            const minY = Math.min(...ys); const maxY = Math.max(...ys);
-            ctx.strokeRect(minX, minY, Math.max(1, maxX - minX), Math.max(1, maxY - minY));
-
-            const row = document.createElement('tr');
-            for (const value of [word.text, minX, minY, maxX - minX, maxY - minY]) {
-              const cell = document.createElement('td');
-              cell.textContent = String(value);
-              row.appendChild(cell);
-            }
-            tbody.appendChild(row);
-          }
-
-          previewWrap.hidden = false;
-          table.hidden = words.length === 0;
-          status.textContent = `ページ${pageNumber}: ${words.length}件の文字要素を取得しました（OCR画像 ${canvas.width}×${canvas.height}px）。`;
-        } catch (err) {
-          console.error(err);
-          status.textContent = `OCRエラー: ${err.message}`;
-        } finally {
-          button.disabled = false;
-        }
-      }
-
-      button.addEventListener('click', runOcr);
-    })();
-  </script>
-</body>
-</html>
+      previewWrap.hidden=false; table.hidden=words.length===0;
+      status.textContent=`ページ${pageNumber}: 4分割OCRで${words.length}件の文字要素を取得しました。`;
+    } catch(err) { console.error(err); status.textContent=`OCRエラー: ${err.message}`; }
+    finally { button.disabled=false; }
+  }
+  button.addEventListener('click', runOcr);
+})();
+</script>
+</body></html>
