@@ -8,6 +8,7 @@ on:
       - feature/manual-number-map-editor
       - feature/drawing-region-ocr
       - feature/highres-single-ocr
+      - feature/manual-number-correction-ui
   workflow_dispatch:
 
 permissions:
@@ -85,7 +86,7 @@ jobs:
             if curl --fail --silent --show-error --location \
               --max-time 20 \
               "https://nakagawach.pythonanywhere.com/weld/" \
-              | grep -q "高解像度 全ページ1回 OCR テスト"; then
+              | grep -q "番号候補 補正UIテスト"; then
               echo "Smoke test passed."
               exit 0
             fi
