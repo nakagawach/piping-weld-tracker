@@ -13,6 +13,7 @@ APP_DIR = Path(__file__).resolve().parent
 DATA_DIR = APP_DIR / "data"
 DB_PATH = DATA_DIR / "weld_tracker.sqlite3"
 DRAWING_KEY = "sample.pdf"
+PROGRESS_STATUSES = {"未着手", "施工中", "完了"}
 
 
 def get_google_vision_api_key():
@@ -58,6 +59,26 @@ def get_db_connection():
     connection.execute(
         "CREATE INDEX IF NOT EXISTS idx_number_map_page ON number_map (drawing_key, page_number, item_order)"
     )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS weld_progress (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            drawing_key TEXT NOT NULL,
+            page_number INTEGER NOT NULL,
+            position_x INTEGER NOT NULL,
+            position_y INTEGER NOT NULL,
+            number_text TEXT NOT NULL,
+            status TEXT NOT NULL,
+            completed_date TEXT NOT NULL DEFAULT '',
+            work_detail TEXT NOT NULL DEFAULT '',
+            updated_at TEXT NOT NULL,
+            UNIQUE(drawing_key, page_number, position_x, position_y)
+        )
+        """
+    )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_weld_progress_page ON weld_progress (drawing_key, page_number)"
+    )
     return connection
 
 
@@ -92,6 +113,44 @@ def normalize_candidate(raw_candidate):
         "number": number_text,
         "source": source,
         "bbox": {"x": x, "y": y, "w": width, "h": height},
+    }
+
+
+def normalize_progress(body):
+    page_number = body.get("pageNumber")
+    number_text = str(body.get("number", "")).strip()
+    status = str(body.get("status", "")).strip()
+    completed_date = str(body.get("completedDate", "")).strip()
+    work_detail = str(body.get("workDetail", "")).strip()
+
+    if not isinstance(page_number, int) or page_number < 1:
+        raise ValueError("ページ番号が不正です。")
+    if not number_text.isdigit() or not 1 <= int(number_text) <= 99:
+        raise ValueError("番号は1〜99で指定してください。")
+    if status not in PROGRESS_STATUSES:
+        raise ValueError("状態が不正です。")
+    if len(work_detail) > 1000:
+        raise ValueError("作業内容は1000文字以内で入力してください。")
+    if completed_date:
+        try:
+            datetime.strptime(completed_date, "%Y-%m-%d")
+        except ValueError as exc:
+            raise ValueError("完了日の形式が不正です。") from exc
+
+    try:
+        position_x = int(round(float(body.get("x"))))
+        position_y = int(round(float(body.get("y"))))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("座標が不正です。") from exc
+
+    return {
+        "pageNumber": page_number,
+        "number": number_text,
+        "status": status,
+        "completedDate": completed_date,
+        "workDetail": work_detail,
+        "x": position_x,
+        "y": position_y,
     }
 
 
@@ -195,6 +254,78 @@ def save_number_map():
         "savedAt": saved_at,
         "count": len(candidates),
     })
+
+
+@app.get("/weld-progress")
+def get_weld_progress():
+    page_number = flask_request.args.get("page", type=int)
+    if page_number is None or page_number < 1:
+        return jsonify({"error": "ページ番号が不正です。"}), 400
+
+    with get_db_connection() as connection:
+        rows = connection.execute(
+            """
+            SELECT position_x, position_y, number_text, status, completed_date, work_detail, updated_at
+            FROM weld_progress
+            WHERE drawing_key = ? AND page_number = ?
+            ORDER BY id
+            """,
+            (DRAWING_KEY, page_number),
+        ).fetchall()
+
+    items = [
+        {
+            "x": row["position_x"],
+            "y": row["position_y"],
+            "number": row["number_text"],
+            "status": row["status"],
+            "completedDate": row["completed_date"],
+            "workDetail": row["work_detail"],
+            "updatedAt": row["updated_at"],
+        }
+        for row in rows
+    ]
+    return jsonify({"drawingKey": DRAWING_KEY, "pageNumber": page_number, "items": items})
+
+
+@app.post("/weld-progress")
+def save_weld_progress():
+    body = flask_request.get_json(silent=True) or {}
+    try:
+        item = normalize_progress(body)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    updated_at = datetime.now(timezone.utc).isoformat()
+    with get_db_connection() as connection:
+        connection.execute(
+            """
+            INSERT INTO weld_progress (
+                drawing_key, page_number, position_x, position_y, number_text,
+                status, completed_date, work_detail, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(drawing_key, page_number, position_x, position_y)
+            DO UPDATE SET
+                number_text = excluded.number_text,
+                status = excluded.status,
+                completed_date = excluded.completed_date,
+                work_detail = excluded.work_detail,
+                updated_at = excluded.updated_at
+            """,
+            (
+                DRAWING_KEY,
+                item["pageNumber"],
+                item["x"],
+                item["y"],
+                item["number"],
+                item["status"],
+                item["completedDate"],
+                item["workDetail"],
+                updated_at,
+            ),
+        )
+
+    return jsonify({**item, "updatedAt": updated_at})
 
 
 @app.post("/ocr")
