@@ -19,6 +19,7 @@
     label { display: grid; gap: 6px; }
     input[type="number"] { width: 90px; min-height: 40px; padding: 0 10px; border: 1px solid #b7b7b7; border-radius: 8px; font: inherit; }
     button { min-height: 44px; padding: 0 18px; border: 1px solid #b7b7b7; border-radius: 8px; background: #fff; color: #202124; font: inherit; cursor: pointer; }
+    button.primary { border-color: #1967d2; background: #1967d2; color: #fff; font-weight: 700; }
     button:disabled { cursor: wait; opacity: 0.55; }
     #ocr-status { min-height: 1.5em; margin: 12px 0; }
     .preview-wrap { margin-top: 12px; overflow: auto; max-height: 760px; border: 1px solid #ddd; border-radius: 8px; background: #fff; }
@@ -41,14 +42,15 @@
   <p class="fallback">PDFが枠内に表示されない場合は <a href="{{ url_for('static', filename='sample.pdf') }}" target="_blank" rel="noopener noreferrer">新しいタブでPDFを開く</a> を使ってください。</p>
 
   <section class="detect-panel" aria-labelledby="ocr-title">
-    <h2 id="ocr-title">番号エントリー画面テスト（6,000px基準）</h2>
-    <p>画面を開くと自動で全ページを長辺6,000pxでGoogle Visionへ1回送信します。青枠をクリックすると番号変更・削除、番号のない位置をクリックすると手動追加できます。</p>
+    <h2 id="ocr-title">番号マップ保存テスト（6,000px基準）</h2>
+    <p>保存済み番号マップがあればDBから読み込みます。未登録ページだけ長辺6,000pxでGoogle Visionへ1回送信し、青枠をそのまま修正・追加して確定保存できます。</p>
     <div class="controls">
       <label>対象ページ<input id="page-number" type="number" min="1" value="1" inputmode="numeric"></label>
       <button id="ocr-button" type="button">再OCR</button>
-      <button id="reset-button" type="button" disabled>OCR結果に戻す</button>
+      <button id="reset-button" type="button" disabled>読込時に戻す</button>
+      <button id="save-button" class="primary" type="button" disabled>確定して保存</button>
     </div>
-    <p id="ocr-status" aria-live="polite">自動OCRを開始します…</p>
+    <p id="ocr-status" aria-live="polite">保存済みデータを確認します…</p>
     <div class="summary" id="candidate-summary" hidden></div>
     <div class="preview-wrap" id="preview-wrap" hidden><canvas id="preview-canvas"></canvas></div>
     <div class="result-wrap">
@@ -63,7 +65,7 @@
         <tbody id="ocr-body"></tbody>
       </table>
     </div>
-    <p class="note">常時編集モードです。青枠クリックで変更・削除、空いている位置をクリックして番号を追加できます。このテストではDBへ保存しません。Google Vision APIは初回表示時に1回、再OCR時に1回リクエストします。</p>
+    <p class="note">青枠クリックで番号変更・削除、空いている位置をクリックして手動追加できます。「確定して保存」でこのページの番号と座標だけをSQLiteへ保存します。保存済みページを再表示するとGoogle Vision APIは呼びません。</p>
   </section>
 </section></main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -71,9 +73,12 @@
 (() => {
   const pdfUrl = {{ url_for('static', filename='sample.pdf') | tojson }};
   const ocrUrl = {{ url_for('ocr') | tojson }};
+  const numberMapUrl = {{ url_for('get_number_map') | tojson }};
+  const saveNumberMapUrl = {{ url_for('save_number_map') | tojson }};
   const pageInput = document.getElementById('page-number');
   const ocrButton = document.getElementById('ocr-button');
   const resetButton = document.getElementById('reset-button');
+  const saveButton = document.getElementById('save-button');
   const status = document.getElementById('ocr-status');
   const previewWrap = document.getElementById('preview-wrap');
   const canvas = document.getElementById('preview-canvas');
@@ -84,14 +89,17 @@
   const ocrBody = document.getElementById('ocr-body');
   const sourceCanvas = document.createElement('canvas');
 
+  let pdfDocument = null;
   let words = [];
   let originalCandidates = [];
   let candidates = [];
   let nextId = 1;
+  let currentPageNumber = 1;
 
   if (!window.pdfjsLib) {
     status.textContent = 'PDF解析ライブラリを読み込めませんでした。';
     ocrButton.disabled = true;
+    saveButton.disabled = true;
     return;
   }
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -158,6 +166,7 @@
       candidateBody.appendChild(row);
     }
     candidateTable.hidden = candidates.length === 0;
+    saveButton.disabled = false;
   }
 
   function findCandidateAt(point) {
@@ -167,6 +176,46 @@
       if (point.x >= b.x - extra && point.x <= b.x + b.w + extra && point.y >= b.y - extra && point.y <= b.y + b.h + extra) return candidates[i];
     }
     return null;
+  }
+
+  async function ensurePdf() {
+    if (!pdfDocument) pdfDocument = await pdfjsLib.getDocument(pdfUrl).promise;
+    pageInput.max = String(pdfDocument.numPages);
+    return pdfDocument;
+  }
+
+  async function renderPage(pageNumber) {
+    const pdf = await ensurePdf();
+    if (!Number.isInteger(pageNumber) || pageNumber < 1 || pageNumber > pdf.numPages) {
+      throw new Error(`ページ番号は1〜${pdf.numPages}で指定してください。`);
+    }
+
+    const page = await pdf.getPage(pageNumber);
+    const base = page.getViewport({ scale: 1 });
+    const targetLongSide = 6000;
+    const scale = Math.min(8, targetLongSide / Math.max(base.width, base.height));
+    const viewport = page.getViewport({ scale });
+    sourceCanvas.width = canvas.width = Math.ceil(viewport.width);
+    sourceCanvas.height = canvas.height = Math.ceil(viewport.height);
+    await page.render({ canvasContext: sourceCanvas.getContext('2d'), viewport }).promise;
+    currentPageNumber = pageNumber;
+    previewWrap.hidden = false;
+  }
+
+  function adoptCandidates(list) {
+    nextId = 1;
+    candidates = list.map(item => ({
+      id: nextId++,
+      number: String(item.number),
+      source: item.source === 'ocr' ? 'ocr' : 'manual',
+      bbox: {
+        x: Number(item.bbox.x), y: Number(item.bbox.y),
+        w: Number(item.bbox.w), h: Number(item.bbox.h),
+      },
+    }));
+    originalCandidates = cloneCandidates(candidates);
+    drawCandidates();
+    resetButton.disabled = false;
   }
 
   canvas.addEventListener('click', event => {
@@ -180,7 +229,7 @@
       if (String(entered).trim() === '') {
         candidates = candidates.filter(item => item.id !== target.id);
         drawCandidates();
-        status.textContent = `番号 ${target.number} を候補から削除しました。空いている位置をクリックすると追加できます。`;
+        status.textContent = `番号 ${target.number} を候補から削除しました。保存するまではDBへ反映されません。`;
         return;
       }
       const number = normalizedNumber(entered);
@@ -190,7 +239,7 @@
       }
       target.number = number;
       drawCandidates();
-      status.textContent = `番号を ${number} に変更しました。`;
+      status.textContent = `番号を ${number} に変更しました。保存するまではDBへ反映されません。`;
       return;
     }
 
@@ -204,54 +253,65 @@
     const size = Math.max(28, canvas.width / 120);
     candidates.push({ id: nextId++, number, source: 'manual', bbox: { x: point.x - size / 2, y: point.y - size / 2, w: size, h: size } });
     drawCandidates();
-    status.textContent = `番号 ${number} を手動追加しました。`;
+    status.textContent = `番号 ${number} を手動追加しました。保存するまではDBへ反映されません。`;
   });
 
   resetButton.addEventListener('click', () => {
     candidates = cloneCandidates(originalCandidates);
     nextId = Math.max(1, ...candidates.map(c => c.id + 1));
     drawCandidates();
-    status.textContent = '手動補正を破棄し、OCR直後の番号候補に戻しました。';
+    status.textContent = '画面を読み込んだ時点の番号候補に戻しました。';
   });
+
+  async function saveCurrentMap() {
+    saveButton.disabled = true;
+    try {
+      status.textContent = '番号マップを保存しています…';
+      const response = await fetch(saveNumberMapUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pageNumber: currentPageNumber,
+          candidates: candidates.map(item => ({ number: item.number, source: item.source, bbox: item.bbox })),
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || '保存に失敗しました。');
+      originalCandidates = cloneCandidates(candidates);
+      status.textContent = `保存しました。ページ${result.pageNumber}・${result.count}件。再読み込みしてもこの配置を復元します。`;
+    } catch (err) {
+      console.error(err);
+      status.textContent = `保存エラー: ${err.message}`;
+    } finally {
+      saveButton.disabled = false;
+    }
+  }
 
   async function runOcr() {
     ocrButton.disabled = true;
     resetButton.disabled = true;
-    previewWrap.hidden = true;
-    candidateSummary.hidden = true;
-    candidateTable.hidden = true;
+    saveButton.disabled = true;
     ocrTable.hidden = true;
-    candidateBody.replaceChildren();
     ocrBody.replaceChildren();
     words = [];
     candidates = [];
     originalCandidates = [];
 
     try {
-      status.textContent = 'PDFを6,000px基準で画像化しています…';
-      const pdf = await pdfjsLib.getDocument(pdfUrl).promise;
       const pageNumber = Number(pageInput.value);
-      pageInput.max = String(pdf.numPages);
-      if (!Number.isInteger(pageNumber) || pageNumber < 1 || pageNumber > pdf.numPages) {
-        status.textContent = `ページ番号は1〜${pdf.numPages}で指定してください。`;
-        return;
-      }
-
-      const page = await pdf.getPage(pageNumber);
-      const base = page.getViewport({ scale: 1 });
-      const targetLongSide = 6000;
-      const scale = Math.min(8, targetLongSide / Math.max(base.width, base.height));
-      const viewport = page.getViewport({ scale });
-      sourceCanvas.width = canvas.width = Math.ceil(viewport.width);
-      sourceCanvas.height = canvas.height = Math.ceil(viewport.height);
-      await page.render({ canvasContext: sourceCanvas.getContext('2d'), viewport }).promise;
+      status.textContent = 'PDFを6,000px基準で画像化しています…';
+      await renderPage(pageNumber);
 
       const dataUrl = sourceCanvas.toDataURL('image/jpeg', 0.90);
       const imageBase64 = dataUrl.split(',', 2)[1];
       const approxRequestMiB = imageBase64.length / 1024 / 1024;
       status.textContent = `Google VisionでOCRしています… (${canvas.width}×${canvas.height}px / 約${approxRequestMiB.toFixed(1)}MiB / API 1回)`;
 
-      const response = await fetch(ocrUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pageNumber, imageBase64 }) });
+      const response = await fetch(ocrUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pageNumber, imageBase64 }),
+      });
       const result = await response.json();
       if (!response.ok) {
         const detail = result.detail ? ` ${typeof result.detail === 'string' ? result.detail : JSON.stringify(result.detail)}` : '';
@@ -259,12 +319,12 @@
       }
 
       words = Array.isArray(result.words) ? result.words : [];
-      nextId = 1;
+      const detected = [];
       for (const word of words) {
         const bbox = bboxFromVertices(Array.isArray(word.vertices) ? word.vertices : []);
         if (!bbox) continue;
         const number = normalizedNumber(word.text);
-        if (number) candidates.push({ id: nextId++, number, source: 'ocr', bbox });
+        if (number) detected.push({ number, source: 'ocr', bbox });
 
         const row = document.createElement('tr');
         if (number) row.className = 'candidate';
@@ -277,12 +337,9 @@
         ocrBody.appendChild(row);
       }
 
-      originalCandidates = cloneCandidates(candidates);
-      drawCandidates();
-      previewWrap.hidden = false;
+      adoptCandidates(detected);
       ocrTable.hidden = words.length === 0;
-      resetButton.disabled = false;
-      status.textContent = `API 1回: OCR ${words.length}件、番号候補 ${candidates.length}件。青枠クリックで修正・削除、空いている位置クリックで追加できます。`;
+      status.textContent = `API 1回: OCR ${words.length}件、番号候補 ${candidates.length}件。補正後に「確定して保存」を押してください。`;
     } catch (err) {
       console.error(err);
       status.textContent = `OCRエラー: ${err.message}`;
@@ -291,8 +348,47 @@
     }
   }
 
+  async function loadPage() {
+    ocrButton.disabled = true;
+    resetButton.disabled = true;
+    saveButton.disabled = true;
+    candidateSummary.hidden = true;
+    candidateTable.hidden = true;
+    ocrTable.hidden = true;
+    candidateBody.replaceChildren();
+    ocrBody.replaceChildren();
+    words = [];
+    candidates = [];
+    originalCandidates = [];
+
+    try {
+      const pageNumber = Number(pageInput.value);
+      status.textContent = '保存済み番号マップを確認しています…';
+      await renderPage(pageNumber);
+      const response = await fetch(`${numberMapUrl}?page=${encodeURIComponent(pageNumber)}`, { cache: 'no-store' });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || '保存済みデータを取得できませんでした。');
+
+      if (result.saved && Array.isArray(result.candidates) && result.candidates.length) {
+        adoptCandidates(result.candidates);
+        status.textContent = `保存済み番号マップ ${candidates.length}件を読み込みました。Google Vision APIは使用していません。`;
+        return;
+      }
+
+      status.textContent = '保存済み番号マップがないため初回OCRを実行します…';
+      await runOcr();
+    } catch (err) {
+      console.error(err);
+      status.textContent = `読込エラー: ${err.message}`;
+      ocrButton.disabled = false;
+    }
+  }
+
+  saveButton.addEventListener('click', saveCurrentMap);
   ocrButton.addEventListener('click', runOcr);
-  runOcr();
+  pageInput.addEventListener('change', loadPage);
+
+  loadPage();
 })();
 </script>
 </body>
