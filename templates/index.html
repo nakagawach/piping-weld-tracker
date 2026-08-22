@@ -5,25 +5,93 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>溶接進捗管理</title>
   <style>
-    body { margin: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f6f8; color: #202124; }
-    main { max-width: 1200px; margin: 0 auto; padding: 24px 16px 40px; }
-    .card { background: #fff; border: 1px solid #ddd; border-radius: 12px; padding: 20px; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f5f6f8;
+      color: #202124;
+    }
+    main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px 16px 40px;
+    }
+    .card {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 12px;
+      padding: 20px;
+    }
     h1 { margin: 0 0 8px; }
     h2 { margin: 24px 0 8px; font-size: 1.2rem; }
     p { line-height: 1.7; }
-    .pdf-frame { width: 100%; height: 680px; border: 1px solid #ccc; border-radius: 8px; background: #eee; }
+    .pdf-frame {
+      width: 100%;
+      height: 680px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      background: #eee;
+    }
     .fallback { margin-top: 12px; }
     .fallback a { color: #0b57d0; }
-    .detect-panel { margin-top: 20px; padding-top: 4px; border-top: 1px solid #e0e0e0; }
-    button { min-height: 44px; padding: 0 18px; border: 1px solid #b7b7b7; border-radius: 8px; background: #fff; color: #202124; font: inherit; cursor: pointer; }
+    .detect-panel {
+      margin-top: 20px;
+      padding-top: 4px;
+      border-top: 1px solid #e0e0e0;
+    }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: end;
+    }
+    label {
+      display: grid;
+      gap: 6px;
+    }
+    input[type="number"] {
+      width: 90px;
+      min-height: 40px;
+      padding: 0 10px;
+      border: 1px solid #b7b7b7;
+      border-radius: 8px;
+      font: inherit;
+    }
+    button {
+      min-height: 44px;
+      padding: 0 18px;
+      border: 1px solid #b7b7b7;
+      border-radius: 8px;
+      background: #fff;
+      color: #202124;
+      font: inherit;
+      cursor: pointer;
+    }
     button:disabled { cursor: wait; opacity: 0.6; }
     #detect-status { margin: 12px 0; min-height: 1.5em; }
-    .candidate-table-wrap { overflow-x: auto; }
+    .preview-wrap {
+      margin-top: 12px;
+      overflow: auto;
+      max-height: 700px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      background: #fff;
+    }
+    #preview-canvas {
+      display: block;
+      max-width: 100%;
+      height: auto;
+    }
+    .candidate-table-wrap { overflow-x: auto; margin-top: 12px; }
     table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
-    th, td { padding: 8px 10px; border-bottom: 1px solid #e2e2e2; text-align: left; white-space: nowrap; }
+    th, td {
+      padding: 8px 10px;
+      border-bottom: 1px solid #e2e2e2;
+      text-align: left;
+      white-space: nowrap;
+    }
     th { background: #f7f7f7; }
     .note { color: #5f6368; font-size: 0.9rem; }
-    .diagnostic { margin-top: 14px; padding: 12px; border-radius: 8px; background: #f7f7f7; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.85rem; }
     @media (max-width: 700px) { .pdf-frame { height: 520px; } }
   </style>
 </head>
@@ -32,120 +100,193 @@
     <section class="card">
       <h1>溶接進捗管理</h1>
       <p>PythonAnywhere内に保存したPDFを表示しています。</p>
-      <iframe class="pdf-frame" src="{{ url_for('static', filename='sample.pdf') }}" title="配管図サンプルPDF"></iframe>
-      <p class="fallback">PDFが枠内に表示されない場合は <a href="{{ url_for('static', filename='sample.pdf') }}" target="_blank" rel="noopener noreferrer">新しいタブでPDFを開く</a> を使ってください。</p>
+      <iframe
+        class="pdf-frame"
+        src="{{ url_for('static', filename='sample.pdf') }}"
+        title="配管図サンプルPDF"
+      ></iframe>
+      <p class="fallback">
+        PDFが枠内に表示されない場合は
+        <a href="{{ url_for('static', filename='sample.pdf') }}" target="_blank" rel="noopener noreferrer">新しいタブでPDFを開く</a>
+        を使ってください。
+      </p>
 
       <section class="detect-panel" aria-labelledby="detect-title">
-        <h2 id="detect-title">番号候補の検出テスト</h2>
-        <p>PDFの文字情報から、1〜99の数字を含む文字要素と座標を抽出します。まだ「溶接番号」とは確定しません。</p>
-        <button id="detect-button" type="button">番号候補を検出</button>
-        <p id="detect-status" aria-live="polite">未実行</p>
+        <h2 id="detect-title">画像から円候補を検出</h2>
+        <p>このPDFは文字情報を持っていなかったため、PDFページを画像化して円形の記号候補を探します。APIは使いません。まず円の位置だけを確認します。</p>
+        <div class="controls">
+          <label>
+            対象ページ
+            <input id="page-number" type="number" min="1" value="1" inputmode="numeric">
+          </label>
+          <button id="detect-button" type="button">円候補を検出</button>
+        </div>
+        <p id="detect-status" aria-live="polite">OpenCV.jsを準備しています…</p>
+
+        <div class="preview-wrap" id="preview-wrap" hidden>
+          <canvas id="preview-canvas"></canvas>
+        </div>
+
         <div class="candidate-table-wrap">
           <table id="candidate-table" hidden>
-            <thead><tr><th>番号</th><th>ページ</th><th>X位置</th><th>Y位置</th><th>元の文字列</th></tr></thead>
+            <thead>
+              <tr>
+                <th>候補</th>
+                <th>ページ</th>
+                <th>X位置</th>
+                <th>Y位置</th>
+                <th>半径</th>
+              </tr>
+            </thead>
             <tbody id="candidate-body"></tbody>
           </table>
         </div>
-        <div id="diagnostic" class="diagnostic" hidden></div>
-        <p class="note">座標は各PDFページの左上を基準にした割合です。候補が多い場合は先頭200件まで表示します。</p>
+        <p class="note">赤い円が画像処理で検出した候補です。この段階では溶接番号かどうか、円内の数字が何番かは判定しません。</p>
       </section>
     </section>
   </main>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script async src="https://docs.opencv.org/4.10.0/opencv.js" id="opencv-script"></script>
   <script>
     (() => {
       const pdfUrl = {{ url_for('static', filename='sample.pdf') | tojson }};
       const button = document.getElementById('detect-button');
       const status = document.getElementById('detect-status');
+      const pageInput = document.getElementById('page-number');
+      const previewWrap = document.getElementById('preview-wrap');
+      const previewCanvas = document.getElementById('preview-canvas');
       const table = document.getElementById('candidate-table');
       const body = document.getElementById('candidate-body');
-      const diagnostic = document.getElementById('diagnostic');
 
-      if (!window.pdfjsLib) {
-        status.textContent = 'PDF解析ライブラリを読み込めませんでした。';
-        button.disabled = true;
-        return;
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+      let opencvReady = false;
+
+      function markOpenCvReady() {
+        opencvReady = true;
+        status.textContent = '準備完了。対象ページを指定して検出してください。';
       }
 
-      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      const waitForOpenCv = window.setInterval(() => {
+        if (!window.cv) return;
+        if (cv.Mat) {
+          window.clearInterval(waitForOpenCv);
+          markOpenCvReady();
+          return;
+        }
+        if (typeof cv.then === 'function') {
+          window.clearInterval(waitForOpenCv);
+          cv.then(markOpenCvReady);
+        }
+      }, 250);
 
-      function escapeHtml(value) {
-        return String(value)
-          .replaceAll('&', '&amp;')
-          .replaceAll('<', '&lt;')
-          .replaceAll('>', '&gt;')
-          .replaceAll('"', '&quot;')
-          .replaceAll("'", '&#039;');
-      }
+      async function detectCircles() {
+        if (!opencvReady) {
+          status.textContent = 'OpenCV.jsの読み込み待ちです。少し待ってから再実行してください。';
+          return;
+        }
 
-      async function detectNumberCandidates() {
         button.disabled = true;
         table.hidden = true;
-        diagnostic.hidden = true;
+        previewWrap.hidden = true;
         body.replaceChildren();
-        status.textContent = 'PDFを解析しています…';
+
+        let src = null;
+        let gray = null;
+        let blurred = null;
+        let circles = null;
 
         try {
+          status.textContent = 'PDFページを画像化しています…';
           const pdf = await pdfjsLib.getDocument(pdfUrl).promise;
+          const pageNumber = Number(pageInput.value);
+
+          if (!Number.isInteger(pageNumber) || pageNumber < 1 || pageNumber > pdf.numPages) {
+            status.textContent = `ページ番号は1〜${pdf.numPages}で指定してください。`;
+            pageInput.max = String(pdf.numPages);
+            return;
+          }
+          pageInput.max = String(pdf.numPages);
+
+          const page = await pdf.getPage(pageNumber);
+          const viewport = page.getViewport({ scale: 2 });
+          previewCanvas.width = Math.ceil(viewport.width);
+          previewCanvas.height = Math.ceil(viewport.height);
+          const ctx = previewCanvas.getContext('2d', { willReadFrequently: true });
+          await page.render({ canvasContext: ctx, viewport }).promise;
+
+          status.textContent = '画像から円候補を探しています…';
+          src = cv.imread(previewCanvas);
+          gray = new cv.Mat();
+          blurred = new cv.Mat();
+          circles = new cv.Mat();
+
+          cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+          cv.medianBlur(gray, blurred, 5);
+          cv.HoughCircles(
+            blurred,
+            circles,
+            cv.HOUGH_GRADIENT,
+            1,
+            24,
+            120,
+            32,
+            8,
+            60
+          );
+
           const candidates = [];
-          const textSamples = [];
-          let totalTextItems = 0;
-
-          for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
-            status.textContent = `解析中: ${pageNumber} / ${pdf.numPages} ページ`;
-            const page = await pdf.getPage(pageNumber);
-            const viewport = page.getViewport({ scale: 1 });
-            const textContent = await page.getTextContent();
-
-            for (const item of textContent.items) {
-              const text = String(item.str || '').trim();
-              if (!text) continue;
-              totalTextItems += 1;
-              if (textSamples.length < 40) textSamples.push(`P${pageNumber}: ${text}`);
-
-              const matches = [...text.matchAll(/(?<!\d)([1-9][0-9]?)(?!\d)/g)];
-              if (matches.length === 0) continue;
-
-              const transformed = pdfjsLib.Util.transform(viewport.transform, item.transform);
-              const xPercent = Math.max(0, Math.min(100, (transformed[4] / viewport.width) * 100));
-              const yPercent = Math.max(0, Math.min(100, (transformed[5] / viewport.height) * 100));
-
-              for (const match of matches) {
-                candidates.push({ number: Number(match[1]), page: pageNumber, x: xPercent, y: yPercent, source: text });
-              }
-            }
+          for (let i = 0; i < circles.cols; i += 1) {
+            const x = circles.data32F[i * 3];
+            const y = circles.data32F[i * 3 + 1];
+            const radius = circles.data32F[i * 3 + 2];
+            candidates.push({ x, y, radius });
           }
 
-          const displayCandidates = candidates.slice(0, 200);
-          for (const candidate of displayCandidates) {
+          ctx.lineWidth = Math.max(2, previewCanvas.width / 700);
+          ctx.strokeStyle = '#d93025';
+          ctx.fillStyle = '#d93025';
+          ctx.font = `${Math.max(14, previewCanvas.width / 65)}px sans-serif`;
+
+          candidates.forEach((candidate, index) => {
+            ctx.beginPath();
+            ctx.arc(candidate.x, candidate.y, candidate.radius, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.fillText(String(index + 1), candidate.x + candidate.radius + 4, candidate.y);
+
             const row = document.createElement('tr');
-            row.innerHTML = `<td>${candidate.number}</td><td>${candidate.page}</td><td>${candidate.x.toFixed(1)}%</td><td>${candidate.y.toFixed(1)}%</td><td>${escapeHtml(candidate.source)}</td>`;
+            const xPercent = (candidate.x / previewCanvas.width) * 100;
+            const yPercent = (candidate.y / previewCanvas.height) * 100;
+            row.innerHTML = `
+              <td>${index + 1}</td>
+              <td>${pageNumber}</td>
+              <td>${xPercent.toFixed(1)}%</td>
+              <td>${yPercent.toFixed(1)}%</td>
+              <td>${candidate.radius.toFixed(1)}px</td>
+            `;
             body.appendChild(row);
-          }
+          });
 
-          table.hidden = displayCandidates.length === 0;
-          diagnostic.hidden = false;
-          diagnostic.textContent = `PDF文字要素: ${totalTextItems}件\n\n取得文字列の例:\n${textSamples.length ? textSamples.join('\n') : '（文字情報なし）'}`;
-
-          if (totalTextItems === 0) {
-            status.textContent = 'このPDFから文字情報自体を取得できませんでした。画像・図形主体のPDFと考えられます。';
-          } else if (candidates.length === 0) {
-            status.textContent = `文字情報は${totalTextItems}件ありますが、1〜99の数字候補は検出できませんでした。`;
-          } else if (candidates.length > 200) {
-            status.textContent = `${candidates.length}件の数字候補を検出しました。先頭200件を表示しています。`;
-          } else {
-            status.textContent = `${candidates.length}件の数字候補を検出しました。`;
-          }
+          previewWrap.hidden = false;
+          table.hidden = candidates.length === 0;
+          status.textContent = candidates.length === 0
+            ? `ページ${pageNumber}: 円候補は検出できませんでした。`
+            : `ページ${pageNumber}: 円候補を${candidates.length}件検出しました。`;
         } catch (error) {
           console.error(error);
-          status.textContent = 'PDFの解析に失敗しました。PDF自体の表示には影響ありません。';
+          status.textContent = '画像解析に失敗しました。PDF表示自体には影響ありません。';
         } finally {
+          if (src) src.delete();
+          if (gray) gray.delete();
+          if (blurred) blurred.delete();
+          if (circles) circles.delete();
           button.disabled = false;
         }
       }
 
-      button.addEventListener('click', detectNumberCandidates);
+      button.addEventListener('click', detectCircles);
     })();
   </script>
 </body>
