@@ -40,11 +40,11 @@
   <p class="fallback">PDFが枠内に表示されない場合は <a href="{{ url_for('static', filename='sample.pdf') }}" target="_blank" rel="noopener noreferrer">新しいタブでPDFを開く</a> を使ってください。</p>
 
   <section class="detect-panel" aria-labelledby="ocr-title">
-    <h2 id="ocr-title">高解像度 全ページ1回 OCR テスト</h2>
+    <h2 id="ocr-title">高解像度 全ページ1回 OCR テスト（6,000px基準）</h2>
     <p>指定ページ全体を長辺6,000pxを目安に画像化し、Google Visionへ1回だけ送信します。全文字と座標を取得し、1〜99の数字候補だけ青枠で重ねます。</p>
     <div class="controls">
       <label>対象ページ<input id="page-number" type="number" min="1" value="1" inputmode="numeric"></label>
-      <button id="ocr-button" type="button">高解像度で1回OCR</button>
+      <button id="ocr-button" type="button">6,000pxで1回OCR</button>
     </div>
     <p id="ocr-status" aria-live="polite">未実行</p>
     <div class="preview-wrap" id="preview-wrap" hidden><canvas id="preview-canvas"></canvas></div>
@@ -54,7 +54,7 @@
         <tbody id="ocr-body"></tbody>
       </table>
     </div>
-    <p class="note">Google Vision APIはボタン1回につき1リクエストです。DB保存・FlaskのVision処理・既存PDF表示は変更していません。</p>
+    <p class="note">現在のテスト基準は「全ページ・長辺6,000px・Google Vision 1回」です。DB保存・FlaskのVision処理・既存PDF表示は変更していません。</p>
   </section>
 </section></main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
