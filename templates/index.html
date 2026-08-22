@@ -8,18 +8,21 @@
     body { margin: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f6f8; color: #202124; }
     main { max-width: 1200px; margin: 0 auto; padding: 24px 16px 40px; }
     .card { background: #fff; border: 1px solid #ddd; border-radius: 12px; padding: 20px; }
-    h1 { margin: 0 0 8px; } h2 { margin: 26px 0 8px; font-size: 1.2rem; } p { line-height: 1.7; }
+    h1 { margin: 0 0 8px; }
+    h2 { margin: 26px 0 8px; font-size: 1.2rem; }
+    p { line-height: 1.7; }
     .pdf-frame { width: 100%; height: 760px; border: 1px solid #ccc; border-radius: 8px; background: #eee; }
-    .fallback { margin-top: 12px; } .fallback a { color: #0b57d0; }
+    .fallback { margin-top: 12px; }
+    .fallback a { color: #0b57d0; }
     .detect-panel { margin-top: 22px; padding-top: 4px; border-top: 1px solid #e0e0e0; }
     .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
     label { display: grid; gap: 6px; }
     input[type="number"] { width: 90px; min-height: 40px; padding: 0 10px; border: 1px solid #b7b7b7; border-radius: 8px; font: inherit; }
     button { min-height: 44px; padding: 0 18px; border: 1px solid #b7b7b7; border-radius: 8px; background: #fff; color: #202124; font: inherit; cursor: pointer; }
-    button:disabled { cursor: wait; opacity: 0.6; }
+    button:disabled { cursor: not-allowed; opacity: 0.55; }
     #ocr-status { min-height: 1.5em; margin: 12px 0; }
-    .preview-wrap { margin-top: 12px; overflow: auto; max-height: 720px; border: 1px solid #ddd; border-radius: 8px; background: #fff; }
-    #preview-canvas { display: block; max-width: 100%; height: auto; }
+    .preview-wrap { margin-top: 12px; overflow: auto; max-height: 760px; border: 1px solid #ddd; border-radius: 8px; background: #fff; }
+    #preview-canvas { display: block; max-width: 100%; height: auto; touch-action: none; cursor: crosshair; }
     .result-wrap { overflow-x: auto; margin-top: 12px; max-height: 420px; }
     table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
     th, td { padding: 7px 9px; border-bottom: 1px solid #e2e2e2; text-align: left; white-space: nowrap; }
@@ -34,17 +37,20 @@
   <p>PythonAnywhere内に保存したPDFを表示しています。</p>
   <iframe class="pdf-frame" src="{{ url_for('static', filename='sample.pdf') }}" title="配管図サンプルPDF"></iframe>
   <p class="fallback">PDFが枠内に表示されない場合は <a href="{{ url_for('static', filename='sample.pdf') }}" target="_blank" rel="noopener noreferrer">新しいタブでPDFを開く</a> を使ってください。</p>
+
   <section class="detect-panel" aria-labelledby="ocr-title">
-    <h2 id="ocr-title">丸囲み番号候補の抽出テスト</h2>
-    <p>4分割Google Vision OCRの結果から、単独の1〜99だけを番号候補として抽出します。今回は円形判定はまだ行わず、候補抽出だけを確認します。</p>
+    <h2 id="ocr-title">図面領域指定 OCR テスト</h2>
+    <p>ページを表示したあと、図面上をドラッグしてOCRしたい範囲を指定してください。選択範囲だけをGoogle Visionへ1回送信し、1〜99の数字候補を青枠で表示します。</p>
     <div class="controls">
       <label>対象ページ<input id="page-number" type="number" min="1" value="1" inputmode="numeric"></label>
-      <button id="ocr-button" type="button">番号候補を抽出</button>
+      <button id="show-page-button" type="button">ページを表示</button>
+      <button id="ocr-button" type="button" disabled>選択範囲をOCR</button>
+      <button id="clear-button" type="button" disabled>範囲をクリア</button>
     </div>
-    <p id="ocr-status" aria-live="polite">未実行</p>
+    <p id="ocr-status" aria-live="polite">まず対象ページを表示してください。</p>
     <div class="preview-wrap" id="preview-wrap" hidden><canvas id="preview-canvas"></canvas></div>
     <div class="result-wrap"><table id="ocr-table" hidden><thead><tr><th>番号候補</th><th>X</th><th>Y</th><th>幅</th><th>高さ</th></tr></thead><tbody id="ocr-body"></tbody></table></div>
-    <p class="note">青枠が1〜99の番号候補です。DB保存・既存PDF表示・Google Vision API側の処理は変更していません。</p>
+    <p class="note">このテストではGoogle Vision APIは「選択範囲をOCR」を1回押すごとに1回だけ呼び出します。DB保存や既存PDF表示は変更していません。</p>
   </section>
 </section></main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -52,10 +58,27 @@
 (() => {
   const pdfUrl = {{ url_for('static', filename='sample.pdf') | tojson }};
   const ocrUrl = {{ url_for('ocr') | tojson }};
-  const button = document.getElementById('ocr-button'), status = document.getElementById('ocr-status');
-  const pageInput = document.getElementById('page-number'), previewWrap = document.getElementById('preview-wrap');
-  const canvas = document.getElementById('preview-canvas'), table = document.getElementById('ocr-table'), tbody = document.getElementById('ocr-body');
-  if (!window.pdfjsLib) { status.textContent = 'PDF解析ライブラリを読み込めませんでした。'; button.disabled = true; return; }
+  const pageInput = document.getElementById('page-number');
+  const showPageButton = document.getElementById('show-page-button');
+  const ocrButton = document.getElementById('ocr-button');
+  const clearButton = document.getElementById('clear-button');
+  const status = document.getElementById('ocr-status');
+  const previewWrap = document.getElementById('preview-wrap');
+  const canvas = document.getElementById('preview-canvas');
+  const table = document.getElementById('ocr-table');
+  const tbody = document.getElementById('ocr-body');
+  const sourceCanvas = document.createElement('canvas');
+
+  let sourceReady = false;
+  let selection = null;
+  let dragStart = null;
+  let dragging = false;
+
+  if (!window.pdfjsLib) {
+    status.textContent = 'PDF解析ライブラリを読み込めませんでした。';
+    showPageButton.disabled = true;
+    return;
+  }
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
   function isNumberCandidate(text) {
@@ -65,53 +88,189 @@
     return value >= 1 && value <= 99;
   }
 
-  async function ocrTile(sourceCanvas, sx, sy, sw, sh, tileNo) {
-    const tile = document.createElement('canvas');
-    const targetLongSide = 3000;
-    const factor = targetLongSide / Math.max(sw, sh);
-    tile.width = Math.round(sw * factor); tile.height = Math.round(sh * factor);
-    tile.getContext('2d').drawImage(sourceCanvas, sx, sy, sw, sh, 0, 0, tile.width, tile.height);
-    status.textContent = `Google Visionで4分割OCR中… ${tileNo}/4`;
-    const imageBase64 = tile.toDataURL('image/jpeg', 0.95).split(',', 2)[1];
-    const response = await fetch(ocrUrl, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ pageNumber:Number(pageInput.value), imageBase64 }) });
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error || `領域${tileNo}のOCRに失敗しました。`);
-    return (Array.isArray(result.words) ? result.words : []).map(word => {
-      const vertices = (word.vertices || []).map(v => ({ x: sx + (Number(v.x)||0) / factor, y: sy + (Number(v.y)||0) / factor }));
-      return { text: word.text, vertices };
-    });
+  function redraw(selectionOnly = false) {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(sourceCanvas, 0, 0);
+    if (selection) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(25, 103, 210, 0.10)';
+      ctx.strokeStyle = '#1967d2';
+      ctx.lineWidth = Math.max(2, canvas.width / 900);
+      ctx.setLineDash([12, 8]);
+      ctx.fillRect(selection.x, selection.y, selection.w, selection.h);
+      ctx.strokeRect(selection.x, selection.y, selection.w, selection.h);
+      ctx.restore();
+    }
+    if (selectionOnly) return;
   }
 
-  async function runOcr() {
-    button.disabled = true; table.hidden = true; previewWrap.hidden = true; tbody.replaceChildren();
-    try {
-      status.textContent = '対象ページを画像化しています…';
-      const pdf = await pdfjsLib.getDocument(pdfUrl).promise;
-      const pageNumber = Number(pageInput.value); pageInput.max = String(pdf.numPages);
-      if (!Number.isInteger(pageNumber) || pageNumber < 1 || pageNumber > pdf.numPages) { status.textContent = `ページ番号は1〜${pdf.numPages}で指定してください。`; return; }
-      const page = await pdf.getPage(pageNumber), base = page.getViewport({scale:1});
-      const scale = Math.min(5, 4000 / Math.max(base.width, base.height)), viewport = page.getViewport({scale});
-      canvas.width = Math.ceil(viewport.width); canvas.height = Math.ceil(viewport.height);
-      const ctx = canvas.getContext('2d'); await page.render({canvasContext:ctx, viewport}).promise;
-      const halfW = canvas.width / 2, halfH = canvas.height / 2;
-      const tiles = [[0,0,halfW,halfH],[halfW,0,canvas.width-halfW,halfH],[0,halfH,halfW,canvas.height-halfH],[halfW,halfH,canvas.width-halfW,canvas.height-halfH]];
-      const words = [];
-      for (let i=0;i<tiles.length;i++) words.push(...await ocrTile(canvas, ...tiles[i], i+1));
-      const candidates = words.filter(word => isNumberCandidate(word.text));
-      ctx.lineWidth = Math.max(2, canvas.width/800); ctx.strokeStyle = '#1967d2';
-      for (const word of candidates) {
-        const xs=word.vertices.map(v=>v.x), ys=word.vertices.map(v=>v.y); if (!xs.length) continue;
-        const minX=Math.min(...xs), maxX=Math.max(...xs), minY=Math.min(...ys), maxY=Math.max(...ys);
-        const pad = Math.max(3, Math.max(maxX-minX,maxY-minY)*0.35);
-        ctx.strokeRect(minX-pad,minY-pad,Math.max(1,maxX-minX)+pad*2,Math.max(1,maxY-minY)+pad*2);
-        const row=document.createElement('tr'); for (const value of [word.text,Math.round(minX),Math.round(minY),Math.round(maxX-minX),Math.round(maxY-minY)]) { const cell=document.createElement('td'); cell.textContent=String(value); row.appendChild(cell); } tbody.appendChild(row);
-      }
-      previewWrap.hidden=false; table.hidden=candidates.length===0;
-      status.textContent=`ページ${pageNumber}: OCR ${words.length}件から、1〜99の番号候補を${candidates.length}件抽出しました。`;
-    } catch(err) { console.error(err); status.textContent=`OCRエラー: ${err.message}`; }
-    finally { button.disabled=false; }
+  function eventPoint(event) {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: Math.max(0, Math.min(canvas.width, (event.clientX - rect.left) * canvas.width / rect.width)),
+      y: Math.max(0, Math.min(canvas.height, (event.clientY - rect.top) * canvas.height / rect.height)),
+    };
   }
-  button.addEventListener('click', runOcr);
+
+  async function showPage() {
+    showPageButton.disabled = true;
+    ocrButton.disabled = true;
+    clearButton.disabled = true;
+    table.hidden = true;
+    tbody.replaceChildren();
+    selection = null;
+    sourceReady = false;
+    try {
+      status.textContent = '対象ページを表示しています…';
+      const pdf = await pdfjsLib.getDocument(pdfUrl).promise;
+      const pageNumber = Number(pageInput.value);
+      pageInput.max = String(pdf.numPages);
+      if (!Number.isInteger(pageNumber) || pageNumber < 1 || pageNumber > pdf.numPages) {
+        status.textContent = `ページ番号は1〜${pdf.numPages}で指定してください。`;
+        return;
+      }
+      const page = await pdf.getPage(pageNumber);
+      const base = page.getViewport({ scale: 1 });
+      const scale = Math.min(5, 4000 / Math.max(base.width, base.height));
+      const viewport = page.getViewport({ scale });
+      sourceCanvas.width = canvas.width = Math.ceil(viewport.width);
+      sourceCanvas.height = canvas.height = Math.ceil(viewport.height);
+      await page.render({ canvasContext: sourceCanvas.getContext('2d'), viewport }).promise;
+      sourceReady = true;
+      redraw();
+      previewWrap.hidden = false;
+      clearButton.disabled = false;
+      status.textContent = '青いOCR対象範囲をドラッグで指定してください。';
+    } catch (err) {
+      console.error(err);
+      status.textContent = `表示エラー: ${err.message}`;
+    } finally {
+      showPageButton.disabled = false;
+    }
+  }
+
+  function clearSelection() {
+    selection = null;
+    dragStart = null;
+    dragging = false;
+    ocrButton.disabled = true;
+    table.hidden = true;
+    tbody.replaceChildren();
+    if (sourceReady) redraw();
+    status.textContent = sourceReady ? 'OCR対象範囲をドラッグで指定してください。' : 'まず対象ページを表示してください。';
+  }
+
+  canvas.addEventListener('pointerdown', event => {
+    if (!sourceReady) return;
+    dragStart = eventPoint(event);
+    dragging = true;
+    selection = { x: dragStart.x, y: dragStart.y, w: 0, h: 0 };
+    canvas.setPointerCapture(event.pointerId);
+  });
+
+  canvas.addEventListener('pointermove', event => {
+    if (!dragging || !dragStart) return;
+    const current = eventPoint(event);
+    selection = {
+      x: Math.min(dragStart.x, current.x),
+      y: Math.min(dragStart.y, current.y),
+      w: Math.abs(current.x - dragStart.x),
+      h: Math.abs(current.y - dragStart.y),
+    };
+    redraw(true);
+  });
+
+  canvas.addEventListener('pointerup', event => {
+    if (!dragging) return;
+    dragging = false;
+    if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+    if (!selection || selection.w < 20 || selection.h < 20) {
+      clearSelection();
+      return;
+    }
+    redraw(true);
+    ocrButton.disabled = false;
+    status.textContent = `選択範囲: ${Math.round(selection.w)}×${Math.round(selection.h)}px。問題なければ「選択範囲をOCR」を押してください。`;
+  });
+
+  canvas.addEventListener('pointercancel', event => {
+    if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+    clearSelection();
+  });
+
+  async function runOcr() {
+    if (!sourceReady || !selection) return;
+    ocrButton.disabled = true;
+    showPageButton.disabled = true;
+    table.hidden = true;
+    tbody.replaceChildren();
+    try {
+      const sx = Math.round(selection.x);
+      const sy = Math.round(selection.y);
+      const sw = Math.max(1, Math.round(selection.w));
+      const sh = Math.max(1, Math.round(selection.h));
+      const cropCanvas = document.createElement('canvas');
+      const targetLongSide = 3000;
+      const factor = Math.min(6, targetLongSide / Math.max(sw, sh));
+      cropCanvas.width = Math.max(1, Math.round(sw * factor));
+      cropCanvas.height = Math.max(1, Math.round(sh * factor));
+      cropCanvas.getContext('2d').drawImage(sourceCanvas, sx, sy, sw, sh, 0, 0, cropCanvas.width, cropCanvas.height);
+
+      status.textContent = `選択範囲をGoogle VisionでOCRしています… (${cropCanvas.width}×${cropCanvas.height}px / API 1回)`;
+      const imageBase64 = cropCanvas.toDataURL('image/jpeg', 0.95).split(',', 2)[1];
+      const response = await fetch(ocrUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pageNumber: Number(pageInput.value), imageBase64 }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'OCRに失敗しました。');
+
+      const words = (Array.isArray(result.words) ? result.words : []).map(word => ({
+        text: word.text,
+        vertices: (word.vertices || []).map(v => ({
+          x: sx + (Number(v.x) || 0) / factor,
+          y: sy + (Number(v.y) || 0) / factor,
+        })),
+      }));
+      const candidates = words.filter(word => isNumberCandidate(word.text));
+
+      redraw();
+      const ctx = canvas.getContext('2d');
+      ctx.strokeStyle = '#1967d2';
+      ctx.lineWidth = Math.max(2, canvas.width / 800);
+      for (const word of candidates) {
+        const xs = word.vertices.map(v => v.x);
+        const ys = word.vertices.map(v => v.y);
+        if (!xs.length) continue;
+        const minX = Math.min(...xs), maxX = Math.max(...xs);
+        const minY = Math.min(...ys), maxY = Math.max(...ys);
+        const pad = Math.max(3, Math.max(maxX - minX, maxY - minY) * 0.35);
+        ctx.strokeRect(minX - pad, minY - pad, Math.max(1, maxX - minX) + pad * 2, Math.max(1, maxY - minY) + pad * 2);
+        const row = document.createElement('tr');
+        for (const value of [word.text, Math.round(minX), Math.round(minY), Math.round(maxX - minX), Math.round(maxY - minY)]) {
+          const cell = document.createElement('td');
+          cell.textContent = String(value);
+          row.appendChild(cell);
+        }
+        tbody.appendChild(row);
+      }
+      table.hidden = candidates.length === 0;
+      status.textContent = `API 1回でOCR ${words.length}件、1〜99の番号候補を${candidates.length}件抽出しました。`;
+    } catch (err) {
+      console.error(err);
+      status.textContent = `OCRエラー: ${err.message}`;
+    } finally {
+      ocrButton.disabled = false;
+      showPageButton.disabled = false;
+    }
+  }
+
+  showPageButton.addEventListener('click', showPage);
+  ocrButton.addEventListener('click', runOcr);
+  clearButton.addEventListener('click', clearSelection);
 })();
 </script>
-</body></html>
+</body>
+</html>
