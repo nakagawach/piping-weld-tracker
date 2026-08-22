@@ -23,18 +23,61 @@
       padding: 20px;
     }
     h1 { margin: 0 0 8px; }
+    h2 { margin: 24px 0 8px; font-size: 1.2rem; }
     p { line-height: 1.7; }
     .pdf-frame {
       width: 100%;
-      height: 760px;
+      height: 680px;
       border: 1px solid #ccc;
       border-radius: 8px;
       background: #eee;
     }
     .fallback { margin-top: 12px; }
     .fallback a { color: #0b57d0; }
+    .detect-panel {
+      margin-top: 20px;
+      padding-top: 4px;
+      border-top: 1px solid #e0e0e0;
+    }
+    button {
+      min-height: 44px;
+      padding: 0 18px;
+      border: 1px solid #b7b7b7;
+      border-radius: 8px;
+      background: #fff;
+      color: #202124;
+      font: inherit;
+      cursor: pointer;
+    }
+    button:disabled {
+      cursor: wait;
+      opacity: 0.6;
+    }
+    #detect-status {
+      margin: 12px 0;
+      min-height: 1.5em;
+    }
+    .candidate-table-wrap {
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.95rem;
+    }
+    th, td {
+      padding: 8px 10px;
+      border-bottom: 1px solid #e2e2e2;
+      text-align: left;
+      white-space: nowrap;
+    }
+    th { background: #f7f7f7; }
+    .note {
+      color: #5f6368;
+      font-size: 0.9rem;
+    }
     @media (max-width: 700px) {
-      .pdf-frame { height: 560px; }
+      .pdf-frame { height: 520px; }
     }
   </style>
 </head>
@@ -53,7 +96,113 @@
         <a href="{{ url_for('static', filename='sample.pdf') }}" target="_blank" rel="noopener noreferrer">新しいタブでPDFを開く</a>
         を使ってください。
       </p>
+
+      <section class="detect-panel" aria-labelledby="detect-title">
+        <h2 id="detect-title">番号候補の検出テスト</h2>
+        <p>PDFの文字情報から、単独で書かれた1〜99の数字と座標を抽出します。まだ「溶接番号」とは確定しません。</p>
+        <button id="detect-button" type="button">番号候補を検出</button>
+        <p id="detect-status" aria-live="polite">未実行</p>
+        <div class="candidate-table-wrap">
+          <table id="candidate-table" hidden>
+            <thead>
+              <tr>
+                <th>番号</th>
+                <th>ページ</th>
+                <th>X位置</th>
+                <th>Y位置</th>
+              </tr>
+            </thead>
+            <tbody id="candidate-body"></tbody>
+          </table>
+        </div>
+        <p class="note">座標は各PDFページの左上を基準にした割合です。候補が多い場合は先頭200件まで表示します。</p>
+      </section>
     </section>
   </main>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    (() => {
+      const pdfUrl = {{ url_for('static', filename='sample.pdf') | tojson }};
+      const button = document.getElementById('detect-button');
+      const status = document.getElementById('detect-status');
+      const table = document.getElementById('candidate-table');
+      const body = document.getElementById('candidate-body');
+
+      if (!window.pdfjsLib) {
+        status.textContent = 'PDF解析ライブラリを読み込めませんでした。';
+        button.disabled = true;
+        return;
+      }
+
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+      async function detectNumberCandidates() {
+        button.disabled = true;
+        table.hidden = true;
+        body.replaceChildren();
+        status.textContent = 'PDFを解析しています…';
+
+        try {
+          const pdf = await pdfjsLib.getDocument(pdfUrl).promise;
+          const candidates = [];
+
+          for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+            status.textContent = `解析中: ${pageNumber} / ${pdf.numPages} ページ`;
+            const page = await pdf.getPage(pageNumber);
+            const viewport = page.getViewport({ scale: 1 });
+            const textContent = await page.getTextContent();
+
+            for (const item of textContent.items) {
+              const text = String(item.str || '').trim();
+              if (!/^(?:[1-9]|[1-9][0-9])$/.test(text)) {
+                continue;
+              }
+
+              const transformed = pdfjsLib.Util.transform(viewport.transform, item.transform);
+              const xPercent = Math.max(0, Math.min(100, (transformed[4] / viewport.width) * 100));
+              const yPercent = Math.max(0, Math.min(100, (transformed[5] / viewport.height) * 100));
+
+              candidates.push({
+                number: Number(text),
+                page: pageNumber,
+                x: xPercent,
+                y: yPercent,
+              });
+            }
+          }
+
+          const displayCandidates = candidates.slice(0, 200);
+          for (const candidate of displayCandidates) {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+              <td>${candidate.number}</td>
+              <td>${candidate.page}</td>
+              <td>${candidate.x.toFixed(1)}%</td>
+              <td>${candidate.y.toFixed(1)}%</td>
+            `;
+            body.appendChild(row);
+          }
+
+          table.hidden = displayCandidates.length === 0;
+          if (candidates.length === 0) {
+            status.textContent = '単独数字の文字情報は検出できませんでした。';
+          } else if (candidates.length > 200) {
+            status.textContent = `${candidates.length}件検出しました。先頭200件を表示しています。`;
+          } else {
+            status.textContent = `${candidates.length}件検出しました。`;
+          }
+        } catch (error) {
+          console.error(error);
+          status.textContent = 'PDFの解析に失敗しました。PDF自体の表示には影響ありません。';
+        } finally {
+          button.disabled = false;
+        }
+      }
+
+      button.addEventListener('click', detectNumberCandidates);
+    })();
+  </script>
 </body>
 </html>
