@@ -20,14 +20,16 @@
     input[type="number"] { width: 90px; min-height: 40px; padding: 0 10px; border: 1px solid #b7b7b7; border-radius: 8px; font: inherit; }
     button { min-height: 44px; padding: 0 18px; border: 1px solid #b7b7b7; border-radius: 8px; background: #fff; color: #202124; font: inherit; cursor: pointer; }
     button:disabled { cursor: wait; opacity: 0.55; }
+    button.active { border-color: #1967d2; background: #e8f0fe; color: #174ea6; font-weight: 700; }
     #ocr-status { min-height: 1.5em; margin: 12px 0; }
     .preview-wrap { margin-top: 12px; overflow: auto; max-height: 760px; border: 1px solid #ddd; border-radius: 8px; background: #fff; }
-    #preview-canvas { display: block; max-width: 100%; height: auto; }
+    #preview-canvas { display: block; max-width: 100%; height: auto; cursor: pointer; touch-action: manipulation; }
     .result-wrap { overflow-x: auto; margin-top: 12px; max-height: 420px; }
     table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
     th, td { padding: 7px 9px; border-bottom: 1px solid #e2e2e2; text-align: left; white-space: nowrap; }
     th { position: sticky; top: 0; background: #f7f7f7; }
     .candidate { font-weight: 700; }
+    .summary { margin-top: 12px; padding: 12px; border-radius: 8px; background: #f7f8fa; }
     .note { color: #5f6368; font-size: 0.9rem; }
     @media (max-width: 700px) { .pdf-frame { height: 560px; } }
   </style>
@@ -40,21 +42,30 @@
   <p class="fallback">PDFが枠内に表示されない場合は <a href="{{ url_for('static', filename='sample.pdf') }}" target="_blank" rel="noopener noreferrer">新しいタブでPDFを開く</a> を使ってください。</p>
 
   <section class="detect-panel" aria-labelledby="ocr-title">
-    <h2 id="ocr-title">高解像度 全ページ1回 OCR テスト（6,000px基準）</h2>
-    <p>指定ページ全体を長辺6,000pxを目安に画像化し、Google Visionへ1回だけ送信します。全文字と座標を取得し、1〜99の数字候補だけ青枠で重ねます。</p>
+    <h2 id="ocr-title">番号候補 補正UIテスト（6,000px基準）</h2>
+    <p>全ページを長辺6,000pxでGoogle Visionへ1回だけ送信します。OCRで見つけた1〜99の番号候補を青枠で表示し、候補の修正・削除・手動追加を画面上で行えます。</p>
     <div class="controls">
       <label>対象ページ<input id="page-number" type="number" min="1" value="1" inputmode="numeric"></label>
       <button id="ocr-button" type="button">6,000pxで1回OCR</button>
+      <button id="add-mode-button" type="button" disabled>手動追加モード</button>
+      <button id="reset-button" type="button" disabled>OCR結果に戻す</button>
     </div>
     <p id="ocr-status" aria-live="polite">未実行</p>
+    <div class="summary" id="candidate-summary" hidden></div>
     <div class="preview-wrap" id="preview-wrap" hidden><canvas id="preview-canvas"></canvas></div>
+    <div class="result-wrap">
+      <table id="candidate-table" hidden>
+        <thead><tr><th>由来</th><th>番号</th><th>X</th><th>Y</th></tr></thead>
+        <tbody id="candidate-body"></tbody>
+      </table>
+    </div>
     <div class="result-wrap">
       <table id="ocr-table" hidden>
         <thead><tr><th>種別</th><th>文字</th><th>X</th><th>Y</th><th>幅</th><th>高さ</th></tr></thead>
         <tbody id="ocr-body"></tbody>
       </table>
     </div>
-    <p class="note">現在のテスト基準は「全ページ・長辺6,000px・Google Vision 1回」です。DB保存・FlaskのVision処理・既存PDF表示は変更していません。</p>
+    <p class="note">青枠をクリックすると番号変更または削除できます。「手動追加モード」をONにして図面をクリックすると番号を追加できます。このテストではDBへ保存しません。Google Vision APIはOCRボタン1回につき1リクエストです。</p>
   </section>
 </section></main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -63,35 +74,180 @@
   const pdfUrl = {{ url_for('static', filename='sample.pdf') | tojson }};
   const ocrUrl = {{ url_for('ocr') | tojson }};
   const pageInput = document.getElementById('page-number');
-  const button = document.getElementById('ocr-button');
+  const ocrButton = document.getElementById('ocr-button');
+  const addModeButton = document.getElementById('add-mode-button');
+  const resetButton = document.getElementById('reset-button');
   const status = document.getElementById('ocr-status');
   const previewWrap = document.getElementById('preview-wrap');
   const canvas = document.getElementById('preview-canvas');
-  const table = document.getElementById('ocr-table');
-  const tbody = document.getElementById('ocr-body');
+  const candidateSummary = document.getElementById('candidate-summary');
+  const candidateTable = document.getElementById('candidate-table');
+  const candidateBody = document.getElementById('candidate-body');
+  const ocrTable = document.getElementById('ocr-table');
+  const ocrBody = document.getElementById('ocr-body');
+  const sourceCanvas = document.createElement('canvas');
+
+  let words = [];
+  let originalCandidates = [];
+  let candidates = [];
+  let addMode = false;
+  let nextId = 1;
 
   if (!window.pdfjsLib) {
     status.textContent = 'PDF解析ライブラリを読み込めませんでした。';
-    button.disabled = true;
+    ocrButton.disabled = true;
     return;
   }
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-  function isNumberCandidate(text) {
-    const normalized = String(text || '').trim();
-    if (!/^\d{1,2}$/.test(normalized)) return false;
-    const value = Number(normalized);
-    return value >= 1 && value <= 99;
+  function normalizedNumber(text) {
+    const valueText = String(text || '').trim();
+    if (!/^\d{1,2}$/.test(valueText)) return null;
+    const value = Number(valueText);
+    return value >= 1 && value <= 99 ? String(value) : null;
   }
 
+  function bboxFromVertices(vertices) {
+    const xs = vertices.map(v => Number(v.x) || 0);
+    const ys = vertices.map(v => Number(v.y) || 0);
+    if (!xs.length || !ys.length) return null;
+    const minX = Math.min(...xs), maxX = Math.max(...xs);
+    const minY = Math.min(...ys), maxY = Math.max(...ys);
+    return { x: minX, y: minY, w: Math.max(1, maxX - minX), h: Math.max(1, maxY - minY) };
+  }
+
+  function cloneCandidates(list) {
+    return list.map(item => ({ ...item, bbox: { ...item.bbox } }));
+  }
+
+  function eventPoint(event) {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: (event.clientX - rect.left) * canvas.width / rect.width,
+      y: (event.clientY - rect.top) * canvas.height / rect.height,
+    };
+  }
+
+  function drawCandidates() {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(sourceCanvas, 0, 0);
+
+    for (const item of candidates) {
+      const { x, y, w, h } = item.bbox;
+      const pad = Math.max(4, Math.max(w, h) * 0.35);
+      ctx.save();
+      ctx.strokeStyle = item.source === 'manual' ? '#188038' : '#1967d2';
+      ctx.fillStyle = item.source === 'manual' ? '#188038' : '#1967d2';
+      ctx.lineWidth = Math.max(2, canvas.width / 1000);
+      ctx.strokeRect(x - pad, y - pad, w + pad * 2, h + pad * 2);
+      ctx.font = `${Math.max(20, h * 0.8)}px system-ui`;
+      ctx.fillText(item.number, x, Math.max(22, y - pad - 4));
+      ctx.restore();
+    }
+
+    candidateSummary.hidden = false;
+    candidateSummary.textContent = `現在の番号候補: ${candidates.length}件（OCR ${candidates.filter(c => c.source === 'ocr').length}件 / 手動 ${candidates.filter(c => c.source === 'manual').length}件）`;
+
+    candidateBody.replaceChildren();
+    for (const item of candidates) {
+      const row = document.createElement('tr');
+      const centerX = Math.round(item.bbox.x + item.bbox.w / 2);
+      const centerY = Math.round(item.bbox.y + item.bbox.h / 2);
+      for (const value of [item.source === 'manual' ? '手動' : 'OCR', item.number, centerX, centerY]) {
+        const cell = document.createElement('td');
+        cell.textContent = String(value);
+        row.appendChild(cell);
+      }
+      candidateBody.appendChild(row);
+    }
+    candidateTable.hidden = candidates.length === 0;
+  }
+
+  function findCandidateAt(point) {
+    const extra = Math.max(18, canvas.width / 250);
+    for (let i = candidates.length - 1; i >= 0; i -= 1) {
+      const b = candidates[i].bbox;
+      if (point.x >= b.x - extra && point.x <= b.x + b.w + extra && point.y >= b.y - extra && point.y <= b.y + b.h + extra) return candidates[i];
+    }
+    return null;
+  }
+
+  function setAddMode(enabled) {
+    addMode = enabled;
+    addModeButton.classList.toggle('active', enabled);
+    addModeButton.textContent = enabled ? '手動追加モード ON' : '手動追加モード';
+    status.textContent = enabled ? '図面上の追加したい位置をクリックしてください。' : '青枠をクリックすると番号変更・削除できます。';
+  }
+
+  canvas.addEventListener('click', event => {
+    if (!candidates.length && !addMode) return;
+    const point = eventPoint(event);
+
+    if (addMode) {
+      const entered = window.prompt('追加する番号（1〜99）を入力してください。');
+      if (entered === null) return;
+      const number = normalizedNumber(entered);
+      if (!number) {
+        window.alert('1〜99の数字を入力してください。');
+        return;
+      }
+      const size = Math.max(28, canvas.width / 120);
+      candidates.push({ id: nextId++, number, source: 'manual', bbox: { x: point.x - size / 2, y: point.y - size / 2, w: size, h: size } });
+      drawCandidates();
+      setAddMode(false);
+      return;
+    }
+
+    const target = findCandidateAt(point);
+    if (!target) return;
+    const entered = window.prompt(`番号 ${target.number} を変更します。\n削除する場合は空欄にしてOKを押してください。`, target.number);
+    if (entered === null) return;
+    if (String(entered).trim() === '') {
+      candidates = candidates.filter(item => item.id !== target.id);
+      drawCandidates();
+      status.textContent = `番号 ${target.number} を候補から削除しました。`;
+      return;
+    }
+    const number = normalizedNumber(entered);
+    if (!number) {
+      window.alert('1〜99の数字を入力してください。');
+      return;
+    }
+    target.number = number;
+    drawCandidates();
+    status.textContent = `番号を ${number} に変更しました。`;
+  });
+
+  resetButton.addEventListener('click', () => {
+    candidates = cloneCandidates(originalCandidates);
+    nextId = Math.max(1, ...candidates.map(c => c.id + 1));
+    setAddMode(false);
+    drawCandidates();
+    status.textContent = '手動補正を破棄し、OCR直後の番号候補に戻しました。';
+  });
+
+  addModeButton.addEventListener('click', () => setAddMode(!addMode));
+
   async function runOcr() {
-    button.disabled = true;
-    table.hidden = true;
+    ocrButton.disabled = true;
+    addModeButton.disabled = true;
+    resetButton.disabled = true;
     previewWrap.hidden = true;
-    tbody.replaceChildren();
+    candidateSummary.hidden = true;
+    candidateTable.hidden = true;
+    ocrTable.hidden = true;
+    candidateBody.replaceChildren();
+    ocrBody.replaceChildren();
+    words = [];
+    candidates = [];
+    originalCandidates = [];
+    addMode = false;
+    addModeButton.classList.remove('active');
+    addModeButton.textContent = '手動追加モード';
 
     try {
-      status.textContent = 'PDFを高解像度で画像化しています…';
+      status.textContent = 'PDFを6,000px基準で画像化しています…';
       const pdf = await pdfjsLib.getDocument(pdfUrl).promise;
       const pageNumber = Number(pageInput.value);
       pageInput.max = String(pdf.numPages);
@@ -105,69 +261,57 @@
       const targetLongSide = 6000;
       const scale = Math.min(8, targetLongSide / Math.max(base.width, base.height));
       const viewport = page.getViewport({ scale });
-      canvas.width = Math.ceil(viewport.width);
-      canvas.height = Math.ceil(viewport.height);
-      const ctx = canvas.getContext('2d');
-      await page.render({ canvasContext: ctx, viewport }).promise;
+      sourceCanvas.width = canvas.width = Math.ceil(viewport.width);
+      sourceCanvas.height = canvas.height = Math.ceil(viewport.height);
+      await page.render({ canvasContext: sourceCanvas.getContext('2d'), viewport }).promise;
 
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.90);
+      const dataUrl = sourceCanvas.toDataURL('image/jpeg', 0.90);
       const imageBase64 = dataUrl.split(',', 2)[1];
       const approxRequestMiB = imageBase64.length / 1024 / 1024;
       status.textContent = `Google VisionでOCRしています… (${canvas.width}×${canvas.height}px / 約${approxRequestMiB.toFixed(1)}MiB / API 1回)`;
 
-      const response = await fetch(ocrUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pageNumber, imageBase64 }),
-      });
+      const response = await fetch(ocrUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pageNumber, imageBase64 }) });
       const result = await response.json();
       if (!response.ok) {
         const detail = result.detail ? ` ${typeof result.detail === 'string' ? result.detail : JSON.stringify(result.detail)}` : '';
         throw new Error((result.error || 'OCRに失敗しました。') + detail);
       }
 
-      const words = Array.isArray(result.words) ? result.words : [];
-      const candidates = words.filter(word => isNumberCandidate(word.text));
-      ctx.strokeStyle = '#1967d2';
-      ctx.lineWidth = Math.max(2, canvas.width / 1000);
-
+      words = Array.isArray(result.words) ? result.words : [];
+      nextId = 1;
       for (const word of words) {
-        const vertices = Array.isArray(word.vertices) ? word.vertices : [];
-        const xs = vertices.map(v => Number(v.x) || 0);
-        const ys = vertices.map(v => Number(v.y) || 0);
-        if (!xs.length) continue;
-        const minX = Math.min(...xs), maxX = Math.max(...xs);
-        const minY = Math.min(...ys), maxY = Math.max(...ys);
-        const candidate = isNumberCandidate(word.text);
-
-        if (candidate) {
-          const pad = Math.max(3, Math.max(maxX - minX, maxY - minY) * 0.35);
-          ctx.strokeRect(minX - pad, minY - pad, Math.max(1, maxX - minX) + pad * 2, Math.max(1, maxY - minY) + pad * 2);
-        }
+        const bbox = bboxFromVertices(Array.isArray(word.vertices) ? word.vertices : []);
+        if (!bbox) continue;
+        const number = normalizedNumber(word.text);
+        if (number) candidates.push({ id: nextId++, number, source: 'ocr', bbox });
 
         const row = document.createElement('tr');
-        if (candidate) row.className = 'candidate';
-        const values = [candidate ? '番号候補' : '文字', word.text, minX, minY, maxX - minX, maxY - minY];
+        if (number) row.className = 'candidate';
+        const values = [number ? '番号候補' : '文字', word.text, Math.round(bbox.x), Math.round(bbox.y), Math.round(bbox.w), Math.round(bbox.h)];
         for (const value of values) {
           const cell = document.createElement('td');
-          cell.textContent = String(Math.round(value) === Number(value) ? Math.round(value) : value);
+          cell.textContent = String(value);
           row.appendChild(cell);
         }
-        tbody.appendChild(row);
+        ocrBody.appendChild(row);
       }
 
+      originalCandidates = cloneCandidates(candidates);
+      drawCandidates();
       previewWrap.hidden = false;
-      table.hidden = words.length === 0;
-      status.textContent = `API 1回: ${canvas.width}×${canvas.height}px、約${approxRequestMiB.toFixed(1)}MiB。OCR ${words.length}件、1〜99の番号候補 ${candidates.length}件。`;
+      ocrTable.hidden = words.length === 0;
+      addModeButton.disabled = false;
+      resetButton.disabled = false;
+      status.textContent = `API 1回: OCR ${words.length}件、番号候補 ${candidates.length}件。青枠クリックで修正・削除、手動追加モードで認識漏れを追加できます。`;
     } catch (err) {
       console.error(err);
       status.textContent = `OCRエラー: ${err.message}`;
     } finally {
-      button.disabled = false;
+      ocrButton.disabled = false;
     }
   }
 
-  button.addEventListener('click', runOcr);
+  ocrButton.addEventListener('click', runOcr);
 })();
 </script>
 </body>
