@@ -20,7 +20,6 @@
     input[type="number"] { width: 90px; min-height: 40px; padding: 0 10px; border: 1px solid #b7b7b7; border-radius: 8px; font: inherit; }
     button { min-height: 44px; padding: 0 18px; border: 1px solid #b7b7b7; border-radius: 8px; background: #fff; color: #202124; font: inherit; cursor: pointer; }
     button:disabled { cursor: wait; opacity: 0.55; }
-    button.active { border-color: #1967d2; background: #e8f0fe; color: #174ea6; font-weight: 700; }
     #ocr-status { min-height: 1.5em; margin: 12px 0; }
     .preview-wrap { margin-top: 12px; overflow: auto; max-height: 760px; border: 1px solid #ddd; border-radius: 8px; background: #fff; }
     #preview-canvas { display: block; max-width: 100%; height: auto; cursor: pointer; touch-action: manipulation; }
@@ -42,15 +41,14 @@
   <p class="fallback">PDFが枠内に表示されない場合は <a href="{{ url_for('static', filename='sample.pdf') }}" target="_blank" rel="noopener noreferrer">新しいタブでPDFを開く</a> を使ってください。</p>
 
   <section class="detect-panel" aria-labelledby="ocr-title">
-    <h2 id="ocr-title">番号候補 補正UIテスト（6,000px基準）</h2>
-    <p>全ページを長辺6,000pxでGoogle Visionへ1回だけ送信します。OCRで見つけた1〜99の番号候補を青枠で表示し、候補の修正・削除・手動追加を画面上で行えます。</p>
+    <h2 id="ocr-title">番号エントリー画面テスト（6,000px基準）</h2>
+    <p>画面を開くと自動で全ページを長辺6,000pxでGoogle Visionへ1回送信します。青枠をクリックすると番号変更・削除、番号のない位置をクリックすると手動追加できます。</p>
     <div class="controls">
       <label>対象ページ<input id="page-number" type="number" min="1" value="1" inputmode="numeric"></label>
-      <button id="ocr-button" type="button">6,000pxで1回OCR</button>
-      <button id="add-mode-button" type="button" disabled>手動追加モード</button>
+      <button id="ocr-button" type="button">再OCR</button>
       <button id="reset-button" type="button" disabled>OCR結果に戻す</button>
     </div>
-    <p id="ocr-status" aria-live="polite">未実行</p>
+    <p id="ocr-status" aria-live="polite">自動OCRを開始します…</p>
     <div class="summary" id="candidate-summary" hidden></div>
     <div class="preview-wrap" id="preview-wrap" hidden><canvas id="preview-canvas"></canvas></div>
     <div class="result-wrap">
@@ -65,7 +63,7 @@
         <tbody id="ocr-body"></tbody>
       </table>
     </div>
-    <p class="note">青枠をクリックすると番号変更または削除できます。「手動追加モード」をONにして図面をクリックすると番号を追加できます。このテストではDBへ保存しません。Google Vision APIはOCRボタン1回につき1リクエストです。</p>
+    <p class="note">常時編集モードです。青枠クリックで変更・削除、空いている位置をクリックして番号を追加できます。このテストではDBへ保存しません。Google Vision APIは初回表示時に1回、再OCR時に1回リクエストします。</p>
   </section>
 </section></main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -75,7 +73,6 @@
   const ocrUrl = {{ url_for('ocr') | tojson }};
   const pageInput = document.getElementById('page-number');
   const ocrButton = document.getElementById('ocr-button');
-  const addModeButton = document.getElementById('add-mode-button');
   const resetButton = document.getElementById('reset-button');
   const status = document.getElementById('ocr-status');
   const previewWrap = document.getElementById('preview-wrap');
@@ -90,7 +87,6 @@
   let words = [];
   let originalCandidates = [];
   let candidates = [];
-  let addMode = false;
   let nextId = 1;
 
   if (!window.pdfjsLib) {
@@ -173,65 +169,53 @@
     return null;
   }
 
-  function setAddMode(enabled) {
-    addMode = enabled;
-    addModeButton.classList.toggle('active', enabled);
-    addModeButton.textContent = enabled ? '手動追加モード ON' : '手動追加モード';
-    status.textContent = enabled ? '図面上の追加したい位置をクリックしてください。' : '青枠をクリックすると番号変更・削除できます。';
-  }
-
   canvas.addEventListener('click', event => {
-    if (!candidates.length && !addMode) return;
+    if (previewWrap.hidden || !sourceCanvas.width) return;
     const point = eventPoint(event);
+    const target = findCandidateAt(point);
 
-    if (addMode) {
-      const entered = window.prompt('追加する番号（1〜99）を入力してください。');
+    if (target) {
+      const entered = window.prompt(`番号 ${target.number} を変更します。\n削除する場合は空欄にしてOKを押してください。`, target.number);
       if (entered === null) return;
+      if (String(entered).trim() === '') {
+        candidates = candidates.filter(item => item.id !== target.id);
+        drawCandidates();
+        status.textContent = `番号 ${target.number} を候補から削除しました。空いている位置をクリックすると追加できます。`;
+        return;
+      }
       const number = normalizedNumber(entered);
       if (!number) {
         window.alert('1〜99の数字を入力してください。');
         return;
       }
-      const size = Math.max(28, canvas.width / 120);
-      candidates.push({ id: nextId++, number, source: 'manual', bbox: { x: point.x - size / 2, y: point.y - size / 2, w: size, h: size } });
+      target.number = number;
       drawCandidates();
-      setAddMode(false);
+      status.textContent = `番号を ${number} に変更しました。`;
       return;
     }
 
-    const target = findCandidateAt(point);
-    if (!target) return;
-    const entered = window.prompt(`番号 ${target.number} を変更します。\n削除する場合は空欄にしてOKを押してください。`, target.number);
+    const entered = window.prompt('この位置に追加する番号（1〜99）を入力してください。');
     if (entered === null) return;
-    if (String(entered).trim() === '') {
-      candidates = candidates.filter(item => item.id !== target.id);
-      drawCandidates();
-      status.textContent = `番号 ${target.number} を候補から削除しました。`;
-      return;
-    }
     const number = normalizedNumber(entered);
     if (!number) {
       window.alert('1〜99の数字を入力してください。');
       return;
     }
-    target.number = number;
+    const size = Math.max(28, canvas.width / 120);
+    candidates.push({ id: nextId++, number, source: 'manual', bbox: { x: point.x - size / 2, y: point.y - size / 2, w: size, h: size } });
     drawCandidates();
-    status.textContent = `番号を ${number} に変更しました。`;
+    status.textContent = `番号 ${number} を手動追加しました。`;
   });
 
   resetButton.addEventListener('click', () => {
     candidates = cloneCandidates(originalCandidates);
     nextId = Math.max(1, ...candidates.map(c => c.id + 1));
-    setAddMode(false);
     drawCandidates();
     status.textContent = '手動補正を破棄し、OCR直後の番号候補に戻しました。';
   });
 
-  addModeButton.addEventListener('click', () => setAddMode(!addMode));
-
   async function runOcr() {
     ocrButton.disabled = true;
-    addModeButton.disabled = true;
     resetButton.disabled = true;
     previewWrap.hidden = true;
     candidateSummary.hidden = true;
@@ -242,9 +226,6 @@
     words = [];
     candidates = [];
     originalCandidates = [];
-    addMode = false;
-    addModeButton.classList.remove('active');
-    addModeButton.textContent = '手動追加モード';
 
     try {
       status.textContent = 'PDFを6,000px基準で画像化しています…';
@@ -300,9 +281,8 @@
       drawCandidates();
       previewWrap.hidden = false;
       ocrTable.hidden = words.length === 0;
-      addModeButton.disabled = false;
       resetButton.disabled = false;
-      status.textContent = `API 1回: OCR ${words.length}件、番号候補 ${candidates.length}件。青枠クリックで修正・削除、手動追加モードで認識漏れを追加できます。`;
+      status.textContent = `API 1回: OCR ${words.length}件、番号候補 ${candidates.length}件。青枠クリックで修正・削除、空いている位置クリックで追加できます。`;
     } catch (err) {
       console.error(err);
       status.textContent = `OCRエラー: ${err.message}`;
@@ -312,6 +292,7 @@
   }
 
   ocrButton.addEventListener('click', runOcr);
+  runOcr();
 })();
 </script>
 </body>
