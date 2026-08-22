@@ -5,37 +5,30 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>溶接進捗管理</title>
   <style>
-    body {
-      margin: 0;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: #f5f6f8;
-      color: #202124;
-    }
-    main {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 24px 16px 40px;
-    }
-    .card {
-      background: #fff;
-      border: 1px solid #ddd;
-      border-radius: 12px;
-      padding: 20px;
-    }
+    body { margin: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f6f8; color: #202124; }
+    main { max-width: 1200px; margin: 0 auto; padding: 24px 16px 40px; }
+    .card { background: #fff; border: 1px solid #ddd; border-radius: 12px; padding: 20px; }
     h1 { margin: 0 0 8px; }
+    h2 { margin: 26px 0 8px; font-size: 1.2rem; }
     p { line-height: 1.7; }
-    .pdf-frame {
-      width: 100%;
-      height: 760px;
-      border: 1px solid #ccc;
-      border-radius: 8px;
-      background: #eee;
-    }
+    .pdf-frame { width: 100%; height: 700px; border: 1px solid #ccc; border-radius: 8px; background: #eee; }
     .fallback { margin-top: 12px; }
     .fallback a { color: #0b57d0; }
-    @media (max-width: 700px) {
-      .pdf-frame { height: 560px; }
-    }
+    .detect-panel { margin-top: 22px; padding-top: 4px; border-top: 1px solid #e0e0e0; }
+    .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
+    label { display: grid; gap: 6px; }
+    input[type="number"] { width: 90px; min-height: 40px; padding: 0 10px; border: 1px solid #b7b7b7; border-radius: 8px; font: inherit; }
+    button { min-height: 44px; padding: 0 18px; border: 1px solid #b7b7b7; border-radius: 8px; background: #fff; color: #202124; font: inherit; cursor: pointer; }
+    button:disabled { cursor: wait; opacity: 0.6; }
+    #detect-status { min-height: 1.5em; margin: 12px 0; }
+    .preview-wrap { margin-top: 12px; overflow: auto; max-height: 720px; border: 1px solid #ddd; border-radius: 8px; background: #fff; }
+    #preview-canvas { display: block; max-width: 100%; height: auto; }
+    .candidate-table-wrap { overflow-x: auto; margin-top: 12px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+    th, td { padding: 8px 10px; border-bottom: 1px solid #e2e2e2; text-align: left; white-space: nowrap; }
+    th { background: #f7f7f7; }
+    .note { color: #5f6368; font-size: 0.9rem; }
+    @media (max-width: 700px) { .pdf-frame { height: 520px; } }
   </style>
 </head>
 <body>
@@ -43,17 +36,141 @@
     <section class="card">
       <h1>溶接進捗管理</h1>
       <p>PythonAnywhere内に保存したPDFを表示しています。</p>
-      <iframe
-        class="pdf-frame"
-        src="{{ url_for('static', filename='sample.pdf') }}"
-        title="配管図サンプルPDF"
-      ></iframe>
-      <p class="fallback">
-        PDFが枠内に表示されない場合は
-        <a href="{{ url_for('static', filename='sample.pdf') }}" target="_blank" rel="noopener noreferrer">新しいタブでPDFを開く</a>
-        を使ってください。
-      </p>
+      <iframe class="pdf-frame" src="{{ url_for('static', filename='sample.pdf') }}" title="配管図サンプルPDF"></iframe>
+      <p class="fallback">PDFが枠内に表示されない場合は <a href="{{ url_for('static', filename='sample.pdf') }}" target="_blank" rel="noopener noreferrer">新しいタブでPDFを開く</a> を使ってください。</p>
+
+      <section class="detect-panel" aria-labelledby="detect-title">
+        <h2 id="detect-title">OpenAIで丸囲み番号を検出</h2>
+        <p>指定した1ページだけをブラウザで画像化し、OpenAI APIへ送って丸囲み番号と位置を検出します。</p>
+        <div class="controls">
+          <label>
+            対象ページ
+            <input id="page-number" type="number" min="1" value="1" inputmode="numeric">
+          </label>
+          <button id="detect-button" type="button">このページを解析</button>
+        </div>
+        <p id="detect-status" aria-live="polite">未実行</p>
+
+        <div class="preview-wrap" id="preview-wrap" hidden>
+          <canvas id="preview-canvas"></canvas>
+        </div>
+
+        <div class="candidate-table-wrap">
+          <table id="candidate-table" hidden>
+            <thead><tr><th>番号</th><th>ページ</th><th>X位置</th><th>Y位置</th><th>信頼度</th></tr></thead>
+            <tbody id="candidate-body"></tbody>
+          </table>
+        </div>
+        <p class="note">位置は画像左上を基準に0〜1000で返された座標を割合表示しています。今回は検出テストだけで、保存や進捗入力はまだ行いません。</p>
+      </section>
     </section>
   </main>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    (() => {
+      const pdfUrl = {{ url_for('static', filename='sample.pdf') | tojson }};
+      const analyzeUrl = {{ url_for('analyze') | tojson }};
+      const button = document.getElementById('detect-button');
+      const status = document.getElementById('detect-status');
+      const pageInput = document.getElementById('page-number');
+      const previewWrap = document.getElementById('preview-wrap');
+      const previewCanvas = document.getElementById('preview-canvas');
+      const table = document.getElementById('candidate-table');
+      const body = document.getElementById('candidate-body');
+
+      if (!window.pdfjsLib) {
+        status.textContent = 'PDF解析ライブラリを読み込めませんでした。';
+        button.disabled = true;
+        return;
+      }
+
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+      async function analyzePage() {
+        button.disabled = true;
+        table.hidden = true;
+        previewWrap.hidden = true;
+        body.replaceChildren();
+
+        try {
+          status.textContent = '対象ページを画像化しています…';
+          const pdf = await pdfjsLib.getDocument(pdfUrl).promise;
+          const pageNumber = Number(pageInput.value);
+          pageInput.max = String(pdf.numPages);
+
+          if (!Number.isInteger(pageNumber) || pageNumber < 1 || pageNumber > pdf.numPages) {
+            status.textContent = `ページ番号は1〜${pdf.numPages}で指定してください。`;
+            return;
+          }
+
+          const page = await pdf.getPage(pageNumber);
+          const baseViewport = page.getViewport({ scale: 1 });
+          const maxSide = 1800;
+          const scale = Math.min(2.4, maxSide / Math.max(baseViewport.width, baseViewport.height));
+          const viewport = page.getViewport({ scale });
+
+          previewCanvas.width = Math.ceil(viewport.width);
+          previewCanvas.height = Math.ceil(viewport.height);
+          const ctx = previewCanvas.getContext('2d');
+          await page.render({ canvasContext: ctx, viewport }).promise;
+
+          const imageDataUrl = previewCanvas.toDataURL('image/jpeg', 0.9);
+          status.textContent = 'OpenAI APIで丸囲み番号を解析しています…';
+
+          const response = await fetch(analyzeUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pageNumber, imageDataUrl }),
+          });
+          const result = await response.json();
+
+          if (!response.ok) {
+            const detail = result.detail ? ` ${result.detail}` : '';
+            throw new Error((result.error || '解析に失敗しました。') + detail);
+          }
+
+          const markers = Array.isArray(result.markers) ? result.markers : [];
+          ctx.lineWidth = Math.max(2, previewCanvas.width / 700);
+          ctx.strokeStyle = '#d93025';
+          ctx.fillStyle = '#d93025';
+          ctx.font = `bold ${Math.max(16, previewCanvas.width / 55)}px sans-serif`;
+
+          for (const marker of markers) {
+            const x = (marker.x / 1000) * previewCanvas.width;
+            const y = (marker.y / 1000) * previewCanvas.height;
+            const radius = Math.max(14, previewCanvas.width / 70);
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.fillText(String(marker.number), x + radius + 4, y);
+
+            const row = document.createElement('tr');
+            row.innerHTML = `
+              <td>${marker.number}</td>
+              <td>${pageNumber}</td>
+              <td>${(marker.x / 10).toFixed(1)}%</td>
+              <td>${(marker.y / 10).toFixed(1)}%</td>
+              <td>${Math.round(marker.confidence * 100)}%</td>
+            `;
+            body.appendChild(row);
+          }
+
+          previewWrap.hidden = false;
+          table.hidden = markers.length === 0;
+          status.textContent = markers.length === 0
+            ? `ページ${pageNumber}: 丸囲み番号は検出されませんでした。`
+            : `ページ${pageNumber}: ${markers.length}件検出しました。`;
+        } catch (error) {
+          console.error(error);
+          status.textContent = `解析エラー: ${error.message}`;
+        } finally {
+          button.disabled = false;
+        }
+      }
+
+      button.addEventListener('click', analyzePage);
+    })();
+  </script>
 </body>
 </html>
