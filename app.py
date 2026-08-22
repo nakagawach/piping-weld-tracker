@@ -1,11 +1,18 @@
 import json
 import os
+import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib import error, request
 
 from flask import Flask, jsonify, render_template, request as flask_request
 
 app = Flask(__name__)
+
+APP_DIR = Path(__file__).resolve().parent
+DATA_DIR = APP_DIR / "data"
+DB_PATH = DATA_DIR / "weld_tracker.sqlite3"
+DRAWING_KEY = "sample.pdf"
 
 
 def get_google_vision_api_key():
@@ -27,9 +34,167 @@ def get_google_vision_api_key():
     return None
 
 
+def get_db_connection():
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    connection = sqlite3.connect(DB_PATH)
+    connection.row_factory = sqlite3.Row
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS number_map (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            drawing_key TEXT NOT NULL,
+            page_number INTEGER NOT NULL,
+            item_order INTEGER NOT NULL,
+            number_text TEXT NOT NULL,
+            source TEXT NOT NULL,
+            x REAL NOT NULL,
+            y REAL NOT NULL,
+            width REAL NOT NULL,
+            height REAL NOT NULL,
+            saved_at TEXT NOT NULL
+        )
+        """
+    )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_number_map_page ON number_map (drawing_key, page_number, item_order)"
+    )
+    return connection
+
+
+def normalize_candidate(raw_candidate):
+    if not isinstance(raw_candidate, dict):
+        raise ValueError("番号候補の形式が不正です。")
+
+    number_text = str(raw_candidate.get("number", "")).strip()
+    if not number_text.isdigit() or not 1 <= int(number_text) <= 99:
+        raise ValueError("番号は1〜99で指定してください。")
+
+    source = raw_candidate.get("source", "manual")
+    if source not in {"ocr", "manual"}:
+        source = "manual"
+
+    bbox = raw_candidate.get("bbox")
+    if not isinstance(bbox, dict):
+        raise ValueError("番号候補の座標がありません。")
+
+    try:
+        x = float(bbox.get("x"))
+        y = float(bbox.get("y"))
+        width = float(bbox.get("w"))
+        height = float(bbox.get("h"))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("番号候補の座標が不正です。") from exc
+
+    if width <= 0 or height <= 0:
+        raise ValueError("番号候補の幅・高さが不正です。")
+
+    return {
+        "number": number_text,
+        "source": source,
+        "bbox": {"x": x, "y": y, "w": width, "h": height},
+    }
+
+
 @app.route("/")
 def index():
     return render_template("index.html")
+
+
+@app.get("/number-map")
+def get_number_map():
+    page_number = flask_request.args.get("page", type=int)
+    if page_number is None or page_number < 1:
+        return jsonify({"error": "ページ番号が不正です。"}), 400
+
+    with get_db_connection() as connection:
+        rows = connection.execute(
+            """
+            SELECT number_text, source, x, y, width, height, saved_at
+            FROM number_map
+            WHERE drawing_key = ? AND page_number = ?
+            ORDER BY item_order
+            """,
+            (DRAWING_KEY, page_number),
+        ).fetchall()
+
+    candidates = [
+        {
+            "number": row["number_text"],
+            "source": row["source"],
+            "bbox": {
+                "x": row["x"],
+                "y": row["y"],
+                "w": row["width"],
+                "h": row["height"],
+            },
+        }
+        for row in rows
+    ]
+
+    return jsonify({
+        "drawingKey": DRAWING_KEY,
+        "pageNumber": page_number,
+        "saved": bool(rows),
+        "savedAt": rows[0]["saved_at"] if rows else None,
+        "candidates": candidates,
+    })
+
+
+@app.post("/number-map")
+def save_number_map():
+    body = flask_request.get_json(silent=True) or {}
+    page_number = body.get("pageNumber")
+    raw_candidates = body.get("candidates")
+
+    if not isinstance(page_number, int) or page_number < 1:
+        return jsonify({"error": "ページ番号が不正です。"}), 400
+    if not isinstance(raw_candidates, list):
+        return jsonify({"error": "番号候補が不正です。"}), 400
+    if len(raw_candidates) > 1000:
+        return jsonify({"error": "番号候補が多すぎます。"}), 400
+
+    try:
+        candidates = [normalize_candidate(candidate) for candidate in raw_candidates]
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    saved_at = datetime.now(timezone.utc).isoformat()
+
+    with get_db_connection() as connection:
+        connection.execute(
+            "DELETE FROM number_map WHERE drawing_key = ? AND page_number = ?",
+            (DRAWING_KEY, page_number),
+        )
+        connection.executemany(
+            """
+            INSERT INTO number_map (
+                drawing_key, page_number, item_order, number_text, source,
+                x, y, width, height, saved_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                (
+                    DRAWING_KEY,
+                    page_number,
+                    index,
+                    candidate["number"],
+                    candidate["source"],
+                    candidate["bbox"]["x"],
+                    candidate["bbox"]["y"],
+                    candidate["bbox"]["w"],
+                    candidate["bbox"]["h"],
+                    saved_at,
+                )
+                for index, candidate in enumerate(candidates)
+            ],
+        )
+
+    return jsonify({
+        "drawingKey": DRAWING_KEY,
+        "pageNumber": page_number,
+        "savedAt": saved_at,
+        "count": len(candidates),
+    })
 
 
 @app.post("/ocr")
