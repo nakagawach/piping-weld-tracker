@@ -41,7 +41,7 @@
 
       <section class="detect-panel" aria-labelledby="ocr-title">
         <h2 id="ocr-title">Google Vision OCR テスト</h2>
-        <p>指定した1ページだけを画像化し、Google Visionから文字と座標を取得します。今回は丸囲み番号の判定や保存はまだ行いません。</p>
+        <p>指定した1ページだけを高解像度で画像化し、Google Visionから文字と座標を取得します。今回は丸囲み番号の判定や保存はまだ行いません。</p>
         <div class="controls">
           <label>対象ページ<input id="page-number" type="number" min="1" value="1" inputmode="numeric"></label>
           <button id="ocr-button" type="button">このページをOCR</button>
@@ -85,7 +85,7 @@
         previewWrap.hidden = true;
         tbody.replaceChildren();
         try {
-          status.textContent = '対象ページを画像化しています…';
+          status.textContent = '対象ページを高解像度で画像化しています…';
           const pdf = await pdfjsLib.getDocument(pdfUrl).promise;
           const pageNumber = Number(pageInput.value);
           pageInput.max = String(pdf.numPages);
@@ -96,17 +96,18 @@
 
           const page = await pdf.getPage(pageNumber);
           const baseViewport = page.getViewport({ scale: 1 });
-          const maxSide = 2200;
-          const scale = Math.min(3, maxSide / Math.max(baseViewport.width, baseViewport.height));
+          // A/B test: only increase the OCR render resolution. Keep the API and UI logic unchanged.
+          const maxSide = 4000;
+          const scale = Math.min(5, maxSide / Math.max(baseViewport.width, baseViewport.height));
           const viewport = page.getViewport({ scale });
           canvas.width = Math.ceil(viewport.width);
           canvas.height = Math.ceil(viewport.height);
           const ctx = canvas.getContext('2d');
           await page.render({ canvasContext: ctx, viewport }).promise;
 
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
           const imageBase64 = dataUrl.split(',', 2)[1];
-          status.textContent = 'Google VisionでOCRしています…';
+          status.textContent = `Google VisionでOCRしています… (${canvas.width}×${canvas.height}px)`;
 
           const response = await fetch(ocrUrl, {
             method: 'POST',
@@ -142,7 +143,7 @@
 
           previewWrap.hidden = false;
           table.hidden = words.length === 0;
-          status.textContent = `ページ${pageNumber}: ${words.length}件の文字要素を取得しました。`;
+          status.textContent = `ページ${pageNumber}: ${words.length}件の文字要素を取得しました（OCR画像 ${canvas.width}×${canvas.height}px）。`;
         } catch (err) {
           console.error(err);
           status.textContent = `OCRエラー: ${err.message}`;
