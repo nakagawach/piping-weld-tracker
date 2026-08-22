@@ -12,26 +12,53 @@
       color: #202124;
     }
     main {
-      max-width: 720px;
+      max-width: 1200px;
       margin: 0 auto;
-      padding: 48px 20px;
+      padding: 24px 16px 40px;
     }
     .card {
       background: #fff;
       border: 1px solid #ddd;
       border-radius: 12px;
-      padding: 28px;
+      padding: 20px;
     }
-    h1 { margin-top: 0; }
+    h1 { margin: 0 0 8px; }
     p { line-height: 1.7; }
+    .pdf-frame {
+      width: 100%;
+      height: 760px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      background: #eee;
+    }
+    .fallback {
+      margin-top: 12px;
+    }
+    .fallback a {
+      color: #0b57d0;
+    }
+    @media (max-width: 700px) {
+      .pdf-frame {
+        height: 560px;
+      }
+    }
   </style>
 </head>
 <body>
   <main>
     <section class="card">
       <h1>溶接進捗管理</h1>
-      <p>PythonAnywhere + Flask の初期接続テストです。</p>
-      <p>次の段階で、配管アイソメ図PDFの表示と溶接番号検出を追加します。</p>
+      <p>公開サンプルの配管アイソメ図PDFを表示しています。</p>
+      <iframe
+        class="pdf-frame"
+        src="{{ sample_pdf_url }}"
+        title="配管アイソメ図サンプルPDF"
+      ></iframe>
+      <p class="fallback">
+        PDFが枠内に表示されない場合は
+        <a href="{{ sample_pdf_url }}" target="_blank" rel="noopener noreferrer">新しいタブでPDFを開く</a>
+        を使ってください。
+      </p>
     </section>
   </main>
 </body>
