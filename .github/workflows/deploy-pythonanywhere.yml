@@ -19,6 +19,7 @@ on:
       - feature/project-entry-auto-area
       - feature/project-entry-fast-display
       - feature/project-entry-adaptive-area
+      - feature/pdfium-project-entry
   workflow_dispatch:
 
 permissions:
@@ -34,6 +35,10 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+
+      - name: Syntax check
+        shell: bash
+        run: python -m py_compile app.py projects.py
 
       - name: Upload weld app files
         env:
@@ -99,6 +104,7 @@ jobs:
             progress_ok=false
             projects_screen_ok=false
             projects_api_ok=false
+            pdfium_ok=false
 
             if curl --fail --silent --show-error --location \
               --max-time 20 \
@@ -128,14 +134,25 @@ jobs:
               projects_screen_ok=true
             fi
 
-            if curl --fail --silent --show-error --location \
-              --max-time 20 \
-              "https://nakagawach.pythonanywhere.com/weld/projects" \
-              | grep -q '"projects"'; then
+            projects_json=$(curl --fail --silent --show-error --location --max-time 20 \
+              "https://nakagawach.pythonanywhere.com/weld/projects" || true)
+            if printf '%s' "$projects_json" | grep -q '"projects"'; then
               projects_api_ok=true
             fi
 
-            if [ "$page_ok" = true ] && [ "$map_ok" = true ] && [ "$progress_ok" = true ] && [ "$projects_screen_ok" = true ] && [ "$projects_api_ok" = true ]; then
+            project_id=$(printf '%s' "$projects_json" | python -c 'import json,sys; d=json.load(sys.stdin); p=d.get("projects",[]); print(p[0]["id"] if p else "")' 2>/dev/null || true)
+            if [ -z "$project_id" ]; then
+              pdfium_ok=true
+            elif curl --fail --silent --show-error --location --max-time 20 \
+                "https://nakagawach.pythonanywhere.com/weld/projects/${project_id}/pdfium-info" \
+                | grep -q '"pageCount"' \
+              && curl --fail --silent --show-error --location --max-time 30 \
+                "https://nakagawach.pythonanywhere.com/weld/projects/${project_id}/pdfium-page?page=1&longEdge=500&format=png" \
+                --output /dev/null; then
+              pdfium_ok=true
+            fi
+
+            if [ "$page_ok" = true ] && [ "$map_ok" = true ] && [ "$progress_ok" = true ] && [ "$projects_screen_ok" = true ] && [ "$projects_api_ok" = true ] && [ "$pdfium_ok" = true ]; then
               echo "Smoke test passed."
               exit 0
             fi
