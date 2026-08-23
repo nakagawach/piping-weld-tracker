@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from flask import Blueprint, jsonify, request, send_from_directory
+from flask import Blueprint, jsonify, render_template, request, send_from_directory
 
 
 def create_projects_blueprint(db_path: Path, data_dir: Path):
@@ -49,6 +49,7 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
                     "pdfName": row["original_pdf_name"],
                     "createdAt": row["created_at"],
                     "pdfUrl": f"pdfs/{row['stored_pdf_name']}",
+                    "entryUrl": f"projects/{row['id']}/entry",
                 }
                 for row in rows
             ]
@@ -101,6 +102,7 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
             "pdfName": original_name,
             "createdAt": created_at,
             "pdfUrl": f"pdfs/{stored_name}",
+            "entryUrl": f"projects/{project_id}/entry",
         }), 201
 
     @blueprint.delete("/projects/<int:project_id>")
@@ -125,6 +127,28 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
             }), 500
 
         return jsonify({"deleted": True, "id": project_id})
+
+    @blueprint.get("/projects/<int:project_id>/entry")
+    def project_entry(project_id):
+        with connect() as connection:
+            row = connection.execute(
+                """
+                SELECT project_name, original_pdf_name, stored_pdf_name
+                FROM projects
+                WHERE id = ?
+                """,
+                (project_id,),
+            ).fetchone()
+
+        if row is None:
+            return "工事が見つかりません。", 404
+
+        return render_template(
+            "project_entry.html",
+            project_name=row["project_name"],
+            pdf_name=row["original_pdf_name"],
+            pdf_url=f"../../pdfs/{row['stored_pdf_name']}",
+        )
 
     @blueprint.get("/pdfs/<path:stored_name>")
     def get_project_pdf(stored_name):
