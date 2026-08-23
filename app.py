@@ -7,6 +7,8 @@ from urllib import error, request
 
 from flask import Flask, jsonify, render_template, request as flask_request
 
+from projects import create_projects_blueprint
+
 app = Flask(__name__)
 
 APP_DIR = Path(__file__).resolve().parent
@@ -14,6 +16,8 @@ DATA_DIR = APP_DIR / "data"
 DB_PATH = DATA_DIR / "weld_tracker.sqlite3"
 DRAWING_KEY = "sample.pdf"
 PROGRESS_STATUSES = {"未着手", "施工中", "完了"}
+
+app.register_blueprint(create_projects_blueprint(DB_PATH, DATA_DIR))
 
 
 def get_google_vision_api_key():
@@ -157,6 +161,11 @@ def normalize_progress(body):
 @app.route("/")
 def index():
     return render_template("index.html")
+
+
+@app.get("/projects-screen")
+def projects_screen():
+    return render_template("projects.html")
 
 
 @app.get("/number-map")
