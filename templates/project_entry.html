@@ -27,14 +27,14 @@
     <div class="summary perf" id="perf">性能計測中…</div>
     <div class="summary" id="summary" hidden></div>
     <div class="viewer"><canvas id="canvas"></canvas></div>
-    <p class="note">青枠をクリック/タップすると番号変更、空欄で削除できます。空白を1回クリック/タップすると、近くのOCR数字の大きさを基準に緑枠を自動作成します。見える緑枠は文字にタイトに合わせ、クリック判定だけ周囲に余白を持たせています。通常表示は軽量化し、6,000px画像はOCR実行時だけ生成します。</p>
+    <p class="note">青枠をクリック/タップすると番号変更、空欄で削除できます。空白を1回クリック/タップすると、近くのOCR数字の大きさを基準に緑枠を自動作成します。見える緑枠は文字にタイトに合わせ、クリック判定だけ周囲に余白を持たせています。通常表示は長辺1,200pxへ軽量化し、6,000px画像はOCR実行時だけ生成します。</p>
   </section>
 </main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
 (() => {
   const OCR_LONG_EDGE = 6000;
-  const DISPLAY_LONG_EDGE = 1600;
+  const DISPLAY_LONG_EDGE = 1200;
   const DISPLAY_COORD_SCALE = DISPLAY_LONG_EDGE / OCR_LONG_EDGE;
   const HIT_TARGET_CSS_PX = 28;
   const navigationStart = performance.now();
@@ -150,7 +150,7 @@
       candidates=(data.candidates||[]).map(x=>({id:nextId++,...x,bbox:{...x.bbox}}));originalCandidates=clone(candidates);draw();
       const pageMs=performance.now()-pageStarted;
       const firstTotal=Number(pageInput.value)===1&&pdfLoadMs!==null?` / 初期合計 ${ms(performance.now()-navigationStart)}`:'';
-      perfBox.textContent=`PDF取得・解析 ${pdfLoadMs===null?'計測中':ms(pdfLoadMs)} / 1,600px描画 ${ms(renderMs)} / DB ${ms(dbMs)} / ページ処理 ${ms(pageMs)}${firstTotal}`;
+      perfBox.textContent=`PDF取得・解析 ${pdfLoadMs===null?'計測中':ms(pdfLoadMs)} / 1,200px描画 ${ms(renderMs)} / DB ${ms(dbMs)} / ページ処理 ${ms(pageMs)}${firstTotal}`;
       ocrButton.textContent=data.saved?'再OCR':'OCR実行';status.textContent=data.saved?`保存済み番号マップを復元しました（${candidates.length}件）`:`${n} / ${pdf.numPages} ページ。未エントリーです。OCR実行してください。`;
     }catch(e){status.className='status error';status.textContent=e.message;}finally{setBusy(false);}
   }
