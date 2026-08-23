@@ -1,15 +1,18 @@
+import shutil
 import sqlite3
 import uuid
 from datetime import datetime, timezone
-from io import BytesIO
 from pathlib import Path
 
 from flask import Blueprint, jsonify, render_template, request, send_file, send_from_directory
+
+from project_render import render_cached, vision_ocr
 
 
 def create_projects_blueprint(db_path: Path, data_dir: Path):
     blueprint = Blueprint("projects", __name__)
     upload_dir = data_dir / "pdfs"
+    cache_dir = data_dir / "render_cache"
 
     def ensure_table(connection):
         connection.execute(
@@ -44,6 +47,12 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
             return None
         pdf_path = upload_dir / row["stored_pdf_name"]
         return pdf_path if pdf_path.exists() else None
+
+    def get_project_cache_dir(project_id):
+        pdf_path = get_project_pdf_path(project_id)
+        if pdf_path is None:
+            return None
+        return cache_dir / pdf_path.stem
 
     def normalize_candidate(raw_candidate):
         if not isinstance(raw_candidate, dict):
@@ -169,6 +178,7 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
         pdf_path = upload_dir / stored_name
         try:
             pdf_path.unlink(missing_ok=True)
+            shutil.rmtree(cache_dir / Path(stored_name).stem, ignore_errors=True)
         except OSError:
             return jsonify({
                 "error": "工事情報は削除しましたが、PDFファイルの削除に失敗しました。"
@@ -232,45 +242,52 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
             return "formatはpngまたはjpegで指定してください。", 400
 
         pdf_path = get_project_pdf_path(project_id)
-        if pdf_path is None:
+        project_cache = get_project_cache_dir(project_id)
+        if pdf_path is None or project_cache is None:
             return "PDFが見つかりません。", 404
-        try:
-            import pypdfium2 as pdfium
-        except ImportError:
-            return "pypdfium2がPythonAnywhere環境に未インストールです。", 503
 
-        document = None
-        page = None
-        bitmap = None
+        suffix = "jpg" if image_format == "jpeg" else "png"
+        cache_path = project_cache / f"page-{page_number}-{long_edge}.{suffix}"
         try:
-            document = pdfium.PdfDocument(str(pdf_path))
-            if page_number > len(document):
-                return "指定ページがPDFのページ数を超えています。", 400
-            page = document[page_number - 1]
-            width, height = page.get_size()
-            scale = long_edge / max(width, height)
-            bitmap = page.render(scale=scale)
-            image = bitmap.to_pil()
-            output = BytesIO()
-            if image_format == "jpeg":
-                if image.mode != "RGB":
-                    image = image.convert("RGB")
-                image.save(output, format="JPEG", quality=90, optimize=False)
-                mimetype = "image/jpeg"
-            else:
-                image.save(output, format="PNG", optimize=False)
-                mimetype = "image/png"
-            output.seek(0)
-            return send_file(output, mimetype=mimetype, max_age=0)
+            image_path, cache_hit = render_cached(
+                pdf_path, cache_path, page_number, long_edge, image_format
+            )
+            response = send_file(
+                image_path,
+                mimetype="image/jpeg" if image_format == "jpeg" else "image/png",
+                max_age=31536000,
+            )
+            response.headers["X-Render-Cache"] = "HIT" if cache_hit else "MISS"
+            return response
+        except ValueError as exc:
+            return str(exc), 400
         except Exception as exc:
             return f"PDFiumレンダリングに失敗しました: {exc}", 500
-        finally:
-            if bitmap is not None:
-                bitmap.close()
-            if page is not None:
-                page.close()
-            if document is not None:
-                document.close()
+
+    @blueprint.post("/projects/<int:project_id>/ocr-page")
+    def ocr_project_page(project_id):
+        body = request.get_json(silent=True) or {}
+        page_number = body.get("pageNumber")
+        if not isinstance(page_number, int) or page_number < 1:
+            return jsonify({"error": "ページ番号が不正です。"}), 400
+
+        pdf_path = get_project_pdf_path(project_id)
+        project_cache = get_project_cache_dir(project_id)
+        if pdf_path is None or project_cache is None:
+            return jsonify({"error": "PDFが見つかりません。"}), 404
+
+        cache_path = project_cache / f"page-{page_number}-6000.jpg"
+        try:
+            image_path, cache_hit = render_cached(
+                pdf_path, cache_path, page_number, 6000, "jpeg"
+            )
+            result = vision_ocr(image_path, page_number, Path(__file__).resolve().parent)
+            result["renderCache"] = "hit" if cache_hit else "miss"
+            return jsonify(result)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        except Exception as exc:
+            return jsonify({"error": str(exc)}), 502
 
     @blueprint.get("/projects/<int:project_id>/number-map")
     def get_project_number_map(project_id):
