@@ -13,6 +13,7 @@ on:
       - feature/save-number-map
       - feature/weld-progress-entry
       - feature/project-pdf-registration-safe
+      - feature/project-delete
   workflow_dispatch:
 
 permissions:
