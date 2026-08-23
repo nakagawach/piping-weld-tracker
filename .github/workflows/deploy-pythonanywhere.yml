@@ -16,6 +16,7 @@ on:
       - feature/project-delete
       - feature/project-entry-after-delete
       - feature/project-entry-ocr
+      - feature/project-entry-auto-area
   workflow_dispatch:
 
 permissions:
