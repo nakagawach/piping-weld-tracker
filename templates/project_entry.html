@@ -26,7 +26,7 @@
     <div class="status" id="status">PDFを読み込んでいます…</div>
     <div class="summary" id="summary" hidden></div>
     <div class="viewer"><canvas id="canvas"></canvas></div>
-    <p class="note">青枠をクリックすると番号変更、空欄で削除できます。番号のない場所をクリックすると手動追加できます。保存済みページは再表示時にVision APIを呼ばず番号配置を復元します。</p>
+    <p class="note">青枠をクリック/タップすると番号変更、空欄で削除できます。番号のない場所を1回クリック/タップすると、押しやすい大きさの緑枠を自動作成して手動追加できます。保存済みページは再表示時にVision APIを呼ばず番号配置を復元します。</p>
   </section>
 </main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -62,6 +62,14 @@
   function bbox(vertices){const xs=vertices.map(v=>Number(v.x)||0),ys=vertices.map(v=>Number(v.y)||0);if(!xs.length)return null;const x=Math.min(...xs),y=Math.min(...ys),x2=Math.max(...xs),y2=Math.max(...ys);return{x,y,w:Math.max(1,x2-x),h:Math.max(1,y2-y)};}
   function point(e){const r=canvas.getBoundingClientRect();return{x:(e.clientX-r.left)*canvas.width/r.width,y:(e.clientY-r.top)*canvas.height/r.height};}
   function findAt(p){const extra=Math.max(18,canvas.width/250);for(let i=candidates.length-1;i>=0;i--){const b=candidates[i].bbox;if(p.x>=b.x-extra&&p.x<=b.x+b.w+extra&&p.y>=b.y-extra&&p.y<=b.y+b.h+extra)return candidates[i];}return null;}
+  function autoManualBox(center){
+    const rect=canvas.getBoundingClientRect();
+    const targetFrameCssPx=64;
+    const boxCssPx=targetFrameCssPx/1.7;
+    const w=boxCssPx*canvas.width/rect.width;
+    const h=boxCssPx*canvas.height/rect.height;
+    return{x:center.x-w/2,y:center.y-h/2,w,h};
+  }
   function setBusy(value){busy=value;ocrButton.disabled=value;saveButton.disabled=value||!candidates.length;resetButton.disabled=value||!originalCandidates.length;prev.disabled=value||Number(pageInput.value)<=1;next.disabled=value||!pdf||Number(pageInput.value)>=pdf.numPages;pageInput.disabled=value;}
 
   function draw(){
@@ -100,7 +108,7 @@
   canvas.addEventListener('click',e=>{
     if(busy||!sourceCanvas.width)return;const p=point(e),hit=findAt(p);
     if(hit){const value=prompt('番号を変更します。空欄で削除します。',hit.number);if(value===null)return;const t=value.trim();if(!t){candidates=candidates.filter(x=>x.id!==hit.id);draw();return;}const num=normalizedNumber(t);if(!num){alert('番号は1〜99で入力してください。');return;}hit.number=num;draw();return;}
-    const value=prompt('この位置に追加する番号（1〜99）を入力してください。');if(value===null||!value.trim())return;const num=normalizedNumber(value);if(!num){alert('番号は1〜99で入力してください。');return;}const size=Math.max(24,sourceCanvas.width/250);candidates.push({id:nextId++,number:num,source:'manual',bbox:{x:p.x-size/2,y:p.y-size/2,w:size,h:size}});draw();
+    const value=prompt('この位置に追加する番号（1〜99）を入力してください。');if(value===null||!value.trim())return;const num=normalizedNumber(value);if(!num){alert('番号は1〜99で入力してください。');return;}candidates.push({id:nextId++,number:num,source:'manual',bbox:autoManualBox(p)});draw();
   });
 
   saveButton.onclick=async()=>{
