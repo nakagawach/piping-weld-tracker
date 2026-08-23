@@ -64,13 +64,20 @@
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
   function clone(list){return list.map(x=>({...x,bbox:{...x.bbox}}));}
-  function normalizedNumber(value){const t=String(value??'').trim();if(!/^\d{1,2}$/.test(t))return null;const n=Number(t);return n>=1&&n<=99?String(n):null;}
+  function normalizeDigits(value){return String(value??'').replace(/[０-９]/g,ch=>String.fromCharCode(ch.charCodeAt(0)-0xFEE0));}
+  function normalizedNumber(value){const t=normalizeDigits(value).trim();if(!/^\d{1,2}$/.test(t))return null;const n=Number(t);return n>=1&&n<=99?String(n):null;}
   function bbox(vertices){const xs=vertices.map(v=>Number(v.x)||0),ys=vertices.map(v=>Number(v.y)||0);if(!xs.length)return null;const x=Math.min(...xs),y=Math.min(...ys),x2=Math.max(...xs),y2=Math.max(...ys);return{x,y,w:Math.max(1,x2-x),h:Math.max(1,y2-y)};}
   function toDisplayBox(b){return{x:b.x*DISPLAY_COORD_SCALE,y:b.y*DISPLAY_COORD_SCALE,w:b.w*DISPLAY_COORD_SCALE,h:b.h*DISPLAY_COORD_SCALE};}
   function point(e){const r=canvas.getBoundingClientRect();return{x:(e.clientX-r.left)*canvas.width/r.width/DISPLAY_COORD_SCALE,y:(e.clientY-r.top)*canvas.height/r.height/DISPLAY_COORD_SCALE};}
   function cssPxToOcrX(px){const r=canvas.getBoundingClientRect();return px*canvas.width/r.width/DISPLAY_COORD_SCALE;}
   function cssPxToOcrY(px){const r=canvas.getBoundingClientRect();return px*canvas.height/r.height/DISPLAY_COORD_SCALE;}
-  function findAt(p){const extraX=cssPxToOcrX(12),extraY=cssPxToOcrY(12);for(let i=candidates.length-1;i>=0;i--){const b=candidates[i].bbox;if(p.x>=b.x-extraX&&p.x<=b.x+b.w+extraX&&p.y>=b.y-extraY&&p.y<=b.y+b.h+extraY)return candidates[i];}return null;}
+  function findAt(p){
+    const extraX=cssPxToOcrX(12),extraY=cssPxToOcrY(12);
+    const hits=candidates.filter(item=>{const b=item.bbox;return p.x>=b.x-extraX&&p.x<=b.x+b.w+extraX&&p.y>=b.y-extraY&&p.y<=b.y+b.h+extraY;});
+    if(!hits.length)return null;
+    hits.sort((a,b)=>{const acx=a.bbox.x+a.bbox.w/2,acy=a.bbox.y+a.bbox.h/2,bcx=b.bbox.x+b.bbox.w/2,bcy=b.bbox.y+b.bbox.h/2;const ad=(p.x-acx)**2+(p.y-acy)**2,bd=(p.x-bcx)**2+(p.y-bcy)**2;return ad-bd||(a.bbox.w*a.bbox.h-b.bbox.w*b.bbox.h);});
+    return hits[0];
+  }
   function autoManualBox(center){
     const boxCssPx=MANUAL_TARGET_FRAME_CSS_PX/1.7;
     const w=cssPxToOcrX(boxCssPx);
@@ -129,8 +136,8 @@
 
   canvas.addEventListener('click',e=>{
     if(busy||!displaySourceCanvas.width)return;const p=point(e),hit=findAt(p);
-    if(hit){const value=prompt('番号を変更します。空欄で削除します。',hit.number);if(value===null)return;const t=value.trim();if(!t){candidates=candidates.filter(x=>x.id!==hit.id);draw();return;}const num=normalizedNumber(t);if(!num){alert('番号は1〜99で入力してください。');return;}hit.number=num;draw();return;}
-    const value=prompt('この位置に追加する番号（1〜99）を入力してください。');if(value===null||!value.trim())return;const num=normalizedNumber(value);if(!num){alert('番号は1〜99で入力してください。');return;}candidates.push({id:nextId++,number:num,source:'manual',bbox:autoManualBox(p)});draw();
+    if(hit){const value=prompt('番号を変更します。空欄で削除します。',hit.number);if(value===null)return;const t=normalizeDigits(value).trim();if(!t){candidates=candidates.filter(x=>x.id!==hit.id);draw();return;}const num=normalizedNumber(t);if(!num){alert('番号は1〜99で入力してください。');return;}hit.number=num;draw();return;}
+    const value=prompt('この位置に追加する番号（1〜99）を入力してください。');if(value===null||!normalizeDigits(value).trim())return;const num=normalizedNumber(value);if(!num){alert('番号は1〜99で入力してください。');return;}candidates.push({id:nextId++,number:num,source:'manual',bbox:autoManualBox(p)});draw();
   });
 
   saveButton.onclick=async()=>{
