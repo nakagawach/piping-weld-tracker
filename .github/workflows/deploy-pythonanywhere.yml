@@ -12,6 +12,7 @@ on:
       - feature/always-edit-entry-ui
       - feature/save-number-map
       - feature/weld-progress-entry
+      - feature/project-pdf-registration-safe
   workflow_dispatch:
 
 permissions:
@@ -50,6 +51,7 @@ jobs:
           }
 
           upload_file "app.py"
+          upload_file "projects.py"
           upload_file "requirements.txt"
 
           while IFS= read -r -d '' file; do
@@ -89,6 +91,8 @@ jobs:
             page_ok=false
             map_ok=false
             progress_ok=false
+            projects_screen_ok=false
+            projects_api_ok=false
 
             if curl --fail --silent --show-error --location \
               --max-time 20 \
@@ -111,7 +115,21 @@ jobs:
               progress_ok=true
             fi
 
-            if [ "$page_ok" = true ] && [ "$map_ok" = true ] && [ "$progress_ok" = true ]; then
+            if curl --fail --silent --show-error --location \
+              --max-time 20 \
+              "https://nakagawach.pythonanywhere.com/weld/projects-screen" \
+              | grep -q "工事一覧"; then
+              projects_screen_ok=true
+            fi
+
+            if curl --fail --silent --show-error --location \
+              --max-time 20 \
+              "https://nakagawach.pythonanywhere.com/weld/projects" \
+              | grep -q '"projects"'; then
+              projects_api_ok=true
+            fi
+
+            if [ "$page_ok" = true ] && [ "$map_ok" = true ] && [ "$progress_ok" = true ] && [ "$projects_screen_ok" = true ] && [ "$projects_api_ok" = true ]; then
               echo "Smoke test passed."
               exit 0
             fi
