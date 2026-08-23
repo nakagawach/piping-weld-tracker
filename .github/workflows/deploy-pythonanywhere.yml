@@ -20,6 +20,7 @@ on:
       - feature/project-entry-fast-display
       - feature/project-entry-adaptive-area
       - feature/preview-after-ocr
+      - feature/preview-quality-2500
   workflow_dispatch:
 
 permissions:
