@@ -26,7 +26,7 @@
     <div class="status" id="status">PDFを読み込んでいます…</div>
     <div class="summary" id="summary" hidden></div>
     <div class="viewer"><canvas id="canvas"></canvas></div>
-    <p class="note">青枠をクリック/タップすると番号変更、空欄で削除できます。番号のない場所を1回クリック/タップすると、画面上で約48px四方の緑枠を自動作成して手動追加できます。通常表示は軽量化し、6,000px画像はOCR実行時だけ生成します。</p>
+    <p class="note">青枠をクリック/タップすると番号変更、空欄で削除できます。空白を1回クリック/タップすると、近くのOCR数字の大きさを基準に緑枠を自動作成します。見える枠は図面尺度に追従し、クリック判定だけ周囲に余白を持たせています。通常表示は軽量化し、6,000px画像はOCR実行時だけ生成します。</p>
   </section>
 </main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -35,7 +35,7 @@
   const OCR_LONG_EDGE = 6000;
   const DISPLAY_LONG_EDGE = 1600;
   const DISPLAY_COORD_SCALE = DISPLAY_LONG_EDGE / OCR_LONG_EDGE;
-  const MANUAL_TARGET_FRAME_CSS_PX = 48;
+  const HIT_TARGET_CSS_PX = 28;
 
   const projectId = {{ project_id | tojson }};
   const pdfUrl = {{ pdf_url | tojson }};
@@ -71,19 +71,27 @@
   function point(e){const r=canvas.getBoundingClientRect();return{x:(e.clientX-r.left)*canvas.width/r.width/DISPLAY_COORD_SCALE,y:(e.clientY-r.top)*canvas.height/r.height/DISPLAY_COORD_SCALE};}
   function cssPxToOcrX(px){const r=canvas.getBoundingClientRect();return px*canvas.width/r.width/DISPLAY_COORD_SCALE;}
   function cssPxToOcrY(px){const r=canvas.getBoundingClientRect();return px*canvas.height/r.height/DISPLAY_COORD_SCALE;}
+  function median(values){if(!values.length)return null;const a=[...values].sort((x,y)=>x-y),m=Math.floor(a.length/2);return a.length%2?a[m]:(a[m-1]+a[m])/2;}
+  function distanceSq(p,b){const cx=b.x+b.w/2,cy=b.y+b.h/2;return(p.x-cx)**2+(p.y-cy)**2;}
   function findAt(p){
-    const extraX=cssPxToOcrX(12),extraY=cssPxToOcrY(12);
-    const hits=candidates.filter(item=>{const b=item.bbox;return p.x>=b.x-extraX&&p.x<=b.x+b.w+extraX&&p.y>=b.y-extraY&&p.y<=b.y+b.h+extraY;});
+    const minX=cssPxToOcrX(HIT_TARGET_CSS_PX),minY=cssPxToOcrY(HIT_TARGET_CSS_PX);
+    const hits=candidates.filter(item=>{const b=item.bbox;const extraX=Math.max(0,(minX-b.w)/2),extraY=Math.max(0,(minY-b.h)/2);return p.x>=b.x-extraX&&p.x<=b.x+b.w+extraX&&p.y>=b.y-extraY&&p.y<=b.y+b.h+extraY;});
     if(!hits.length)return null;
-    hits.sort((a,b)=>{const acx=a.bbox.x+a.bbox.w/2,acy=a.bbox.y+a.bbox.h/2,bcx=b.bbox.x+b.bbox.w/2,bcy=b.bbox.y+b.bbox.h/2;const ad=(p.x-acx)**2+(p.y-acy)**2,bd=(p.x-bcx)**2+(p.y-bcy)**2;return ad-bd||(a.bbox.w*a.bbox.h-b.bbox.w*b.bbox.h);});
+    hits.sort((a,b)=>distanceSq(p,a.bbox)-distanceSq(p,b.bbox)||(a.bbox.w*a.bbox.h-b.bbox.w*b.bbox.h));
     return hits[0];
   }
-  function autoManualBox(center){
-    const boxCssPx=MANUAL_TARGET_FRAME_CSS_PX/1.7;
-    const w=cssPxToOcrX(boxCssPx);
-    const h=cssPxToOcrY(boxCssPx);
-    const pageWidth=canvas.width/DISPLAY_COORD_SCALE;
-    const pageHeight=canvas.height/DISPLAY_COORD_SCALE;
+  function referenceBoxes(center,number){
+    const digits=number.length;
+    const sameDigits=candidates.filter(x=>x.source==='ocr'&&String(x.number).length===digits&&x.bbox.w>0&&x.bbox.h>0);
+    const pool=sameDigits.length?sameDigits:candidates.filter(x=>x.source==='ocr'&&x.bbox.w>0&&x.bbox.h>0);
+    return pool.sort((a,b)=>distanceSq(center,a.bbox)-distanceSq(center,b.bbox)).slice(0,7);
+  }
+  function autoManualBox(center,number){
+    const refs=referenceBoxes(center,number);
+    let w=median(refs.map(x=>x.bbox.w)),h=median(refs.map(x=>x.bbox.h));
+    if(!w||!h){w=cssPxToOcrX(18);h=cssPxToOcrY(18);}
+    w=Math.max(1,w);h=Math.max(1,h);
+    const pageWidth=canvas.width/DISPLAY_COORD_SCALE,pageHeight=canvas.height/DISPLAY_COORD_SCALE;
     const x=Math.max(0,Math.min(pageWidth-w,center.x-w/2));
     const y=Math.max(0,Math.min(pageHeight-h,center.y-h/2));
     return{x,y,w,h};
@@ -137,7 +145,7 @@
   canvas.addEventListener('click',e=>{
     if(busy||!displaySourceCanvas.width)return;const p=point(e),hit=findAt(p);
     if(hit){const value=prompt('番号を変更します。空欄で削除します。',hit.number);if(value===null)return;const t=normalizeDigits(value).trim();if(!t){candidates=candidates.filter(x=>x.id!==hit.id);draw();return;}const num=normalizedNumber(t);if(!num){alert('番号は1〜99で入力してください。');return;}hit.number=num;draw();return;}
-    const value=prompt('この位置に追加する番号（1〜99）を入力してください。');if(value===null||!normalizeDigits(value).trim())return;const num=normalizedNumber(value);if(!num){alert('番号は1〜99で入力してください。');return;}candidates.push({id:nextId++,number:num,source:'manual',bbox:autoManualBox(p)});draw();
+    const value=prompt('この位置に追加する番号（1〜99）を入力してください。');if(value===null||!normalizeDigits(value).trim())return;const num=normalizedNumber(value);if(!num){alert('番号は1〜99で入力してください。');return;}candidates.push({id:nextId++,number:num,source:'manual',bbox:autoManualBox(p,num)});draw();
   });
 
   saveButton.onclick=async()=>{
