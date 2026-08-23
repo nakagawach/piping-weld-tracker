@@ -1,9 +1,10 @@
 import sqlite3
 import uuid
 from datetime import datetime, timezone
+from io import BytesIO
 from pathlib import Path
 
-from flask import Blueprint, jsonify, render_template, request, send_from_directory
+from flask import Blueprint, jsonify, render_template, request, send_file, send_from_directory
 
 
 def create_projects_blueprint(db_path: Path, data_dir: Path):
@@ -32,6 +33,17 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
 
     def project_drawing_key(project_id):
         return f"project:{project_id}"
+
+    def get_project_pdf_path(project_id):
+        with connect() as connection:
+            row = connection.execute(
+                "SELECT stored_pdf_name FROM projects WHERE id = ?",
+                (project_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        pdf_path = upload_dir / row["stored_pdf_name"]
+        return pdf_path if pdf_path.exists() else None
 
     def normalize_candidate(raw_candidate):
         if not isinstance(raw_candidate, dict):
@@ -186,6 +198,79 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
             pdf_name=row["original_pdf_name"],
             pdf_url=f"../../pdfs/{row['stored_pdf_name']}",
         )
+
+    @blueprint.get("/projects/<int:project_id>/pdfium-info")
+    def pdfium_info(project_id):
+        pdf_path = get_project_pdf_path(project_id)
+        if pdf_path is None:
+            return jsonify({"error": "PDFが見つかりません。"}), 404
+        try:
+            import pypdfium2 as pdfium
+        except ImportError:
+            return jsonify({"error": "pypdfium2がPythonAnywhere環境に未インストールです。"}), 503
+
+        document = None
+        try:
+            document = pdfium.PdfDocument(str(pdf_path))
+            return jsonify({"pageCount": len(document)})
+        except Exception as exc:
+            return jsonify({"error": f"PDFiumでPDF情報を取得できませんでした: {exc}"}), 500
+        finally:
+            if document is not None:
+                document.close()
+
+    @blueprint.get("/projects/<int:project_id>/pdfium-page")
+    def pdfium_page(project_id):
+        page_number = request.args.get("page", type=int, default=1)
+        long_edge = request.args.get("longEdge", type=int, default=1600)
+        image_format = request.args.get("format", default="png").lower()
+        if page_number < 1:
+            return "ページ番号が不正です。", 400
+        if long_edge < 500 or long_edge > 6000:
+            return "longEdgeは500〜6000で指定してください。", 400
+        if image_format not in {"png", "jpeg"}:
+            return "formatはpngまたはjpegで指定してください。", 400
+
+        pdf_path = get_project_pdf_path(project_id)
+        if pdf_path is None:
+            return "PDFが見つかりません。", 404
+        try:
+            import pypdfium2 as pdfium
+        except ImportError:
+            return "pypdfium2がPythonAnywhere環境に未インストールです。", 503
+
+        document = None
+        page = None
+        bitmap = None
+        try:
+            document = pdfium.PdfDocument(str(pdf_path))
+            if page_number > len(document):
+                return "指定ページがPDFのページ数を超えています。", 400
+            page = document[page_number - 1]
+            width, height = page.get_size()
+            scale = long_edge / max(width, height)
+            bitmap = page.render(scale=scale)
+            image = bitmap.to_pil()
+            output = BytesIO()
+            if image_format == "jpeg":
+                if image.mode != "RGB":
+                    image = image.convert("RGB")
+                image.save(output, format="JPEG", quality=90, optimize=False)
+                mimetype = "image/jpeg"
+            else:
+                image.save(output, format="PNG", optimize=False)
+                mimetype = "image/png"
+            output.seek(0)
+            return send_file(output, mimetype=mimetype, max_age=0)
+        except Exception as exc:
+            return f"PDFiumレンダリングに失敗しました: {exc}", 500
+        finally:
+            if bitmap is not None:
+                bitmap.close()
+            if page is not None:
+                page.close()
+            if document is not None:
+                document.close()
 
     @blueprint.get("/projects/<int:project_id>/number-map")
     def get_project_number_map(project_id):
