@@ -19,6 +19,7 @@ on:
       - feature/project-entry-auto-area
       - feature/project-entry-fast-display
       - feature/project-entry-adaptive-area
+      - feature/performance-diagnostics
   workflow_dispatch:
 
 permissions:
