@@ -103,6 +103,29 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
             "pdfUrl": f"pdfs/{stored_name}",
         }), 201
 
+    @blueprint.delete("/projects/<int:project_id>")
+    def delete_project(project_id):
+        with connect() as connection:
+            row = connection.execute(
+                "SELECT stored_pdf_name FROM projects WHERE id = ?",
+                (project_id,),
+            ).fetchone()
+            if row is None:
+                return jsonify({"error": "工事が見つかりません。"}), 404
+
+            connection.execute("DELETE FROM projects WHERE id = ?", (project_id,))
+            stored_name = row["stored_pdf_name"]
+
+        pdf_path = upload_dir / stored_name
+        try:
+            pdf_path.unlink(missing_ok=True)
+        except OSError:
+            return jsonify({
+                "error": "工事情報は削除しましたが、PDFファイルの削除に失敗しました。"
+            }), 500
+
+        return jsonify({"deleted": True, "id": project_id})
+
     @blueprint.get("/pdfs/<path:stored_name>")
     def get_project_pdf(stored_name):
         if not stored_name.endswith(".pdf") or "/" in stored_name or "\\" in stored_name:
