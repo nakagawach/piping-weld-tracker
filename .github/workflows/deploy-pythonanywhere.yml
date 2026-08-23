@@ -15,6 +15,7 @@ on:
       - feature/project-pdf-registration-safe
       - feature/project-delete
       - feature/project-entry-after-delete
+      - feature/project-entry-ocr
   workflow_dispatch:
 
 permissions:
