@@ -34,8 +34,9 @@
 (() => {
   const projectId = {{ project_id | tojson }};
   const pdfUrl = {{ pdf_url | tojson }};
-  const ocrUrl = '../../../ocr';
-  const numberMapUrl = `number-map`;
+  const ocrUrl = {{ url_for('ocr') | tojson }};
+  const numberMapUrl = {{ url_for('projects.get_project_number_map', project_id=project_id) | tojson }};
+  const projectsScreenUrl = {{ url_for('projects_screen') | tojson }};
   const pageInput = document.getElementById('page');
   const status = document.getElementById('status');
   const summary = document.getElementById('summary');
@@ -52,7 +53,7 @@
   let nextId = 1;
   let busy = false;
 
-  document.getElementById('back').onclick = () => { window.location.href = '../../../projects-screen'; };
+  document.getElementById('back').onclick = () => { window.location.href = projectsScreenUrl; };
   if (!window.pdfjsLib) { status.textContent = 'PDF.jsを読み込めませんでした。'; return; }
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
