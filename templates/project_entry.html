@@ -37,7 +37,7 @@
   let pdf = null;
   let rendering = false;
 
-  document.getElementById('back').onclick = () => { window.location.href = '../../../projects-screen'; };
+  document.getElementById('back').onclick = () => { window.location.href = '../../projects-screen'; };
   if (!window.pdfjsLib) { status.textContent = 'PDF.jsを読み込めませんでした。'; return; }
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
