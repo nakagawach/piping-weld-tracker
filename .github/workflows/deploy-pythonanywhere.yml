@@ -17,6 +17,7 @@ on:
       - feature/project-entry-after-delete
       - feature/project-entry-ocr
       - feature/project-entry-auto-area
+      - feature/project-entry-fast-display
   workflow_dispatch:
 
 permissions:
