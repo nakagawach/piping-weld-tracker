@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from flask import Blueprint, jsonify, request, send_from_directory
+from flask import Blueprint, jsonify, render_template, request, send_from_directory
 
 
 def create_projects_blueprint(db_path: Path, data_dir: Path):
@@ -30,6 +30,23 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
         ensure_table(connection)
         return connection
 
+    def row_to_project(row):
+        return {
+            "id": row["id"],
+            "projectName": row["project_name"],
+            "pdfName": row["original_pdf_name"],
+            "createdAt": row["created_at"],
+            "pdfUrl": f"pdfs/{row['stored_pdf_name']}",
+        }
+
+    @blueprint.get("/projects-screen")
+    def projects_screen():
+        return render_template("projects.html")
+
+    @blueprint.get("/drawing-entry-screen")
+    def drawing_entry_screen():
+        return render_template("drawing_entry.html")
+
     @blueprint.get("/projects")
     def list_projects():
         with connect() as connection:
@@ -41,18 +58,23 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
                 """
             ).fetchall()
 
-        return jsonify({
-            "projects": [
-                {
-                    "id": row["id"],
-                    "projectName": row["project_name"],
-                    "pdfName": row["original_pdf_name"],
-                    "createdAt": row["created_at"],
-                    "pdfUrl": f"pdfs/{row['stored_pdf_name']}",
-                }
-                for row in rows
-            ]
-        })
+        return jsonify({"projects": [row_to_project(row) for row in rows]})
+
+    @blueprint.get("/projects/<int:project_id>")
+    def get_project(project_id):
+        with connect() as connection:
+            row = connection.execute(
+                """
+                SELECT id, project_name, original_pdf_name, stored_pdf_name, created_at
+                FROM projects
+                WHERE id = ?
+                """,
+                (project_id,),
+            ).fetchone()
+
+        if row is None:
+            return jsonify({"error": "工事が見つかりません。"}), 404
+        return jsonify(row_to_project(row))
 
     @blueprint.post("/projects")
     def register_project():
