@@ -26,7 +26,7 @@
     <div class="status" id="status">PDFを読み込んでいます…</div>
     <div class="summary" id="summary" hidden></div>
     <div class="viewer"><canvas id="canvas"></canvas></div>
-    <p class="note">青枠をクリック/タップすると番号変更、空欄で削除できます。空白を1回クリック/タップすると、近くのOCR数字の大きさを基準に緑枠を自動作成します。見える枠は図面尺度に追従し、クリック判定だけ周囲に余白を持たせています。通常表示は軽量化し、6,000px画像はOCR実行時だけ生成します。</p>
+    <p class="note">青枠をクリック/タップすると番号変更、空欄で削除できます。空白を1回クリック/タップすると、近くのOCR数字の大きさを基準に緑枠を自動作成します。見える緑枠は文字にタイトに合わせ、クリック判定だけ周囲に余白を持たせています。通常表示は軽量化し、6,000px画像はOCR実行時だけ生成します。</p>
   </section>
 </main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -89,7 +89,7 @@
   function autoManualBox(center,number){
     const refs=referenceBoxes(center,number);
     let w=median(refs.map(x=>x.bbox.w)),h=median(refs.map(x=>x.bbox.h));
-    if(!w||!h){w=cssPxToOcrX(18);h=cssPxToOcrY(18);}
+    if(!w||!h){w=cssPxToOcrX(14);h=cssPxToOcrY(14);}
     w=Math.max(1,w);h=Math.max(1,h);
     const pageWidth=canvas.width/DISPLAY_COORD_SCALE,pageHeight=canvas.height/DISPLAY_COORD_SCALE;
     const x=Math.max(0,Math.min(pageWidth-w,center.x-w/2));
@@ -101,7 +101,19 @@
   function draw(){
     canvas.width=displaySourceCanvas.width;canvas.height=displaySourceCanvas.height;
     const ctx=canvas.getContext('2d');ctx.drawImage(displaySourceCanvas,0,0);
-    for(const item of candidates){const b=toDisplayBox(item.bbox),pad=Math.max(2,Math.max(b.w,b.h)*.35);ctx.save();ctx.strokeStyle=item.source==='manual'?'#188038':'#1967d2';ctx.fillStyle=ctx.strokeStyle;ctx.lineWidth=Math.max(1.5,canvas.width/1000);ctx.strokeRect(b.x-pad,b.y-pad,b.w+pad*2,b.h+pad*2);ctx.font=`${Math.max(14,b.h*.8)}px system-ui`;ctx.fillText(item.number,b.x,Math.max(16,b.y-pad-3));ctx.restore();}
+    for(const item of candidates){
+      const b=toDisplayBox(item.bbox);
+      const manual=item.source==='manual';
+      const pad=manual?Math.max(1,Math.max(b.w,b.h)*.08):Math.max(2,Math.max(b.w,b.h)*.35);
+      ctx.save();
+      ctx.strokeStyle=manual?'#188038':'#1967d2';ctx.fillStyle=ctx.strokeStyle;
+      ctx.lineWidth=manual?Math.max(1,canvas.width/1400):Math.max(1.5,canvas.width/1000);
+      ctx.strokeRect(b.x-pad,b.y-pad,b.w+pad*2,b.h+pad*2);
+      const fontPx=manual?Math.max(9,b.h*.72):Math.max(14,b.h*.8);
+      ctx.font=`${fontPx}px system-ui`;
+      ctx.fillText(item.number,b.x,Math.max(fontPx,b.y-pad-3));
+      ctx.restore();
+    }
     summary.hidden=false;summary.textContent=`番号候補 ${candidates.length}件（OCR ${candidates.filter(x=>x.source==='ocr').length} / 手動 ${candidates.filter(x=>x.source==='manual').length}）`;
     saveButton.disabled=busy||!candidates.length;resetButton.disabled=busy||!originalCandidates.length;
   }
