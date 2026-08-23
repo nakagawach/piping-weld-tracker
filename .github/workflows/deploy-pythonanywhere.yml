@@ -13,6 +13,7 @@ on:
       - feature/save-number-map
       - feature/weld-progress-entry
       - feature/project-pdf-registration-safe
+      - feature/drawing-entry-screen
   workflow_dispatch:
 
 permissions:
@@ -93,6 +94,7 @@ jobs:
             progress_ok=false
             projects_screen_ok=false
             projects_api_ok=false
+            drawing_entry_ok=false
 
             if curl --fail --silent --show-error --location \
               --max-time 20 \
@@ -129,7 +131,14 @@ jobs:
               projects_api_ok=true
             fi
 
-            if [ "$page_ok" = true ] && [ "$map_ok" = true ] && [ "$progress_ok" = true ] && [ "$projects_screen_ok" = true ] && [ "$projects_api_ok" = true ]; then
+            if curl --fail --silent --show-error --location \
+              --max-time 20 \
+              "https://nakagawach.pythonanywhere.com/weld/drawing-entry-screen" \
+              | grep -q "図面エントリー"; then
+              drawing_entry_ok=true
+            fi
+
+            if [ "$page_ok" = true ] && [ "$map_ok" = true ] && [ "$progress_ok" = true ] && [ "$projects_screen_ok" = true ] && [ "$projects_api_ok" = true ] && [ "$drawing_entry_ok" = true ]; then
               echo "Smoke test passed."
               exit 0
             fi
