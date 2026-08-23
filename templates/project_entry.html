@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ project_name }} - 図面エントリー</title>
   <style>
-    *{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:#f5f6f8;color:#202124}main{max-width:1200px;margin:auto;padding:18px 14px 40px}.top{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:14px}.button{min-height:42px;padding:0 14px;border:1px solid #bdc1c6;border-radius:8px;background:#fff;color:#202124;font:inherit;cursor:pointer}.primary{border-color:#1967d2;background:#1967d2;color:#fff;font-weight:700}.title{margin:0;font-size:1.35rem}.meta,.note{color:#5f6368}.meta{margin-top:4px}.card{background:#fff;border:1px solid #dadce0;border-radius:12px;padding:14px}.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin-bottom:12px}label{display:grid;gap:5px;font-weight:600}input[type=number]{width:90px;min-height:42px;padding:0 10px;border:1px solid #bdc1c6;border-radius:8px;font:inherit}.viewer{overflow:auto;max-height:76vh;border:1px solid #dadce0;border-radius:8px;background:#eee}canvas{display:block;max-width:100%;height:auto;margin:auto;background:#fff;cursor:pointer;touch-action:manipulation}.status{min-height:1.5em;margin:10px 0}.summary{margin:10px 0;padding:10px;border-radius:8px;background:#f7f8fa}.note{font-size:.9rem;line-height:1.6}.error{color:#b3261e}button:disabled{opacity:.5;cursor:wait}@media(max-width:640px){.top{align-items:stretch;flex-direction:column}.top .button{width:100%}}
+    *{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:#f5f6f8;color:#202124}main{max-width:1200px;margin:auto;padding:18px 14px 40px}.top{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:14px}.button{min-height:42px;padding:0 14px;border:1px solid #bdc1c6;border-radius:8px;background:#fff;color:#202124;font:inherit;cursor:pointer}.primary{border-color:#1967d2;background:#1967d2;color:#fff;font-weight:700}.title{margin:0;font-size:1.35rem}.meta,.note{color:#5f6368}.meta{margin-top:4px}.card{background:#fff;border:1px solid #dadce0;border-radius:12px;padding:14px}.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin-bottom:10px}label{display:grid;gap:5px;font-weight:600}input[type=number]{width:90px;min-height:42px;padding:0 10px;border:1px solid #bdc1c6;border-radius:8px;font:inherit}.queue{margin:0 0 10px;padding:10px;border-radius:8px;background:#f7f8fa;font-size:.95rem}.viewer{overflow:auto;max-height:76vh;border:1px solid #dadce0;border-radius:8px;background:#eee}canvas{display:block;max-width:100%;height:auto;margin:auto;background:#fff;cursor:pointer;touch-action:manipulation}.status{min-height:1.5em;margin:10px 0}.summary{margin:10px 0;padding:10px;border-radius:8px;background:#f7f8fa}.note{font-size:.9rem;line-height:1.6}.error{color:#b3261e}button:disabled{opacity:.5;cursor:wait}@media(max-width:640px){.top{align-items:stretch;flex-direction:column}.top .button{width:100%}}
   </style>
 </head>
 <body>
@@ -16,17 +16,20 @@
   </div>
   <section class="card">
     <div class="controls">
-      <label>ページ<input id="page" type="number" min="1" value="1" inputmode="numeric"></label>
+      <label>作業ページ<input id="page" type="number" min="1" value="1" inputmode="numeric"></label>
       <button class="button" id="prev" type="button">前へ</button>
       <button class="button" id="next" type="button">次へ</button>
+      <button class="button" id="nextPending" type="button">次の未処理へ</button>
+      <button class="button" id="openPdf" type="button">原本PDFを開く</button>
       <button class="button" id="ocr" type="button">OCR実行</button>
       <button class="button" id="reset" type="button" disabled>読込時に戻す</button>
       <button class="button primary" id="save" type="button" disabled>番号配置を確定保存</button>
     </div>
+    <div class="queue" id="queue">未処理ページを確認しています…</div>
     <div class="status" id="status">PDFを読み込んでいます…</div>
     <div class="summary" id="summary" hidden></div>
     <div class="viewer"><canvas id="canvas"></canvas></div>
-    <p class="note">青枠をクリック/タップすると番号変更、空欄で削除できます。空白を1回クリック/タップすると、近くのOCR数字の大きさを基準に緑枠を自動作成します。見える緑枠は文字にタイトに合わせ、クリック判定だけ周囲に余白を持たせています。通常表示は軽量化し、6,000px画像はOCR実行時だけ生成します。</p>
+    <p class="note">PDF登録後は未処理ページを順番にエントリーします。OCRは表示中の1ページだけを長辺6,000pxでGoogle Visionへ送ります。原本を細かく確認したい場合は「原本PDFを開く」を使ってください。青枠クリックで番号変更、空欄で削除、空白クリックで手動番号追加できます。</p>
   </section>
 </main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -37,12 +40,12 @@
   const DISPLAY_COORD_SCALE = DISPLAY_LONG_EDGE / OCR_LONG_EDGE;
   const HIT_TARGET_CSS_PX = 28;
 
-  const projectId = {{ project_id | tojson }};
   const pdfUrl = {{ pdf_url | tojson }};
   const ocrUrl = {{ url_for('ocr') | tojson }};
   const numberMapUrl = {{ url_for('projects.get_project_number_map', project_id=project_id) | tojson }};
   const projectsScreenUrl = {{ url_for('projects_screen') | tojson }};
   const pageInput = document.getElementById('page');
+  const queue = document.getElementById('queue');
   const status = document.getElementById('status');
   const summary = document.getElementById('summary');
   const canvas = document.getElementById('canvas');
@@ -50,6 +53,8 @@
   const ocrCanvas = document.createElement('canvas');
   const prev = document.getElementById('prev');
   const next = document.getElementById('next');
+  const nextPendingButton = document.getElementById('nextPending');
+  const openPdfButton = document.getElementById('openPdf');
   const ocrButton = document.getElementById('ocr');
   const resetButton = document.getElementById('reset');
   const saveButton = document.getElementById('save');
@@ -58,8 +63,10 @@
   let originalCandidates = [];
   let nextId = 1;
   let busy = false;
+  let currentPage = 1;
+  let currentSaved = false;
+  let dirty = false;
 
-  document.getElementById('back').onclick = () => { window.location.href = projectsScreenUrl; };
   if (!window.pdfjsLib) { status.textContent = 'PDF.jsを読み込めませんでした。'; return; }
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
@@ -73,102 +80,76 @@
   function cssPxToOcrY(px){const r=canvas.getBoundingClientRect();return px*canvas.height/r.height/DISPLAY_COORD_SCALE;}
   function median(values){if(!values.length)return null;const a=[...values].sort((x,y)=>x-y),m=Math.floor(a.length/2);return a.length%2?a[m]:(a[m-1]+a[m])/2;}
   function distanceSq(p,b){const cx=b.x+b.w/2,cy=b.y+b.h/2;return(p.x-cx)**2+(p.y-cy)**2;}
-  function findAt(p){
-    const minX=cssPxToOcrX(HIT_TARGET_CSS_PX),minY=cssPxToOcrY(HIT_TARGET_CSS_PX);
-    const hits=candidates.filter(item=>{const b=item.bbox;const extraX=Math.max(0,(minX-b.w)/2),extraY=Math.max(0,(minY-b.h)/2);return p.x>=b.x-extraX&&p.x<=b.x+b.w+extraX&&p.y>=b.y-extraY&&p.y<=b.y+b.h+extraY;});
-    if(!hits.length)return null;
-    hits.sort((a,b)=>distanceSq(p,a.bbox)-distanceSq(p,b.bbox)||(a.bbox.w*a.bbox.h-b.bbox.w*b.bbox.h));
-    return hits[0];
-  }
-  function referenceBoxes(center,number){
-    const digits=number.length;
-    const sameDigits=candidates.filter(x=>x.source==='ocr'&&String(x.number).length===digits&&x.bbox.w>0&&x.bbox.h>0);
-    const pool=sameDigits.length?sameDigits:candidates.filter(x=>x.source==='ocr'&&x.bbox.w>0&&x.bbox.h>0);
-    return pool.sort((a,b)=>distanceSq(center,a.bbox)-distanceSq(center,b.bbox)).slice(0,7);
-  }
-  function autoManualBox(center,number){
-    const refs=referenceBoxes(center,number);
-    let w=median(refs.map(x=>x.bbox.w)),h=median(refs.map(x=>x.bbox.h));
-    if(!w||!h){w=cssPxToOcrX(14);h=cssPxToOcrY(14);}
-    w=Math.max(1,w);h=Math.max(1,h);
-    const pageWidth=canvas.width/DISPLAY_COORD_SCALE,pageHeight=canvas.height/DISPLAY_COORD_SCALE;
-    const x=Math.max(0,Math.min(pageWidth-w,center.x-w/2));
-    const y=Math.max(0,Math.min(pageHeight-h,center.y-h/2));
-    return{x,y,w,h};
-  }
-  function setBusy(value){busy=value;ocrButton.disabled=value;saveButton.disabled=value||!candidates.length;resetButton.disabled=value||!originalCandidates.length;prev.disabled=value||Number(pageInput.value)<=1;next.disabled=value||!pdf||Number(pageInput.value)>=pdf.numPages;pageInput.disabled=value;}
+  function findAt(p){const minX=cssPxToOcrX(HIT_TARGET_CSS_PX),minY=cssPxToOcrY(HIT_TARGET_CSS_PX),hits=candidates.filter(item=>{const b=item.bbox,extraX=Math.max(0,(minX-b.w)/2),extraY=Math.max(0,(minY-b.h)/2);return p.x>=b.x-extraX&&p.x<=b.x+b.w+extraX&&p.y>=b.y-extraY&&p.y<=b.y+b.h+extraY;});if(!hits.length)return null;hits.sort((a,b)=>distanceSq(p,a.bbox)-distanceSq(p,b.bbox)||(a.bbox.w*a.bbox.h-b.bbox.w*b.bbox.h));return hits[0];}
+  function referenceBoxes(center,number){const digits=number.length,same=candidates.filter(x=>x.source==='ocr'&&String(x.number).length===digits&&x.bbox.w>0&&x.bbox.h>0),pool=same.length?same:candidates.filter(x=>x.source==='ocr'&&x.bbox.w>0&&x.bbox.h>0);return pool.sort((a,b)=>distanceSq(center,a.bbox)-distanceSq(center,b.bbox)).slice(0,7);}
+  function autoManualBox(center,number){const refs=referenceBoxes(center,number);let w=median(refs.map(x=>x.bbox.w)),h=median(refs.map(x=>x.bbox.h));if(!w||!h){w=cssPxToOcrX(14);h=cssPxToOcrY(14);}w=Math.max(1,w);h=Math.max(1,h);const pageWidth=canvas.width/DISPLAY_COORD_SCALE,pageHeight=canvas.height/DISPLAY_COORD_SCALE;return{x:Math.max(0,Math.min(pageWidth-w,center.x-w/2)),y:Math.max(0,Math.min(pageHeight-h,center.y-h/2)),w,h};}
+  function canLeave(){return !dirty||confirm('このページには未保存のOCR結果または番号補正があります。保存せずに移動しますか？');}
+  function setBusy(value){busy=value;ocrButton.disabled=value;saveButton.disabled=value||!candidates.length;resetButton.disabled=value||!originalCandidates.length;prev.disabled=value||currentPage<=1;next.disabled=value||!pdf||currentPage>=pdf.numPages;nextPendingButton.disabled=value;pageInput.disabled=value;}
 
   function draw(){
     canvas.width=displaySourceCanvas.width;canvas.height=displaySourceCanvas.height;
     const ctx=canvas.getContext('2d');ctx.drawImage(displaySourceCanvas,0,0);
     for(const item of candidates){
-      const b=toDisplayBox(item.bbox);
-      const manual=item.source==='manual';
-      const pad=manual?Math.max(1,Math.max(b.w,b.h)*.08):Math.max(2,Math.max(b.w,b.h)*.35);
-      ctx.save();
-      ctx.strokeStyle=manual?'#188038':'#1967d2';ctx.fillStyle=ctx.strokeStyle;
-      ctx.lineWidth=manual?Math.max(1,canvas.width/1400):Math.max(1.5,canvas.width/1000);
-      ctx.strokeRect(b.x-pad,b.y-pad,b.w+pad*2,b.h+pad*2);
-      const fontPx=manual?Math.max(9,b.h*.72):Math.max(14,b.h*.8);
-      ctx.font=`${fontPx}px system-ui`;
-      ctx.fillText(item.number,b.x,Math.max(fontPx,b.y-pad-3));
-      ctx.restore();
+      const b=toDisplayBox(item.bbox),manual=item.source==='manual',pad=manual?Math.max(1,Math.max(b.w,b.h)*.08):Math.max(2,Math.max(b.w,b.h)*.35);
+      ctx.save();ctx.strokeStyle=manual?'#188038':'#1967d2';ctx.fillStyle=ctx.strokeStyle;ctx.lineWidth=manual?Math.max(1,canvas.width/1400):Math.max(1.5,canvas.width/1000);ctx.strokeRect(b.x-pad,b.y-pad,b.w+pad*2,b.h+pad*2);const fontPx=manual?Math.max(9,b.h*.72):Math.max(14,b.h*.8);ctx.font=`${fontPx}px system-ui`;ctx.fillText(item.number,b.x,Math.max(fontPx,b.y-pad-3));ctx.restore();
     }
-    summary.hidden=false;summary.textContent=`番号候補 ${candidates.length}件（OCR ${candidates.filter(x=>x.source==='ocr').length} / 手動 ${candidates.filter(x=>x.source==='manual').length}）`;
+    summary.hidden=false;summary.textContent=`${currentPage}ページ / 番号候補 ${candidates.length}件（OCR ${candidates.filter(x=>x.source==='ocr').length} / 手動 ${candidates.filter(x=>x.source==='manual').length}）${dirty?' / 未保存':''}`;
     saveButton.disabled=busy||!candidates.length;resetButton.disabled=busy||!originalCandidates.length;
   }
 
-  async function renderDisplay(pageNumber){
-    const page=await pdf.getPage(pageNumber);const base=page.getViewport({scale:1});const scale=DISPLAY_LONG_EDGE/Math.max(base.width,base.height);const vp=page.getViewport({scale});displaySourceCanvas.width=Math.ceil(vp.width);displaySourceCanvas.height=Math.ceil(vp.height);await page.render({canvasContext:displaySourceCanvas.getContext('2d'),viewport:vp}).promise;
+  async function renderDisplay(pageNumber){const page=await pdf.getPage(pageNumber),base=page.getViewport({scale:1}),scale=DISPLAY_LONG_EDGE/Math.max(base.width,base.height),vp=page.getViewport({scale});displaySourceCanvas.width=Math.ceil(vp.width);displaySourceCanvas.height=Math.ceil(vp.height);await page.render({canvasContext:displaySourceCanvas.getContext('2d'),viewport:vp}).promise;}
+  async function renderOcr(pageNumber){const page=await pdf.getPage(pageNumber),base=page.getViewport({scale:1}),scale=OCR_LONG_EDGE/Math.max(base.width,base.height),vp=page.getViewport({scale});ocrCanvas.width=Math.ceil(vp.width);ocrCanvas.height=Math.ceil(vp.height);await page.render({canvasContext:ocrCanvas.getContext('2d'),viewport:vp}).promise;}
+  async function loadNumberMap(pageNumber){const r=await fetch(`${numberMapUrl}?page=${pageNumber}`),data=await r.json();if(!r.ok)throw new Error(data.error||'番号マップを取得できませんでした。');return data;}
+
+  async function findNextPending(fromPage,includeCurrent=false){
+    if(!pdf)return null;
+    let start=includeCurrent?fromPage:fromPage+1;
+    for(let n=start;n<=pdf.numPages;n++){const data=await loadNumberMap(n);if(!data.saved)return n;}
+    for(let n=1;n<start&&n<=pdf.numPages;n++){const data=await loadNumberMap(n);if(!data.saved)return n;}
+    return null;
   }
 
-  async function renderOcr(pageNumber){
-    const page=await pdf.getPage(pageNumber);const base=page.getViewport({scale:1});const scale=OCR_LONG_EDGE/Math.max(base.width,base.height);const vp=page.getViewport({scale});ocrCanvas.width=Math.ceil(vp.width);ocrCanvas.height=Math.ceil(vp.height);await page.render({canvasContext:ocrCanvas.getContext('2d'),viewport:vp}).promise;
-  }
-
-  async function loadNumberMap(pageNumber){
-    const r=await fetch(`${numberMapUrl}?page=${pageNumber}`);
-    const data=await r.json();
-    if(!r.ok)throw new Error(data.error||'番号マップを取得できませんでした。');
-    return data;
+  async function updateQueueMessage(){
+    const nextPending=await findNextPending(currentPage,true);
+    if(nextPending===null){queue.textContent=`全 ${pdf.numPages} ページの番号配置が保存済みです。`;nextPendingButton.disabled=true;return;}
+    queue.textContent=`全 ${pdf.numPages} ページ / 現在 ${currentPage}ページ ${currentSaved?'保存済み':'未処理'} / 次の未処理 ${nextPending}ページ`;
+    nextPendingButton.disabled=busy;
   }
 
   async function loadPage(pageNumber){
-    if(!pdf||busy)return;const n=Math.max(1,Math.min(pdf.numPages,Number(pageNumber)||1));pageInput.value=n;setBusy(true);status.className='status';status.textContent=`${n} / ${pdf.numPages} ページを読み込み中…`;
-    try{
-      const [data]=await Promise.all([loadNumberMap(n),renderDisplay(n)]);
-      candidates=(data.candidates||[]).map(x=>({id:nextId++,...x,bbox:{...x.bbox}}));originalCandidates=clone(candidates);draw();
-      ocrButton.textContent=data.saved?'再OCR':'OCR実行';status.textContent=data.saved?`保存済み番号マップを復元しました（${candidates.length}件）`:`${n} / ${pdf.numPages} ページ。未エントリーです。OCR実行してください。`;
-    }catch(e){status.className='status error';status.textContent=e.message;}finally{setBusy(false);}
+    if(!pdf||busy)return;
+    const n=Math.max(1,Math.min(pdf.numPages,Number(pageNumber)||1));currentPage=n;pageInput.value=n;setBusy(true);status.className='status';status.textContent=`${n} / ${pdf.numPages} ページを読み込み中…`;
+    try{const [data]=await Promise.all([loadNumberMap(n),renderDisplay(n)]);currentSaved=!!data.saved;candidates=(data.candidates||[]).map(x=>({id:nextId++,...x,bbox:{...x.bbox}}));originalCandidates=clone(candidates);dirty=false;draw();ocrButton.textContent=currentSaved?'再OCR':'OCR実行';status.textContent=currentSaved?`保存済み番号マップを復元しました（${candidates.length}件）`:`${n} / ${pdf.numPages} ページは未処理です。OCR実行してください。`;}
+    catch(e){status.className='status error';status.textContent=e.message;}finally{setBusy(false);await updateQueueMessage();}
   }
+
+  async function requestPage(pageNumber){if(busy)return;if(!canLeave()){pageInput.value=currentPage;return;}dirty=false;await loadPage(pageNumber);}
 
   async function runOcr(){
-    if(!pdf||busy)return;const n=Number(pageInput.value);setBusy(true);status.className='status';status.textContent='6,000pxで画像化しGoogle Vision OCRを実行中…';
-    try{
-      await renderOcr(n);
-      const imageBase64=ocrCanvas.toDataURL('image/jpeg',0.90).split(',')[1];
-      ocrCanvas.width=1;ocrCanvas.height=1;
-      const r=await fetch(ocrUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pageNumber:n,imageBase64})});const data=await r.json();if(!r.ok)throw new Error(data.error||'OCRに失敗しました。');
-      candidates=[];for(const word of data.words||[]){const num=normalizedNumber(word.text);const b=bbox(word.vertices||[]);if(num&&b)candidates.push({id:nextId++,number:num,source:'ocr',bbox:b});}
-      originalCandidates=clone(candidates);draw();status.textContent=`OCR完了：番号候補 ${candidates.length}件。青枠を確認・補正してください。`;
-    }catch(e){ocrCanvas.width=1;ocrCanvas.height=1;status.className='status error';status.textContent=e.message;}finally{setBusy(false);}
+    if(!pdf||busy)return;const n=currentPage;if(currentSaved&&!confirm(`${n}ページには保存済み番号配置があります。再OCRしますか？保存ボタンを押すまでは既存データを上書きしません。`))return;
+    setBusy(true);status.className='status';status.textContent=`${n}ページだけを6,000pxで画像化しGoogle Vision OCRを実行中…`;
+    try{await renderOcr(n);const imageBase64=ocrCanvas.toDataURL('image/jpeg',0.90).split(',')[1];ocrCanvas.width=1;ocrCanvas.height=1;const r=await fetch(ocrUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pageNumber:n,imageBase64})}),data=await r.json();if(!r.ok)throw new Error(data.error||'OCRに失敗しました。');candidates=[];for(const word of data.words||[]){const num=normalizedNumber(word.text),b=bbox(word.vertices||[]);if(num&&b)candidates.push({id:nextId++,number:num,source:'ocr',bbox:b});}originalCandidates=clone(candidates);dirty=true;draw();status.textContent=`OCR完了：番号候補 ${candidates.length}件。確認・補正後に「番号配置を確定保存」してください。`;}
+    catch(e){ocrCanvas.width=1;ocrCanvas.height=1;status.className='status error';status.textContent=e.message;}finally{setBusy(false);}
   }
 
-  canvas.addEventListener('click',e=>{
-    if(busy||!displaySourceCanvas.width)return;const p=point(e),hit=findAt(p);
-    if(hit){const value=prompt('番号を変更します。空欄で削除します。',hit.number);if(value===null)return;const t=normalizeDigits(value).trim();if(!t){candidates=candidates.filter(x=>x.id!==hit.id);draw();return;}const num=normalizedNumber(t);if(!num){alert('番号は1〜99で入力してください。');return;}hit.number=num;draw();return;}
-    const value=prompt('この位置に追加する番号（1〜99）を入力してください。');if(value===null||!normalizeDigits(value).trim())return;const num=normalizedNumber(value);if(!num){alert('番号は1〜99で入力してください。');return;}candidates.push({id:nextId++,number:num,source:'manual',bbox:autoManualBox(p,num)});draw();
-  });
+  canvas.addEventListener('click',e=>{if(busy||!displaySourceCanvas.width)return;const p=point(e),hit=findAt(p);if(hit){const value=prompt('番号を変更します。空欄で削除します。',hit.number);if(value===null)return;const t=normalizeDigits(value).trim();if(!t){candidates=candidates.filter(x=>x.id!==hit.id);dirty=true;draw();return;}const num=normalizedNumber(t);if(!num){alert('番号は1〜99で入力してください。');return;}hit.number=num;dirty=true;draw();return;}const value=prompt('この位置に追加する番号（1〜99）を入力してください。');if(value===null||!normalizeDigits(value).trim())return;const num=normalizedNumber(value);if(!num){alert('番号は1〜99で入力してください。');return;}candidates.push({id:nextId++,number:num,source:'manual',bbox:autoManualBox(p,num)});dirty=true;draw();});
 
   saveButton.onclick=async()=>{
     if(busy||!candidates.length)return;setBusy(true);status.className='status';status.textContent='番号配置を保存中…';
-    try{const r=await fetch(numberMapUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pageNumber:Number(pageInput.value),candidates:candidates.map(({number,source,bbox})=>({number,source,bbox}))})});const data=await r.json();if(!r.ok)throw new Error(data.error||'保存に失敗しました。');originalCandidates=clone(candidates);ocrButton.textContent='再OCR';status.textContent=`番号配置を保存しました（${data.count}件）`;}
-    catch(e){status.className='status error';status.textContent=e.message;}finally{setBusy(false);}
+    try{const r=await fetch(numberMapUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pageNumber:currentPage,candidates:candidates.map(({number,source,bbox})=>({number,source,bbox}))})}),data=await r.json();if(!r.ok)throw new Error(data.error||'保存に失敗しました。');currentSaved=true;dirty=false;originalCandidates=clone(candidates);ocrButton.textContent='再OCR';draw();status.textContent=`番号配置を保存しました（${data.count}件）。続ける場合は「次の未処理へ」。`;}
+    catch(e){status.className='status error';status.textContent=e.message;}finally{setBusy(false);await updateQueueMessage();}
   };
-  resetButton.onclick=()=>{candidates=clone(originalCandidates);draw();status.className='status';status.textContent='読込時の番号配置へ戻しました。';};
-  prev.onclick=()=>loadPage(Number(pageInput.value)-1);next.onclick=()=>loadPage(Number(pageInput.value)+1);pageInput.onchange=()=>loadPage(pageInput.value);ocrButton.onclick=runOcr;
 
-  pdfjsLib.getDocument(pdfUrl).promise.then(doc=>{pdf=doc;pageInput.max=doc.numPages;loadPage(1);}).catch(e=>{status.className='status error';status.textContent=`PDFを読み込めませんでした: ${e.message}`;});
+  resetButton.onclick=()=>{candidates=clone(originalCandidates);dirty=false;draw();status.className='status';status.textContent='読込時の番号配置へ戻しました。';};
+  prev.onclick=()=>requestPage(currentPage-1);
+  next.onclick=()=>requestPage(currentPage+1);
+  pageInput.onchange=()=>requestPage(pageInput.value);
+  nextPendingButton.onclick=async()=>{if(busy||!canLeave())return;dirty=false;setBusy(true);status.textContent='次の未処理ページを探しています…';try{const n=await findNextPending(currentPage,false);if(n===null){status.textContent='すべてのページが保存済みです。';}else{setBusy(false);await loadPage(n);return;}}catch(e){status.className='status error';status.textContent=e.message;}finally{setBusy(false);}};
+  openPdfButton.onclick=()=>window.open(pdfUrl,'_blank','noopener');
+  ocrButton.onclick=runOcr;
+  document.getElementById('back').onclick=()=>{if(canLeave())window.location.href=projectsScreenUrl;};
+
+  pdfjsLib.getDocument(pdfUrl).promise.then(async doc=>{pdf=doc;pageInput.max=doc.numPages;queue.textContent=`全 ${doc.numPages} ページ。最初の未処理ページを確認しています…`;const first=await findNextPending(1,true);await loadPage(first??1);if(first===null)status.textContent='すべてのページが保存済みです。';}).catch(e=>{status.className='status error';status.textContent=`PDFを読み込めませんでした: ${e.message}`;});
 })();
 </script>
 </body>
