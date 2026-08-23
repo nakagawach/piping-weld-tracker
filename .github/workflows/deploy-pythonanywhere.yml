@@ -20,6 +20,7 @@ on:
       - feature/project-entry-fast-display
       - feature/project-entry-adaptive-area
       - feature/pdfium-project-entry
+      - feature/pdfium-cache-server-ocr-v2
   workflow_dispatch:
 
 permissions:
@@ -38,7 +39,7 @@ jobs:
 
       - name: Syntax check
         shell: bash
-        run: python -m py_compile app.py projects.py
+        run: python -m py_compile app.py projects.py project_render.py
 
       - name: Upload weld app files
         env:
@@ -63,6 +64,7 @@ jobs:
 
           upload_file "app.py"
           upload_file "projects.py"
+          upload_file "project_render.py"
           upload_file "requirements.txt"
 
           while IFS= read -r -d '' file; do
