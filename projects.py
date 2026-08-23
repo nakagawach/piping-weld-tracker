@@ -1,9 +1,10 @@
 import sqlite3
 import uuid
 from datetime import datetime, timezone
+from io import BytesIO
 from pathlib import Path
 
-from flask import Blueprint, jsonify, render_template, request, send_from_directory
+from flask import Blueprint, jsonify, render_template, request, send_file, send_from_directory
 
 
 def create_projects_blueprint(db_path: Path, data_dir: Path):
@@ -277,6 +278,73 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
             "savedAt": saved_at,
             "count": len(candidates),
         })
+
+    @blueprint.get("/pdfium-compare")
+    def pdfium_compare():
+        with connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT id, project_name, original_pdf_name, stored_pdf_name
+                FROM projects
+                ORDER BY id DESC
+                """
+            ).fetchall()
+        projects = [
+            {
+                "id": row["id"],
+                "project_name": row["project_name"],
+                "pdf_name": row["original_pdf_name"],
+                "pdf_url": f"pdfs/{row['stored_pdf_name']}",
+            }
+            for row in rows
+        ]
+        return render_template("pdfium_compare.html", projects=projects)
+
+    @blueprint.get("/projects/<int:project_id>/pdfium-preview")
+    def pdfium_preview(project_id):
+        page_number = request.args.get("page", type=int, default=1)
+        long_edge = request.args.get("longEdge", type=int, default=2500)
+        if page_number < 1:
+            return "ページ番号が不正です。", 400
+        if long_edge < 500 or long_edge > 6000:
+            return "longEdgeは500〜6000で指定してください。", 400
+
+        with connect() as connection:
+            row = connection.execute(
+                "SELECT stored_pdf_name FROM projects WHERE id = ?",
+                (project_id,),
+            ).fetchone()
+        if row is None:
+            return "工事が見つかりません。", 404
+
+        pdf_path = upload_dir / row["stored_pdf_name"]
+        if not pdf_path.exists():
+            return "PDFが見つかりません。", 404
+
+        try:
+            import pypdfium2 as pdfium
+        except ImportError:
+            return "pypdfium2がPythonAnywhere環境に未インストールです。", 503
+
+        try:
+            document = pdfium.PdfDocument(str(pdf_path))
+            if page_number > len(document):
+                document.close()
+                return "指定ページがPDFのページ数を超えています。", 400
+            page = document[page_number - 1]
+            width, height = page.get_size()
+            scale = long_edge / max(width, height)
+            bitmap = page.render(scale=scale)
+            image = bitmap.to_pil()
+            output = BytesIO()
+            image.save(output, format="PNG", optimize=False)
+            output.seek(0)
+            bitmap.close()
+            page.close()
+            document.close()
+            return send_file(output, mimetype="image/png", max_age=0)
+        except Exception as exc:
+            return f"PDFiumレンダリングに失敗しました: {exc}", 500
 
     @blueprint.get("/pdfs/<path:stored_name>")
     def get_project_pdf(stored_name):
