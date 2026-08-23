@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ project_name }} - 図面エントリー</title>
   <style>
-    *{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:#f5f6f8;color:#202124}main{max-width:1200px;margin:auto;padding:18px 14px 40px}.top{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:14px}.button{min-height:42px;padding:0 14px;border:1px solid #bdc1c6;border-radius:8px;background:#fff;color:#202124;font:inherit;cursor:pointer}.primary{border-color:#1967d2;background:#1967d2;color:#fff;font-weight:700}.title{margin:0;font-size:1.35rem}.meta,.note{color:#5f6368}.meta{margin-top:4px}.card{background:#fff;border:1px solid #dadce0;border-radius:12px;padding:14px}.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin-bottom:12px}label{display:grid;gap:5px;font-weight:600}input[type=number]{width:90px;min-height:42px;padding:0 10px;border:1px solid #bdc1c6;border-radius:8px;font:inherit}.viewer{overflow:auto;max-height:76vh;border:1px solid #dadce0;border-radius:8px;background:#eee}canvas{display:block;max-width:100%;height:auto;margin:auto;background:#fff;cursor:pointer;touch-action:manipulation}.status{min-height:1.5em;margin:10px 0}.summary{margin:10px 0;padding:10px;border-radius:8px;background:#f7f8fa}.note{font-size:.9rem;line-height:1.6}.error{color:#b3261e}button:disabled{opacity:.5;cursor:wait}@media(max-width:640px){.top{align-items:stretch;flex-direction:column}.top .button{width:100%}}
+    *{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:#f5f6f8;color:#202124}main{max-width:1200px;margin:auto;padding:18px 14px 40px}.top{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:14px}.button{min-height:42px;padding:0 14px;border:1px solid #bdc1c6;border-radius:8px;background:#fff;color:#202124;font:inherit;cursor:pointer}.primary{border-color:#1967d2;background:#1967d2;color:#fff;font-weight:700}.title{margin:0;font-size:1.35rem}.meta,.note{color:#5f6368}.meta{margin-top:4px}.card{background:#fff;border:1px solid #dadce0;border-radius:12px;padding:14px}.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin-bottom:12px}label{display:grid;gap:5px;font-weight:600}input[type=number]{width:90px;min-height:42px;padding:0 10px;border:1px solid #bdc1c6;border-radius:8px;font:inherit}.viewer{overflow:auto;max-height:76vh;border:1px solid #dadce0;border-radius:8px;background:#eee}canvas{display:block;max-width:100%;height:auto;margin:auto;background:#fff;cursor:crosshair;touch-action:manipulation}.status{min-height:1.5em;margin:10px 0}.summary{margin:10px 0;padding:10px;border-radius:8px;background:#f7f8fa}.note{font-size:.9rem;line-height:1.6}.error{color:#b3261e}button:disabled{opacity:.5;cursor:wait}@media(max-width:640px){.top{align-items:stretch;flex-direction:column}.top .button{width:100%}}
   </style>
 </head>
 <body>
@@ -26,7 +26,7 @@
     <div class="status" id="status">PDFを読み込んでいます…</div>
     <div class="summary" id="summary" hidden></div>
     <div class="viewer"><canvas id="canvas"></canvas></div>
-    <p class="note">青枠をクリックすると番号変更、空欄で削除できます。番号のない場所をクリックすると手動追加できます。保存済みページは再表示時にVision APIを呼ばず番号配置を復元します。</p>
+    <p class="note">PCでは番号のない場所をドラッグすると、ドラッグした四角形を操作範囲として手動追加できます。短いクリックは従来どおり標準サイズで追加します。青枠クリックでは番号変更、空欄で削除できます。</p>
   </section>
 </main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -52,6 +52,10 @@
   let originalCandidates = [];
   let nextId = 1;
   let busy = false;
+  let dragStart = null;
+  let dragCurrent = null;
+  let dragMoved = false;
+  let suppressNextClick = false;
 
   document.getElementById('back').onclick = () => { window.location.href = projectsScreenUrl; };
   if (!window.pdfjsLib) { status.textContent = 'PDF.jsを読み込めませんでした。'; return; }
@@ -68,6 +72,7 @@
     canvas.width=sourceCanvas.width;canvas.height=sourceCanvas.height;
     const ctx=canvas.getContext('2d');ctx.drawImage(sourceCanvas,0,0);
     for(const item of candidates){const b=item.bbox,pad=Math.max(4,Math.max(b.w,b.h)*.35);ctx.save();ctx.strokeStyle=item.source==='manual'?'#188038':'#1967d2';ctx.fillStyle=ctx.strokeStyle;ctx.lineWidth=Math.max(2,canvas.width/1000);ctx.strokeRect(b.x-pad,b.y-pad,b.w+pad*2,b.h+pad*2);ctx.font=`${Math.max(20,b.h*.8)}px system-ui`;ctx.fillText(item.number,b.x,Math.max(22,b.y-pad-4));ctx.restore();}
+    if(dragStart&&dragCurrent&&dragMoved){const x=Math.min(dragStart.x,dragCurrent.x),y=Math.min(dragStart.y,dragCurrent.y),w=Math.abs(dragCurrent.x-dragStart.x),h=Math.abs(dragCurrent.y-dragStart.y);ctx.save();ctx.strokeStyle='#d93025';ctx.lineWidth=Math.max(2,canvas.width/1000);ctx.setLineDash([Math.max(8,canvas.width/500),Math.max(6,canvas.width/700)]);ctx.strokeRect(x,y,w,h);ctx.restore();}
     summary.hidden=false;summary.textContent=`番号候補 ${candidates.length}件（OCR ${candidates.filter(x=>x.source==='ocr').length} / 手動 ${candidates.filter(x=>x.source==='manual').length}）`;
     saveButton.disabled=busy||!candidates.length;resetButton.disabled=busy||!originalCandidates.length;
   }
@@ -97,7 +102,42 @@
     }catch(e){status.className='status error';status.textContent=e.message;}finally{setBusy(false);}
   }
 
+  canvas.addEventListener('mousedown',e=>{
+    if(busy||!sourceCanvas.width||e.button!==0)return;
+    const p=point(e);
+    if(findAt(p))return;
+    dragStart=p;dragCurrent=p;dragMoved=false;
+  });
+
+  canvas.addEventListener('mousemove',e=>{
+    if(!dragStart||busy)return;
+    dragCurrent=point(e);
+    const threshold=Math.max(30,canvas.width/200);
+    dragMoved=Math.abs(dragCurrent.x-dragStart.x)>=threshold||Math.abs(dragCurrent.y-dragStart.y)>=threshold;
+    if(dragMoved)draw();
+  });
+
+  canvas.addEventListener('mouseup',e=>{
+    if(!dragStart||busy)return;
+    const start=dragStart;
+    const end=point(e);
+    const moved=dragMoved;
+    dragStart=null;dragCurrent=null;dragMoved=false;
+    if(!moved){draw();return;}
+    suppressNextClick=true;
+    const x=Math.min(start.x,end.x),y=Math.min(start.y,end.y),w=Math.abs(end.x-start.x),h=Math.abs(end.y-start.y);
+    draw();
+    const value=prompt('ドラッグした範囲に追加する番号（1〜99）を入力してください。');
+    if(value===null||!value.trim())return;
+    const num=normalizedNumber(value);
+    if(!num){alert('番号は1〜99で入力してください。');return;}
+    candidates.push({id:nextId++,number:num,source:'manual',bbox:{x,y,w:Math.max(1,w),h:Math.max(1,h)}});
+    draw();
+    status.className='status';status.textContent=`番号 ${num} をドラッグ範囲で追加しました。確定保存してください。`;
+  });
+
   canvas.addEventListener('click',e=>{
+    if(suppressNextClick){suppressNextClick=false;return;}
     if(busy||!sourceCanvas.width)return;const p=point(e),hit=findAt(p);
     if(hit){const value=prompt('番号を変更します。空欄で削除します。',hit.number);if(value===null)return;const t=value.trim();if(!t){candidates=candidates.filter(x=>x.id!==hit.id);draw();return;}const num=normalizedNumber(t);if(!num){alert('番号は1〜99で入力してください。');return;}hit.number=num;draw();return;}
     const value=prompt('この位置に追加する番号（1〜99）を入力してください。');if(value===null||!value.trim())return;const num=normalizedNumber(value);if(!num){alert('番号は1〜99で入力してください。');return;}const size=Math.max(24,sourceCanvas.width/250);candidates.push({id:nextId++,number:num,source:'manual',bbox:{x:p.x-size/2,y:p.y-size/2,w:size,h:size}});draw();
