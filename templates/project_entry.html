@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ project_name }} - 図面エントリー</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:#f5f6f8;color:#202124}main{max-width:1200px;margin:auto;padding:18px 14px 40px}.top{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:14px}.back,.button{min-height:42px;padding:0 14px;border:1px solid #bdc1c6;border-radius:8px;background:#fff;color:#202124;font:inherit;cursor:pointer}.title{margin:0;font-size:1.35rem}.meta{color:#5f6368;margin-top:4px}.card{background:#fff;border:1px solid #dadce0;border-radius:12px;padding:14px}.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin-bottom:12px}label{display:grid;gap:5px;font-weight:600}input[type=number]{width:90px;min-height:42px;padding:0 10px;border:1px solid #bdc1c6;border-radius:8px;font:inherit}.viewer{overflow:auto;max-height:78vh;border:1px solid #dadce0;border-radius:8px;background:#eee}canvas{display:block;max-width:100%;height:auto;margin:auto;background:#fff}.status{min-height:1.5em;color:#5f6368}.note{margin:12px 0 0;color:#5f6368;font-size:.9rem;line-height:1.6}@media(max-width:640px){.top{align-items:stretch;flex-direction:column}.back{width:100%}}
+  </style>
+</head>
+<body>
+<main>
+  <div class="top">
+    <div><h1 class="title">図面エントリー</h1><div class="meta">{{ project_name }} / {{ pdf_name }}</div></div>
+    <button class="back" id="back" type="button">← 工事一覧へ</button>
+  </div>
+  <section class="card">
+    <div class="controls">
+      <label>ページ<input id="page" type="number" min="1" value="1" inputmode="numeric"></label>
+      <button class="button" id="prev" type="button">前へ</button>
+      <button class="button" id="next" type="button">次へ</button>
+    </div>
+    <div class="status" id="status">PDFを読み込んでいます…</div>
+    <div class="viewer"><canvas id="canvas"></canvas></div>
+    <p class="note">今回は②図面エントリー画面への接続確認です。まだOCR・番号確定・施工記録の保存処理はこの画面へ接続していません。</p>
+  </section>
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+(() => {
+  const pdfUrl = {{ pdf_url | tojson }};
+  const pageInput = document.getElementById('page');
+  const status = document.getElementById('status');
+  const canvas = document.getElementById('canvas');
+  const prev = document.getElementById('prev');
+  const next = document.getElementById('next');
+  let pdf = null;
+  let rendering = false;
+
+  document.getElementById('back').onclick = () => { window.location.href = '../../../projects-screen'; };
+  if (!window.pdfjsLib) { status.textContent = 'PDF.jsを読み込めませんでした。'; return; }
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+  async function renderPage(pageNumber) {
+    if (!pdf || rendering) return;
+    const n = Math.max(1, Math.min(pdf.numPages, Number(pageNumber) || 1));
+    pageInput.value = n;
+    rendering = true;
+    status.textContent = `${n} / ${pdf.numPages} ページを表示中…`;
+    try {
+      const page = await pdf.getPage(n);
+      const base = page.getViewport({scale:1});
+      const maxWidth = 1600;
+      const scale = Math.min(2, maxWidth / base.width);
+      const viewport = page.getViewport({scale});
+      canvas.width = Math.ceil(viewport.width);
+      canvas.height = Math.ceil(viewport.height);
+      await page.render({canvasContext:canvas.getContext('2d'),viewport}).promise;
+      status.textContent = `${n} / ${pdf.numPages} ページ`;
+      prev.disabled = n <= 1;
+      next.disabled = n >= pdf.numPages;
+    } catch (e) {
+      status.textContent = `PDF表示に失敗しました: ${e.message}`;
+    } finally { rendering = false; }
+  }
+
+  prev.onclick = () => renderPage(Number(pageInput.value) - 1);
+  next.onclick = () => renderPage(Number(pageInput.value) + 1);
+  pageInput.onchange = () => renderPage(pageInput.value);
+
+  pdfjsLib.getDocument(pdfUrl).promise.then(doc => {
+    pdf = doc;
+    pageInput.max = doc.numPages;
+    renderPage(1);
+  }).catch(e => { status.textContent = `PDFを読み込めませんでした: ${e.message}`; });
+})();
+</script>
+</body>
+</html>
