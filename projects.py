@@ -1,3 +1,5 @@
+import json
+import shutil
 import sqlite3
 import uuid
 from datetime import datetime, timezone
@@ -9,6 +11,7 @@ from flask import Blueprint, jsonify, render_template, request, send_from_direct
 def create_projects_blueprint(db_path: Path, data_dir: Path):
     blueprint = Blueprint("projects", __name__)
     upload_dir = data_dir / "pdfs"
+    preview_root = data_dir / "previews"
 
     def ensure_table(connection):
         connection.execute(
@@ -32,6 +35,35 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
 
     def project_drawing_key(project_id):
         return f"project:{project_id}"
+
+    def project_preview_dir(project_id):
+        return preview_root / str(project_id)
+
+    def preview_meta_path(project_id):
+        return project_preview_dir(project_id) / "meta.json"
+
+    def read_preview_meta(project_id):
+        path = preview_meta_path(project_id)
+        if not path.exists():
+            return {"pageCount": 0}
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            page_count = int(data.get("pageCount", 0))
+        except (OSError, ValueError, TypeError, json.JSONDecodeError):
+            page_count = 0
+        return {"pageCount": max(0, page_count)}
+
+    def preview_pages(project_id):
+        directory = project_preview_dir(project_id)
+        if not directory.exists():
+            return []
+        pages = []
+        for path in directory.glob("page-*.jpg"):
+            try:
+                pages.append(int(path.stem.split("-", 1)[1]))
+            except (IndexError, ValueError):
+                continue
+        return sorted(page for page in pages if page >= 1)
 
     def normalize_candidate(raw_candidate):
         if not isinstance(raw_candidate, dict):
@@ -157,6 +189,7 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
         pdf_path = upload_dir / stored_name
         try:
             pdf_path.unlink(missing_ok=True)
+            shutil.rmtree(project_preview_dir(project_id), ignore_errors=True)
         except OSError:
             return jsonify({
                 "error": "工事情報は削除しましたが、PDFファイルの削除に失敗しました。"
@@ -179,12 +212,15 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
         if row is None:
             return "工事が見つかりません。", 404
 
+        meta = read_preview_meta(project_id)
         return render_template(
             "project_entry.html",
             project_id=project_id,
             project_name=row["project_name"],
             pdf_name=row["original_pdf_name"],
             pdf_url=f"../../pdfs/{row['stored_pdf_name']}",
+            preview_page_count=meta["pageCount"],
+            preview_pages=preview_pages(project_id),
         )
 
     @blueprint.get("/projects/<int:project_id>/number-map")
@@ -277,6 +313,55 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
             "savedAt": saved_at,
             "count": len(candidates),
         })
+
+    @blueprint.post("/projects/<int:project_id>/previews/<int:page_number>.jpg")
+    def save_project_preview(project_id, page_number):
+        if page_number < 1:
+            return jsonify({"error": "ページ番号が不正です。"}), 400
+
+        preview = request.files.get("preview")
+        page_count = request.form.get("pageCount", type=int)
+        if preview is None or not preview.filename:
+            return jsonify({"error": "プレビュー画像がありません。"}), 400
+        if page_count is None or page_count < page_number or page_count > 10000:
+            return jsonify({"error": "PDFページ数が不正です。"}), 400
+
+        header = preview.stream.read(3)
+        preview.stream.seek(0)
+        if header != b"\xff\xd8\xff":
+            return jsonify({"error": "JPEGプレビューとして確認できませんでした。"}), 400
+
+        with connect() as connection:
+            if connection.execute("SELECT 1 FROM projects WHERE id = ?", (project_id,)).fetchone() is None:
+                return jsonify({"error": "工事が見つかりません。"}), 404
+
+        directory = project_preview_dir(project_id)
+        directory.mkdir(parents=True, exist_ok=True)
+        destination = directory / f"page-{page_number}.jpg"
+        temporary = directory / f"page-{page_number}.tmp"
+        preview.save(temporary)
+        temporary.replace(destination)
+        preview_meta_path(project_id).write_text(
+            json.dumps({"pageCount": page_count}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+
+        return jsonify({
+            "saved": True,
+            "pageNumber": page_number,
+            "pageCount": page_count,
+            "previewUrl": f"previews/{page_number}.jpg",
+        })
+
+    @blueprint.get("/projects/<int:project_id>/previews/<int:page_number>.jpg")
+    def get_project_preview(project_id, page_number):
+        if page_number < 1:
+            return jsonify({"error": "プレビューが見つかりません。"}), 404
+        directory = project_preview_dir(project_id)
+        filename = f"page-{page_number}.jpg"
+        if not (directory / filename).exists():
+            return jsonify({"error": "プレビューが見つかりません。"}), 404
+        return send_from_directory(directory, filename, mimetype="image/jpeg", max_age=0)
 
     @blueprint.get("/pdfs/<path:stored_name>")
     def get_project_pdf(stored_name):
