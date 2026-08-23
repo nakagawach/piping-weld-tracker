@@ -18,6 +18,7 @@ on:
       - feature/project-entry-ocr
       - feature/project-entry-auto-area
       - feature/project-entry-fast-display
+      - feature/project-entry-adaptive-area
   workflow_dispatch:
 
 permissions:
