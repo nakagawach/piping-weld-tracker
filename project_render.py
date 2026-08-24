@@ -92,6 +92,10 @@ def _bbox(vertices):
     return {"x": x1, "y": y1, "w": max(1, x2 - x1), "h": max(1, y2 - y1)}
 
 
+def _box_key(box):
+    return (box["x"], box["y"], box["w"], box["h"])
+
+
 def _union_bbox(a, b):
     x1, y1 = min(a["x"], b["x"]), min(a["y"], b["y"])
     x2 = max(a["x"] + a["w"], b["x"] + b["w"])
@@ -115,6 +119,7 @@ def extract_label_candidates(words):
     prepared = []
     candidates = []
     seen = set()
+    merged_digit_boxes = set()
 
     def add(label, box):
         key = (label, round(box["x"] / 3), round(box["y"] / 3), round(box["w"] / 3), round(box["h"] / 3))
@@ -164,7 +169,15 @@ def extract_label_candidates(words):
         label = normalize_label(left["raw"] + right["raw"])
         if label:
             add(label, _union_bbox(left["bbox"], right["bbox"]))
+            for part in (left, right):
+                if _DIGIT_PART.fullmatch(part["raw"]):
+                    merged_digit_boxes.add(_box_key(part["bbox"]))
 
+    if merged_digit_boxes:
+        candidates = [
+            item for item in candidates
+            if not (item["number"].isdigit() and _box_key(item["bbox"]) in merged_digit_boxes)
+        ]
     return candidates
 
 
