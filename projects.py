@@ -6,7 +6,7 @@ from pathlib import Path
 
 from flask import Blueprint, jsonify, render_template, request, send_file, send_from_directory
 
-from project_render import render_cached, vision_ocr
+from project_render import normalize_label, render_cached, vision_ocr
 
 
 def create_projects_blueprint(db_path: Path, data_dir: Path):
@@ -58,9 +58,9 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
         if not isinstance(raw_candidate, dict):
             raise ValueError("番号候補の形式が不正です。")
 
-        number_text = str(raw_candidate.get("number", "")).strip()
-        if not number_text.isdigit() or not 1 <= int(number_text) <= 99:
-            raise ValueError("番号は1〜99で指定してください。")
+        number_text = normalize_label(raw_candidate.get("number", ""))
+        if not number_text:
+            raise ValueError("番号は数字、丸数字、またはF1/S2/A-12等の英数字で指定してください。")
 
         source = raw_candidate.get("source", "manual")
         if source not in {"ocr", "manual"}:
