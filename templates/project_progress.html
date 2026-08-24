@@ -18,36 +18,24 @@
     .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px;border-bottom:1px solid var(--border);background:#fff;position:sticky;top:0;z-index:5}
     .page-field{display:flex;align-items:center;gap:6px;font-weight:700}
     .page-field input{width:72px;min-height:44px;padding:0 8px;border:1px solid #bdc1c6;border-radius:9px;background:#fff;text-align:center}
+    .zoom-group{display:flex;gap:6px;align-items:center;margin-left:auto}.zoom-group .button{min-width:48px;padding:0 10px}.zoom-value{min-width:64px}
     .statusline{padding:8px 12px;color:var(--gray);font-size:.93rem;border-bottom:1px solid #eee}
-    .summary{display:flex;gap:7px;overflow-x:auto;padding:9px 10px;border-bottom:1px solid #eee;scrollbar-width:none}
-    .summary::-webkit-scrollbar{display:none}
-    .chip{flex:0 0 auto;padding:6px 10px;border-radius:999px;background:#f1f3f4;font-size:.86rem;font-weight:700;white-space:nowrap}
-    .chip.working{background:#fef7e0;color:#8a4b00}.chip.done{background:#e6f4ea;color:#137333}
-    .viewer{overflow:auto;max-height:calc(100vh - 210px);background:#e9eaed;overscroll-behavior:contain}
-    canvas{display:block;max-width:100%;height:auto;margin:auto;background:#fff;touch-action:manipulation;cursor:pointer}
-    .empty{padding:36px 18px;text-align:center;color:var(--gray);line-height:1.7}
-    dialog{width:min(560px,calc(100vw - 24px));border:0;border-radius:18px;padding:0;box-shadow:0 18px 48px #0005;max-height:90vh}
-    dialog::backdrop{background:#0007}
-    .sheet{padding:18px;overflow:auto}
-    .sheet-head{display:flex;justify-content:space-between;gap:10px;align-items:start;margin-bottom:16px}
-    .sheet h2{margin:0;font-size:1.25rem}.target{margin-top:4px;color:var(--gray)}
+    .summary{display:flex;gap:7px;overflow-x:auto;padding:9px 10px;border-bottom:1px solid #eee;scrollbar-width:none}.summary::-webkit-scrollbar{display:none}
+    .chip{flex:0 0 auto;padding:6px 10px;border-radius:999px;background:#f1f3f4;font-size:.86rem;font-weight:700;white-space:nowrap}.chip.working{background:#fef7e0;color:#8a4b00}.chip.done{background:#e6f4ea;color:#137333}
+    .viewer{overflow:auto;max-height:calc(100vh - 210px);background:#e9eaed;overscroll-behavior:contain;touch-action:pan-x pan-y}
+    canvas{display:block;width:100%;max-width:none;height:auto;margin:0 auto;background:#fff;touch-action:pan-x pan-y;cursor:pointer}
+    .empty{padding:36px 18px;text-align:center;color:var(--gray);line-height:1.7;white-space:pre-line}
+    dialog{width:min(560px,calc(100vw - 24px));border:0;border-radius:18px;padding:0;box-shadow:0 18px 48px #0005;max-height:90vh}dialog::backdrop{background:#0007}
+    .sheet{padding:18px;overflow:auto}.sheet-head{display:flex;justify-content:space-between;gap:10px;align-items:start;margin-bottom:16px}.sheet h2{margin:0;font-size:1.25rem}.target{margin-top:4px;color:var(--gray)}
     .close{width:44px;height:44px;border:1px solid var(--border);border-radius:50%;background:#fff;font-size:1.25rem;cursor:pointer}
-    .label{display:block;font-weight:700;margin:17px 0 8px}
-    .status-buttons{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-    .status-button{min-height:54px;border:2px solid var(--border);border-radius:12px;background:#fff;font-weight:800;cursor:pointer}
-    .status-button[data-value="未着手"].active{border-color:#5f6368;background:#f1f3f4}
-    .status-button[data-value="施工中"].active{border-color:#e37400;background:#fef7e0;color:#8a4b00}
-    .status-button[data-value="完了"].active{border-color:#188038;background:#e6f4ea;color:#137333}
-    input[type=date],textarea{width:100%;border:1px solid #bdc1c6;border-radius:10px;background:#fff;padding:11px 12px}
-    input[type=date]{min-height:48px}textarea{min-height:110px;resize:vertical;line-height:1.5}
-    .updated{min-height:1.4em;margin:12px 0 0;color:var(--gray);font-size:.85rem}
-    .error{color:#b3261e}
-    .actions{display:flex;gap:9px;margin-top:16px}.actions .button{flex:1}.save{border-color:var(--blue);background:var(--blue);color:#fff}
-    button:disabled{opacity:.55;cursor:wait}
+    .label{display:block;font-weight:700;margin:17px 0 8px}.status-buttons{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.status-button{min-height:54px;border:2px solid var(--border);border-radius:12px;background:#fff;font-weight:800;cursor:pointer}
+    .status-button[data-value="未着手"].active{border-color:#5f6368;background:#f1f3f4}.status-button[data-value="施工中"].active{border-color:#e37400;background:#fef7e0;color:#8a4b00}.status-button[data-value="完了"].active{border-color:#188038;background:#e6f4ea;color:#137333}
+    input[type=date],textarea{width:100%;border:1px solid #bdc1c6;border-radius:10px;background:#fff;padding:11px 12px}input[type=date]{min-height:48px}textarea{min-height:110px;resize:vertical;line-height:1.5}
+    .updated{min-height:1.4em;margin:12px 0 0;color:var(--gray);font-size:.85rem}.error{color:#b3261e}.actions{display:flex;gap:9px;margin-top:16px}.actions .button{flex:1}.save{border-color:var(--blue);background:var(--blue);color:#fff}button:disabled{opacity:.55;cursor:wait}
     @media(max-width:640px){
       main{padding:8px 8px calc(18px + env(safe-area-inset-bottom))}.top{align-items:stretch;flex-direction:column;padding:4px 2px}.top .button{width:100%}
-      .toolbar{gap:6px}.toolbar>.button{flex:1;min-width:70px;padding:0 8px}.page-field{width:100%;justify-content:space-between}.page-field input{flex:1}
-      .viewer{max-height:calc(100vh - 260px)}
+      .toolbar{gap:6px}.toolbar>.button{flex:1;min-width:70px;padding:0 8px}.page-field{width:100%;justify-content:space-between}.page-field input{flex:1}.zoom-group{width:100%;margin-left:0}.zoom-group .button{flex:1}
+      .viewer{max-height:calc(100vh - 310px)}
       dialog{width:100%;max-width:none;margin:auto 0 0;border-radius:18px 18px 0 0;max-height:88vh;padding-bottom:env(safe-area-inset-bottom)}
       .sheet{padding:16px 14px 18px}.status-button{min-height:58px;padding:4px;font-size:.96rem}
     }
@@ -55,108 +43,68 @@
 </head>
 <body>
 <main>
-  <div class="top">
-    <div><h1 class="title">進捗入力</h1><div class="meta">{{ project_name }} / {{ pdf_name }}</div></div>
-    <button class="button" id="back" type="button">← 工事一覧へ</button>
-  </div>
+  <div class="top"><div><h1 class="title">進捗入力</h1><div class="meta">{{ project_name }} / {{ pdf_name }}</div></div><button class="button" id="back" type="button">← 工事一覧へ</button></div>
   <section class="card">
     <div class="toolbar">
       <label class="page-field">ページ <input id="page" type="number" min="1" value="1" inputmode="numeric"></label>
-      <button class="button" id="prev" type="button">前へ</button>
-      <button class="button" id="next" type="button">次へ</button>
-      <button class="button" id="reload" type="button">再読込</button>
+      <button class="button" id="prev" type="button">前へ</button><button class="button" id="next" type="button">次へ</button><button class="button" id="reload" type="button">再読込</button>
+      <div class="zoom-group" aria-label="図面拡大"><button class="button" id="zoomOut" type="button" aria-label="縮小">−</button><button class="button zoom-value" id="zoomReset" type="button">100%</button><button class="button" id="zoomIn" type="button" aria-label="拡大">＋</button></div>
     </div>
-    <div class="statusline" id="status">図面を読み込んでいます…</div>
-    <div class="summary" id="summary" hidden></div>
+    <div class="statusline" id="status">図面を読み込んでいます…</div><div class="summary" id="summary" hidden></div>
     <div class="viewer" id="viewer"><canvas id="canvas"></canvas><div class="empty" id="empty" hidden></div></div>
   </section>
 </main>
-
 <dialog id="progressDialog">
   <form class="sheet" id="progressForm" method="dialog">
-    <div class="sheet-head">
-      <div><h2 id="dialogTitle">施工情報</h2><div class="target" id="dialogTarget"></div></div>
-      <button class="close" id="closeDialog" type="button" aria-label="閉じる">×</button>
-    </div>
-    <span class="label">状態</span>
-    <div class="status-buttons" id="statusButtons">
-      <button type="button" class="status-button" data-value="未着手">未着手</button>
-      <button type="button" class="status-button" data-value="施工中">作業中</button>
-      <button type="button" class="status-button" data-value="完了">完了</button>
-    </div>
-    <label class="label" for="completedDate">完了日</label>
-    <input id="completedDate" type="date">
-    <label class="label" for="workDetail">メモ・作業内容</label>
-    <textarea id="workDetail" maxlength="1000" placeholder="施工内容、確認事項など"></textarea>
-    <div class="updated" id="updated"></div>
-    <div class="actions">
-      <button class="button" id="cancel" type="button">キャンセル</button>
-      <button class="button save" id="save" type="submit">保存</button>
-    </div>
+    <div class="sheet-head"><div><h2>施工情報</h2><div class="target" id="dialogTarget"></div></div><button class="close" id="closeDialog" type="button" aria-label="閉じる">×</button></div>
+    <span class="label">状態</span><div class="status-buttons" id="statusButtons"><button type="button" class="status-button" data-value="未着手">未着手</button><button type="button" class="status-button" data-value="施工中">作業中</button><button type="button" class="status-button" data-value="完了">完了</button></div>
+    <label class="label" for="completedDate">完了日</label><input id="completedDate" type="date">
+    <label class="label" for="workDetail">メモ・作業内容</label><textarea id="workDetail" maxlength="1000" placeholder="施工内容、確認事項など"></textarea>
+    <div class="updated" id="updated"></div><div class="actions"><button class="button" id="cancel" type="button">キャンセル</button><button class="button save" id="save" type="submit">保存</button></div>
   </form>
 </dialog>
-
 <script>
 (() => {
-  const OCR_LONG_EDGE=6000,DISPLAY_LONG_EDGE=1600,SCALE=DISPLAY_LONG_EDGE/OCR_LONG_EDGE,HIT_CSS_PX=48;
+  const DISPLAY_LONG_EDGE=1600,SCALE=DISPLAY_LONG_EDGE/6000,HIT_CSS_PX=48;
   const projectId={{ project_id | tojson }};
   const progressUrl={{ url_for('progress.get_project_progress', project_id=project_id) | tojson }};
   const saveProgressUrl={{ url_for('progress.save_project_progress', project_id=project_id) | tojson }};
   const pdfiumInfoUrl={{ url_for('projects.pdfium_info', project_id=project_id) | tojson }};
   const pdfiumPageUrl={{ url_for('projects.pdfium_page', project_id=project_id) | tojson }};
   const projectsScreenUrl={{ url_for('projects_screen') | tojson }};
-
   const pageInput=document.getElementById('page'),prev=document.getElementById('prev'),next=document.getElementById('next'),reload=document.getElementById('reload');
-  const status=document.getElementById('status'),summary=document.getElementById('summary'),canvas=document.getElementById('canvas'),empty=document.getElementById('empty');
+  const zoomOut=document.getElementById('zoomOut'),zoomReset=document.getElementById('zoomReset'),zoomIn=document.getElementById('zoomIn');
+  const status=document.getElementById('status'),summary=document.getElementById('summary'),viewer=document.getElementById('viewer'),canvas=document.getElementById('canvas'),empty=document.getElementById('empty');
   const dialog=document.getElementById('progressDialog'),form=document.getElementById('progressForm'),dialogTarget=document.getElementById('dialogTarget');
   const dateInput=document.getElementById('completedDate'),detailInput=document.getElementById('workDetail'),updated=document.getElementById('updated'),saveButton=document.getElementById('save');
   const source=document.createElement('canvas');
-  let pageCount=0,candidates=[],progressMap=new Map(),active=null,busy=false,selectedStatus='未着手';
-
-  document.getElementById('back').onclick=()=>location.href=projectsScreenUrl;
-  document.getElementById('closeDialog').onclick=()=>dialog.close();
-  document.getElementById('cancel').onclick=()=>dialog.close();
+  let pageCount=0,candidates=[],progressMap=new Map(),active=null,busy=false,selectedStatus='未着手',drawingZoom=1;
+  document.getElementById('back').onclick=()=>location.href=projectsScreenUrl;document.getElementById('closeDialog').onclick=()=>dialog.close();document.getElementById('cancel').onclick=()=>dialog.close();
 
   function center(item){return{x:Math.round(item.bbox.x+item.bbox.w/2),y:Math.round(item.bbox.y+item.bbox.h/2)}}
-  function keyFromXY(x,y){return `${Math.round(x)}:${Math.round(y)}`}
-  function key(item){const c=center(item);return keyFromXY(c.x,c.y)}
-  function toDisplayBox(b){return{x:b.x*SCALE,y:b.y*SCALE,w:b.w*SCALE,h:b.h*SCALE}}
-  function statusLabel(value){return value==='施工中'?'作業中':value}
-  function markerColor(value){if(value==='完了')return '#188038';if(value==='施工中')return '#e37400';return '#5f6368'}
-  function setBusy(value){busy=value;pageInput.disabled=value;prev.disabled=value||Number(pageInput.value)<=1;next.disabled=value||!pageCount||Number(pageInput.value)>=pageCount;reload.disabled=value}
-  function cssToOcrX(px){const r=canvas.getBoundingClientRect();return px*canvas.width/r.width/SCALE}
-  function cssToOcrY(px){const r=canvas.getBoundingClientRect();return px*canvas.height/r.height/SCALE}
+  function keyFromXY(x,y){return `${Math.round(x)}:${Math.round(y)}`}function key(item){const c=center(item);return keyFromXY(c.x,c.y)}
+  function toDisplayBox(b){return{x:b.x*SCALE,y:b.y*SCALE,w:b.w*SCALE,h:b.h*SCALE}}function statusLabel(v){return v==='施工中'?'作業中':v}
+  function markerColor(v){if(v==='完了')return '#188038';if(v==='施工中')return '#e37400';return '#5f6368'}
+  function markerFill(v){if(v==='完了')return 'rgba(24,128,56,.24)';if(v==='施工中')return 'rgba(227,116,0,.25)';return 'rgba(95,99,104,.20)'}
+  function setBusy(v){busy=v;pageInput.disabled=v;prev.disabled=v||Number(pageInput.value)<=1;next.disabled=v||!pageCount||Number(pageInput.value)>=pageCount;reload.disabled=v}
+  function setZoom(nextZoom){
+    const next=Math.max(1,Math.min(4,Math.round(nextZoom*2)/2));if(next===drawingZoom)return;
+    const cx=viewer.scrollLeft+viewer.clientWidth/2,cy=viewer.scrollTop+viewer.clientHeight/2,ratio=next/drawingZoom;drawingZoom=next;canvas.style.width=`${drawingZoom*100}%`;zoomReset.textContent=`${Math.round(drawingZoom*100)}%`;
+    requestAnimationFrame(()=>{viewer.scrollLeft=Math.max(0,cx*ratio-viewer.clientWidth/2);viewer.scrollTop=Math.max(0,cy*ratio-viewer.clientHeight/2)});
+  }
+  function resetZoom(){drawingZoom=1;canvas.style.width='100%';zoomReset.textContent='100%';viewer.scrollLeft=0;viewer.scrollTop=0}
+  zoomOut.onclick=()=>setZoom(drawingZoom-.5);zoomIn.onclick=()=>setZoom(drawingZoom+.5);zoomReset.onclick=resetZoom;
+  function cssToOcrX(px){const r=canvas.getBoundingClientRect();return px*canvas.width/r.width/SCALE}function cssToOcrY(px){const r=canvas.getBoundingClientRect();return px*canvas.height/r.height/SCALE}
   function eventPoint(e){const r=canvas.getBoundingClientRect();return{x:(e.clientX-r.left)*canvas.width/r.width/SCALE,y:(e.clientY-r.top)*canvas.height/r.height/SCALE}}
-  function findAt(p){
-    const minX=cssToOcrX(HIT_CSS_PX),minY=cssToOcrY(HIT_CSS_PX);
-    const hits=candidates.filter(item=>{const b=item.bbox,ex=Math.max(0,(minX-b.w)/2),ey=Math.max(0,(minY-b.h)/2);return p.x>=b.x-ex&&p.x<=b.x+b.w+ex&&p.y>=b.y-ey&&p.y<=b.y+b.h+ey});
-    if(!hits.length)return null;
-    hits.sort((a,b)=>{const ac=center(a),bc=center(b);return((p.x-ac.x)**2+(p.y-ac.y)**2)-((p.x-bc.x)**2+(p.y-bc.y)**2)});return hits[0];
-  }
-  function draw(){
-    canvas.width=source.width;canvas.height=source.height;const ctx=canvas.getContext('2d');ctx.drawImage(source,0,0);
-    for(const item of candidates){const b=toDisplayBox(item.bbox),progress=progressMap.get(key(item)),value=progress?.status||'未着手',color=markerColor(value);const pad=Math.max(3,Math.max(b.w,b.h)*.32);
-      ctx.save();ctx.strokeStyle=color;ctx.fillStyle='rgba(255,255,255,.88)';ctx.lineWidth=Math.max(2,canvas.width/900);ctx.strokeRect(b.x-pad,b.y-pad,b.w+pad*2,b.h+pad*2);
-      const label=String(item.number),font=Math.max(15,b.h*.86);ctx.font=`700 ${font}px system-ui`;const tw=ctx.measureText(label).width;const tx=b.x,ty=Math.max(font+3,b.y-pad-4);ctx.fillRect(tx-3,ty-font,tw+6,font+4);ctx.fillStyle=color;ctx.fillText(label,tx,ty);ctx.restore();
-    }
-    const all=candidates.length,working=candidates.filter(x=>progressMap.get(key(x))?.status==='施工中').length,done=candidates.filter(x=>progressMap.get(key(x))?.status==='完了').length,untouched=all-working-done;
-    summary.hidden=false;summary.innerHTML=`<span class="chip">全 ${all}</span><span class="chip">未着手 ${untouched}</span><span class="chip working">作業中 ${working}</span><span class="chip done">完了 ${done}</span>`;
-  }
+  function findAt(p){const minX=cssToOcrX(HIT_CSS_PX),minY=cssToOcrY(HIT_CSS_PX);const hits=candidates.filter(item=>{const b=item.bbox,ex=Math.max(0,(minX-b.w)/2),ey=Math.max(0,(minY-b.h)/2);return p.x>=b.x-ex&&p.x<=b.x+b.w+ex&&p.y>=b.y-ey&&p.y<=b.y+b.h+ey});if(!hits.length)return null;hits.sort((a,b)=>{const ac=center(a),bc=center(b);return((p.x-ac.x)**2+(p.y-ac.y)**2)-((p.x-bc.x)**2+(p.y-bc.y)**2)});return hits[0]}
+  function draw(){canvas.width=source.width;canvas.height=source.height;const ctx=canvas.getContext('2d');ctx.drawImage(source,0,0);for(const item of candidates){const b=toDisplayBox(item.bbox),progress=progressMap.get(key(item)),value=progress?.status||'未着手',color=markerColor(value),fill=markerFill(value),pad=Math.max(3,Math.max(b.w,b.h)*.32);ctx.save();ctx.fillStyle=fill;ctx.fillRect(b.x-pad,b.y-pad,b.w+pad*2,b.h+pad*2);ctx.strokeStyle=color;ctx.lineWidth=Math.max(2,canvas.width/900);ctx.strokeRect(b.x-pad,b.y-pad,b.w+pad*2,b.h+pad*2);const label=String(item.number),font=Math.max(15,b.h*.86);ctx.font=`700 ${font}px system-ui`;const tw=ctx.measureText(label).width,tx=b.x,ty=Math.max(font+3,b.y-pad-4);ctx.fillStyle='rgba(255,255,255,.9)';ctx.fillRect(tx-3,ty-font,tw+6,font+4);ctx.fillStyle=color;ctx.fillText(label,tx,ty);ctx.restore()}const all=candidates.length,working=candidates.filter(x=>progressMap.get(key(x))?.status==='施工中').length,done=candidates.filter(x=>progressMap.get(key(x))?.status==='完了').length,untouched=all-working-done;summary.hidden=false;summary.innerHTML=`<span class="chip">全 ${all}</span><span class="chip">未着手 ${untouched}</span><span class="chip working">作業中 ${working}</span><span class="chip done">完了 ${done}</span>`}
   function blobToImage(blob){return new Promise((resolve,reject)=>{const u=URL.createObjectURL(blob),img=new Image();img.onload=()=>{URL.revokeObjectURL(u);resolve(img)};img.onerror=()=>{URL.revokeObjectURL(u);reject(new Error('PDF画像を表示できませんでした。'))};img.src=u})}
   async function renderPage(n){const r=await fetch(`${pdfiumPageUrl}?page=${n}&longEdge=${DISPLAY_LONG_EDGE}&format=png`);if(!r.ok)throw new Error((await r.text())||'PDF画像を取得できませんでした。');const img=await blobToImage(await r.blob());source.width=img.naturalWidth;source.height=img.naturalHeight;source.getContext('2d').drawImage(img,0,0)}
-  async function loadPage(n){if(busy||!pageCount)return;n=Math.max(1,Math.min(pageCount,Number(n)||1));pageInput.value=n;setBusy(true);status.className='statusline';status.textContent=`${n} / ${pageCount} ページを読み込み中…`;empty.hidden=true;canvas.hidden=false;try{
-      const [data]=await Promise.all([fetch(`${progressUrl}?page=${n}`).then(async r=>{const d=await r.json();if(!r.ok)throw new Error(d.error||'進捗データを取得できませんでした。');return d}),renderPage(n)]);
-      candidates=data.candidates||[];progressMap=new Map((data.items||[]).map(x=>[keyFromXY(x.x,x.y),x]));
-      if(!data.saved||!candidates.length){canvas.hidden=true;empty.hidden=false;empty.textContent='このページは番号配置がまだ確定保存されていません。\n先に図面エントリーで番号配置を保存してください。';summary.hidden=true;status.textContent=`${n} / ${pageCount} ページ：進捗入力対象なし`;}else{draw();status.textContent=`${n} / ${pageCount} ページ。番号をタップして進捗を入力してください。`;}
-    }catch(e){status.className='statusline error';status.textContent=e.message;}finally{setBusy(false)}}
-
-  function selectStatus(value){selectedStatus=value;document.querySelectorAll('.status-button').forEach(b=>b.classList.toggle('active',b.dataset.value===value));if(value==='完了'&&!dateInput.value)dateInput.value=new Date().toISOString().slice(0,10)}
-  function openEditor(item){active=item;const c=center(item),saved=progressMap.get(key(item));dialogTarget.textContent=`対象番号：${item.number}　（ページ ${pageInput.value}）`;detailInput.value=saved?.workDetail||'';dateInput.value=saved?.completedDate||'';updated.textContent=saved?.updatedAt?`最終更新：${new Date(saved.updatedAt).toLocaleString('ja-JP')}`:'まだ保存されていません';updated.className='updated';selectStatus(saved?.status||'未着手');dialog.showModal()}
-  document.getElementById('statusButtons').onclick=e=>{const b=e.target.closest('[data-value]');if(b)selectStatus(b.dataset.value)};
-  canvas.addEventListener('click',e=>{if(busy||!candidates.length)return;const hit=findAt(eventPoint(e));if(hit)openEditor(hit)});
-
-  form.addEventListener('submit',async e=>{e.preventDefault();if(!active||busy)return;const c=center(active);saveButton.disabled=true;saveButton.textContent='保存中…';updated.className='updated';updated.textContent='保存しています…';try{const r=await fetch(saveProgressUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pageNumber:Number(pageInput.value),number:active.number,x:c.x,y:c.y,status:selectedStatus,completedDate:dateInput.value,workDetail:detailInput.value})});const data=await r.json();if(!r.ok)throw new Error(data.error||'保存に失敗しました。');progressMap.set(key(active),data);draw();dialog.close();status.textContent=`${active.number} を「${statusLabel(data.status)}」で保存しました。`;}catch(err){updated.className='updated error';updated.textContent=err.message;}finally{saveButton.disabled=false;saveButton.textContent='保存'}});
-
+  async function loadPage(n){if(busy||!pageCount)return;n=Math.max(1,Math.min(pageCount,Number(n)||1));pageInput.value=n;setBusy(true);resetZoom();status.className='statusline';status.textContent=`${n} / ${pageCount} ページを読み込み中…`;empty.hidden=true;canvas.hidden=false;try{const [data]=await Promise.all([fetch(`${progressUrl}?page=${n}`).then(async r=>{const d=await r.json();if(!r.ok)throw new Error(d.error||'進捗データを取得できませんでした。');return d}),renderPage(n)]);candidates=data.candidates||[];progressMap=new Map((data.items||[]).map(x=>[keyFromXY(x.x,x.y),x]));if(!data.saved||!candidates.length){canvas.hidden=true;empty.hidden=false;empty.textContent='このページは番号配置がまだ確定保存されていません。\n先に図面エントリーで番号配置を保存してください。';summary.hidden=true;status.textContent=`${n} / ${pageCount} ページ：進捗入力対象なし`}else{draw();status.textContent=`${n} / ${pageCount} ページ。図面は＋/−で拡大し、番号をタップして進捗を入力してください。`}}catch(e){status.className='statusline error';status.textContent=e.message}finally{setBusy(false)}}
+  function selectStatus(v){selectedStatus=v;document.querySelectorAll('.status-button').forEach(b=>b.classList.toggle('active',b.dataset.value===v));if(v==='完了'&&!dateInput.value)dateInput.value=new Date().toISOString().slice(0,10)}
+  function openEditor(item){active=item;const saved=progressMap.get(key(item));dialogTarget.textContent=`対象番号：${item.number}　（ページ ${pageInput.value}）`;detailInput.value=saved?.workDetail||'';dateInput.value=saved?.completedDate||'';updated.textContent=saved?.updatedAt?`最終更新：${new Date(saved.updatedAt).toLocaleString('ja-JP')}`:'まだ保存されていません';updated.className='updated';selectStatus(saved?.status||'未着手');dialog.showModal()}
+  document.getElementById('statusButtons').onclick=e=>{const b=e.target.closest('[data-value]');if(b)selectStatus(b.dataset.value)};canvas.addEventListener('click',e=>{if(busy||!candidates.length)return;const hit=findAt(eventPoint(e));if(hit)openEditor(hit)});
+  form.addEventListener('submit',async e=>{e.preventDefault();if(!active||busy)return;const c=center(active);saveButton.disabled=true;saveButton.textContent='保存中…';updated.className='updated';updated.textContent='保存しています…';try{const r=await fetch(saveProgressUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pageNumber:Number(pageInput.value),number:active.number,x:c.x,y:c.y,status:selectedStatus,completedDate:dateInput.value,workDetail:detailInput.value})});const data=await r.json();if(!r.ok)throw new Error(data.error||'保存に失敗しました。');progressMap.set(key(active),data);draw();dialog.close();status.textContent=`${active.number} を「${statusLabel(data.status)}」で保存しました。`}catch(err){updated.className='updated error';updated.textContent=err.message}finally{saveButton.disabled=false;saveButton.textContent='保存'}});
   prev.onclick=()=>loadPage(Number(pageInput.value)-1);next.onclick=()=>loadPage(Number(pageInput.value)+1);reload.onclick=()=>loadPage(Number(pageInput.value));pageInput.onchange=()=>loadPage(Number(pageInput.value));
   (async()=>{setBusy(true);try{const r=await fetch(pdfiumInfoUrl),data=await r.json();if(!r.ok)throw new Error(data.error||'PDF情報を取得できませんでした。');pageCount=data.pageCount;setBusy(false);await loadPage(1)}catch(e){status.className='statusline error';status.textContent=e.message;setBusy(false)}})();
 })();
