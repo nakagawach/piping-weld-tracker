@@ -23,6 +23,7 @@ on:
       - feature/pdfium-cache-server-ocr-v2
       - feature/ocr-label-candidates
       - feature/project-progress-input
+      - feature/project-progress-local-zoom
   workflow_dispatch:
 
 permissions:
