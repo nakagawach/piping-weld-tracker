@@ -123,6 +123,7 @@
   function toDisplayBox(b){return{x:b.x*SCALE,y:b.y*SCALE,w:b.w*SCALE,h:b.h*SCALE}}
   function statusLabel(value){return value==='施工中'?'作業中':value}
   function markerColor(value){if(value==='完了')return '#188038';if(value==='施工中')return '#e37400';return '#5f6368'}
+  function markerFill(value){if(value==='完了')return 'rgba(24,128,56,.22)';if(value==='施工中')return 'rgba(227,116,0,.22)';return 'rgba(95,99,104,.18)'}
   function setBusy(value){busy=value;pageInput.disabled=value;prev.disabled=value||Number(pageInput.value)<=1;next.disabled=value||!pageCount||Number(pageInput.value)>=pageCount;reload.disabled=value}
   function cssToOcrX(px){const r=canvas.getBoundingClientRect();return px*canvas.width/r.width/SCALE}
   function cssToOcrY(px){const r=canvas.getBoundingClientRect();return px*canvas.height/r.height/SCALE}
@@ -135,9 +136,9 @@
   }
   function draw(){
     canvas.width=source.width;canvas.height=source.height;const ctx=canvas.getContext('2d');ctx.drawImage(source,0,0);
-    for(const item of candidates){const b=toDisplayBox(item.bbox),progress=progressMap.get(key(item)),value=progress?.status||'未着手',color=markerColor(value);const pad=Math.max(3,Math.max(b.w,b.h)*.32);
-      ctx.save();ctx.strokeStyle=color;ctx.fillStyle='rgba(255,255,255,.88)';ctx.lineWidth=Math.max(2,canvas.width/900);ctx.strokeRect(b.x-pad,b.y-pad,b.w+pad*2,b.h+pad*2);
-      const label=String(item.number),font=Math.max(15,b.h*.86);ctx.font=`700 ${font}px system-ui`;const tw=ctx.measureText(label).width;const tx=b.x,ty=Math.max(font+3,b.y-pad-4);ctx.fillRect(tx-3,ty-font,tw+6,font+4);ctx.fillStyle=color;ctx.fillText(label,tx,ty);ctx.restore();
+    for(const item of candidates){const b=toDisplayBox(item.bbox),progress=progressMap.get(key(item)),value=progress?.status||'未着手',color=markerColor(value),fill=markerFill(value);const pad=Math.max(3,Math.max(b.w,b.h)*.32);
+      ctx.save();ctx.fillStyle=fill;ctx.fillRect(b.x-pad,b.y-pad,b.w+pad*2,b.h+pad*2);ctx.strokeStyle=color;ctx.lineWidth=Math.max(2,canvas.width/900);ctx.strokeRect(b.x-pad,b.y-pad,b.w+pad*2,b.h+pad*2);
+      const label=String(item.number),font=Math.max(15,b.h*.86);ctx.font=`700 ${font}px system-ui`;const tw=ctx.measureText(label).width;const tx=b.x,ty=Math.max(font+3,b.y-pad-4);ctx.fillStyle='rgba(255,255,255,.9)';ctx.fillRect(tx-3,ty-font,tw+6,font+4);ctx.fillStyle=color;ctx.fillText(label,tx,ty);ctx.restore();
     }
     const all=candidates.length,working=candidates.filter(x=>progressMap.get(key(x))?.status==='施工中').length,done=candidates.filter(x=>progressMap.get(key(x))?.status==='完了').length,untouched=all-working-done;
     summary.hidden=false;summary.innerHTML=`<span class="chip">全 ${all}</span><span class="chip">未着手 ${untouched}</span><span class="chip working">作業中 ${working}</span><span class="chip done">完了 ${done}</span>`;
@@ -150,8 +151,14 @@
       if(!data.saved||!candidates.length){canvas.hidden=true;empty.hidden=false;empty.textContent='このページは番号配置がまだ確定保存されていません。\n先に図面エントリーで番号配置を保存してください。';summary.hidden=true;status.textContent=`${n} / ${pageCount} ページ：進捗入力対象なし`;}else{draw();status.textContent=`${n} / ${pageCount} ページ。番号をタップして進捗を入力してください。`;}
     }catch(e){status.className='statusline error';status.textContent=e.message;}finally{setBusy(false)}}
 
+  function applyDialogZoom(){
+    if(window.visualViewport&&window.matchMedia('(max-width: 640px)').matches){dialog.style.zoom=String(1/(window.visualViewport.scale||1));}
+    else{dialog.style.zoom='';}
+  }
+  dialog.addEventListener('close',()=>{dialog.style.zoom='';});
+
   function selectStatus(value){selectedStatus=value;document.querySelectorAll('.status-button').forEach(b=>b.classList.toggle('active',b.dataset.value===value));if(value==='完了'&&!dateInput.value)dateInput.value=new Date().toISOString().slice(0,10)}
-  function openEditor(item){active=item;const c=center(item),saved=progressMap.get(key(item));dialogTarget.textContent=`対象番号：${item.number}　（ページ ${pageInput.value}）`;detailInput.value=saved?.workDetail||'';dateInput.value=saved?.completedDate||'';updated.textContent=saved?.updatedAt?`最終更新：${new Date(saved.updatedAt).toLocaleString('ja-JP')}`:'まだ保存されていません';updated.className='updated';selectStatus(saved?.status||'未着手');dialog.showModal()}
+  function openEditor(item){active=item;const c=center(item),saved=progressMap.get(key(item));dialogTarget.textContent=`対象番号：${item.number}　（ページ ${pageInput.value}）`;detailInput.value=saved?.workDetail||'';dateInput.value=saved?.completedDate||'';updated.textContent=saved?.updatedAt?`最終更新：${new Date(saved.updatedAt).toLocaleString('ja-JP')}`:'まだ保存されていません';updated.className='updated';selectStatus(saved?.status||'未着手');applyDialogZoom();dialog.showModal()}
   document.getElementById('statusButtons').onclick=e=>{const b=e.target.closest('[data-value]');if(b)selectStatus(b.dataset.value)};
   canvas.addEventListener('click',e=>{if(busy||!candidates.length)return;const hit=findAt(eventPoint(e));if(hit)openEditor(hit)});
 
