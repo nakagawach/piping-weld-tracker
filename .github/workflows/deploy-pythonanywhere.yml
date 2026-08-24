@@ -21,6 +21,7 @@ on:
       - feature/project-entry-adaptive-area
       - feature/pdfium-project-entry
       - feature/pdfium-cache-server-ocr-v2
+      - feature/ocr-label-candidates
   workflow_dispatch:
 
 permissions:
@@ -40,6 +41,36 @@ jobs:
       - name: Syntax check
         shell: bash
         run: python -m py_compile app.py projects.py project_render.py
+
+      - name: OCR label candidate tests
+        shell: bash
+        run: |
+          python - <<'PY'
+          from project_render import extract_label_candidates, normalize_label
+
+          expected = {
+              "①": "1",
+              "㊿": "50",
+              "❶": "1",
+              "Ｆ１": "F1",
+              "S2": "S2",
+              "A-12": "A-12",
+              "F1-2": "F1-2",
+              "12A": "12A",
+          }
+          for raw, normalized in expected.items():
+              assert normalize_label(raw) == normalized, (raw, normalize_label(raw))
+          assert normalize_label("SCALE") is None
+          assert normalize_label("3979") is None
+
+          words = [
+              {"text": "F", "vertices": [{"x": 0, "y": 0}, {"x": 10, "y": 0}, {"x": 10, "y": 12}, {"x": 0, "y": 12}]},
+              {"text": "1", "vertices": [{"x": 12, "y": 0}, {"x": 18, "y": 0}, {"x": 18, "y": 12}, {"x": 12, "y": 12}]},
+          ]
+          labels = {item["number"] for item in extract_label_candidates(words)}
+          assert "F1" in labels, labels
+          print("OCR label candidate tests passed")
+          PY
 
       - name: Upload weld app files
         env:
