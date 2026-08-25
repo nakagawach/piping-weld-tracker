@@ -35,13 +35,13 @@
   const OCR_LONG_EDGE = 6000;
   const DISPLAY_LONG_EDGE = 1600;
   const DISPLAY_COORD_SCALE = DISPLAY_LONG_EDGE / OCR_LONG_EDGE;
-  const HIT_TARGET_CSS_PX = 28;
+  const EDIT_HIT_PADDING_CSS_PX = 4;
 
   const projectId = {{ project_id | tojson }};
-  const numberMapUrl = {{ url_for('projects.get_project_number_map', project_id=project_id) | tojson }};
-  const pdfiumInfoUrl = {{ url_for('projects.pdfium_info', project_id=project_id) | tojson }};
-  const pdfiumPageUrl = {{ url_for('projects.pdfium_page', project_id=project_id) | tojson }};
-  const projectOcrUrl = {{ url_for('projects.ocr_project_page', project_id=project_id) | tojson }};
+  const numberMapUrl = {{ url_for('projects.get_project_number_map', project_id=projectId) | tojson }};
+  const pdfiumInfoUrl = {{ url_for('projects.pdfium_info', project_id=projectId) | tojson }};
+  const pdfiumPageUrl = {{ url_for('projects.pdfium_page', project_id=projectId) | tojson }};
+  const projectOcrUrl = {{ url_for('projects.ocr_project_page', project_id=projectId) | tojson }};
   const projectsScreenUrl = {{ url_for('projects_screen') | tojson }};
   const pageInput = document.getElementById('page');
   const status = document.getElementById('status');
@@ -80,7 +80,17 @@
   function cssPxToOcrY(px){const r=canvas.getBoundingClientRect();return px*canvas.height/r.height/DISPLAY_COORD_SCALE;}
   function median(values){if(!values.length)return null;const a=[...values].sort((x,y)=>x-y),m=Math.floor(a.length/2);return a.length%2?a[m]:(a[m-1]+a[m])/2;}
   function distanceSq(p,b){const cx=b.x+b.w/2,cy=b.y+b.h/2;return(p.x-cx)**2+(p.y-cy)**2;}
-  function findAt(p){const minX=cssPxToOcrX(HIT_TARGET_CSS_PX),minY=cssPxToOcrY(HIT_TARGET_CSS_PX);const hits=candidates.filter(item=>{const b=item.bbox;const extraX=Math.max(0,(minX-b.w)/2),extraY=Math.max(0,(minY-b.h)/2);return p.x>=b.x-extraX&&p.x<=b.x+b.w+extraX&&p.y>=b.y-extraY&&p.y<=b.y+b.h+extraY;});if(!hits.length)return null;hits.sort((a,b)=>distanceSq(p,a.bbox)-distanceSq(p,b.bbox)||(a.bbox.w*a.bbox.h-b.bbox.w*b.bbox.h));return hits[0];}
+  function findAt(p){
+    const tapPadX=cssPxToOcrX(EDIT_HIT_PADDING_CSS_PX),tapPadY=cssPxToOcrY(EDIT_HIT_PADDING_CSS_PX);
+    const hits=candidates.filter(item=>{
+      const b=item.bbox,manual=item.source==='manual';
+      const visualPad=manual?Math.max(1/DISPLAY_COORD_SCALE,Math.max(b.w,b.h)*.08):Math.max(2/DISPLAY_COORD_SCALE,Math.max(b.w,b.h)*.35);
+      return p.x>=b.x-visualPad-tapPadX&&p.x<=b.x+b.w+visualPad+tapPadX&&p.y>=b.y-visualPad-tapPadY&&p.y<=b.y+b.h+visualPad+tapPadY;
+    });
+    if(!hits.length)return null;
+    hits.sort((a,b)=>distanceSq(p,a.bbox)-distanceSq(p,b.bbox)||(a.bbox.w*a.bbox.h-b.bbox.w*b.bbox.h));
+    return hits[0];
+  }
   function referenceBoxes(center,number){const chars=number.length;const sameLength=candidates.filter(x=>x.source==='ocr'&&String(x.number).length===chars&&x.bbox.w>0&&x.bbox.h>0);const pool=sameLength.length?sameLength:candidates.filter(x=>x.source==='ocr'&&x.bbox.w>0&&x.bbox.h>0);return pool.sort((a,b)=>distanceSq(center,a.bbox)-distanceSq(center,b.bbox)).slice(0,7);}
   function autoManualBox(center,number){const refs=referenceBoxes(center,number);let w=median(refs.map(x=>x.bbox.w)),h=median(refs.map(x=>x.bbox.h));if(!w||!h){w=cssPxToOcrX(14);h=cssPxToOcrY(14);}w=Math.max(1,w);h=Math.max(1,h);const pageWidth=canvas.width/DISPLAY_COORD_SCALE,pageHeight=canvas.height/DISPLAY_COORD_SCALE;const x=Math.max(0,Math.min(pageWidth-w,center.x-w/2));const y=Math.max(0,Math.min(pageHeight-h,center.y-h/2));return{x,y,w,h};}
   function updateState(){pageState.className='page-state';if(dirty){pageState.classList.add('working');pageState.textContent=savedPage?'再OCR・未保存':'OCR済・未保存';}else if(savedPage){pageState.classList.add('saved');pageState.textContent='✓ 保存済';}else{pageState.textContent='未処理';}}
