@@ -22,7 +22,7 @@
     .statusline{padding:8px 12px;color:var(--gray);font-size:.93rem;border-bottom:1px solid #eee}
     .summary{display:flex;gap:7px;overflow-x:auto;padding:9px 10px;border-bottom:1px solid #eee;scrollbar-width:none}.summary::-webkit-scrollbar{display:none}
     .chip{flex:0 0 auto;padding:6px 10px;border-radius:999px;background:#f1f3f4;font-size:.86rem;font-weight:700;white-space:nowrap}.chip.working{background:#fef7e0;color:#8a4b00}.chip.done{background:#e6f4ea;color:#137333}
-    .viewer{overflow:auto;max-height:calc(100vh - 210px);background:#e9eaed;overscroll-behavior:contain;touch-action:none}
+    .viewer{overflow:auto;max-height:calc(100vh - 210px);background:#e9eaed;overscroll-behavior:contain;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
     canvas{display:block;width:100%;max-width:none;height:auto;margin:0 auto;background:#fff;touch-action:none;cursor:pointer}
     .empty{padding:36px 18px;text-align:center;color:var(--gray);line-height:1.7;white-space:pre-line}
     dialog{width:min(560px,calc(100vw - 24px));border:0;border-radius:18px;padding:0;box-shadow:0 18px 48px #0005;max-height:90vh}dialog::backdrop{background:#0007}
@@ -129,7 +129,22 @@
   function beginSingleTouch(touch){touchMode='pan';touchMoved=false;touchStartX=touch.clientX;touchStartY=touch.clientY;touchStartScrollLeft=viewer.scrollLeft;touchStartScrollTop=viewer.scrollTop}
   viewer.addEventListener('touchstart',e=>{if(e.touches.length===1){beginSingleTouch(e.touches[0]);return}if(e.touches.length===2){e.preventDefault();touchMode='pinch';touchMoved=true;suppressClick=true;pinchStartDistance=Math.max(1,touchDistance(e.touches[0],e.touches[1]));pinchStartZoom=drawingZoom}},{passive:false});
   viewer.addEventListener('touchmove',e=>{if(touchMode==='pinch'&&e.touches.length>=2){e.preventDefault();const a=e.touches[0],b=e.touches[1],distance=Math.max(1,touchDistance(a,b)),midX=(a.clientX+b.clientX)/2,midY=(a.clientY+b.clientY)/2;setZoom(pinchStartZoom*distance/pinchStartDistance,midX,midY);suppressClick=true;return}if(touchMode==='pan'&&e.touches.length===1){const t=e.touches[0],dx=t.clientX-touchStartX,dy=t.clientY-touchStartY;if(Math.hypot(dx,dy)>6){touchMoved=true;suppressClick=true;e.preventDefault();viewer.scrollLeft=Math.max(0,touchStartScrollLeft-dx);viewer.scrollTop=Math.max(0,touchStartScrollTop-dy)}}},{passive:false});
-  viewer.addEventListener('touchend',e=>{if(e.touches.length===1&&touchMode==='pinch'){beginSingleTouch(e.touches[0]);suppressClick=true;return}if(e.touches.length===0){if(touchMoved)setTimeout(()=>{suppressClick=false},80);touchMode='';touchMoved=false}},{passive:true});
+  viewer.addEventListener('touchend',e=>{
+    if(e.touches.length===1&&touchMode==='pinch'){beginSingleTouch(e.touches[0]);suppressClick=true;return}
+    if(e.touches.length===0){
+      const wasTap=touchMode==='pan'&&!touchMoved&&e.changedTouches.length===1;
+      const endedAfterGesture=suppressClick||touchMoved;
+      const touch=wasTap?e.changedTouches[0]:null;
+      touchMode='';touchMoved=false;
+      if(wasTap&&touch&&!busy&&candidates.length){
+        suppressClick=true;
+        const hit=findAt(eventPoint(touch));if(hit)openEditor(hit);
+        setTimeout(()=>{suppressClick=false},350);
+      }else if(endedAfterGesture){
+        suppressClick=true;setTimeout(()=>{suppressClick=false},350);
+      }else{suppressClick=false}
+    }
+  },{passive:true});
   viewer.addEventListener('touchcancel',()=>{touchMode='';touchMoved=false;suppressClick=false},{passive:true});
 
   function configureContext(){
@@ -155,7 +170,7 @@
   async function loadPage(n){if(busy||!pageCount)return;n=Math.max(1,Math.min(pageCount,Number(n)||1));pageInput.value=n;setBusy(true);drawingZoom=1;rotation=0;zoomReset.textContent='100%';rotateButton.textContent='↻ 0°';canvas.style.width='100%';resetPosition();status.className='statusline';status.textContent=`${n} / ${pageCount} ページを読み込み中…`;empty.hidden=true;canvas.hidden=false;try{const [data]=await Promise.all([fetch(`${progressUrl}?page=${n}`).then(async r=>{const d=await r.json();if(!r.ok)throw new Error(d.error||'進捗データを取得できませんでした。');return d}),renderPage(n)]);candidates=data.candidates||[];progressMap=new Map((data.items||[]).map(x=>[keyFromXY(x.x,x.y),x]));if(!data.saved||!candidates.length){canvas.hidden=true;empty.hidden=false;empty.textContent='このページは番号配置がまだ確定保存されていません。\n先に図面エントリーで番号配置を保存してください。';summary.hidden=true;status.textContent=`${n} / ${pageCount} ページ：進捗入力対象なし`}else{draw();status.textContent=`${n} / ${pageCount} ページ。ピンチ拡大・移動・回転・全画面が使えます。全画面のまま番号タップ→進捗入力→保存できます。`}}catch(e){status.className='statusline error';status.textContent=e.message}finally{setBusy(false)}}
   function selectStatus(v){selectedStatus=v;document.querySelectorAll('.status-button').forEach(b=>b.classList.toggle('active',b.dataset.value===v));if(v==='完了'&&!dateInput.value)dateInput.value=new Date().toISOString().slice(0,10)}
   function openEditor(item){active=item;const saved=progressMap.get(key(item));dialogTarget.textContent=`対象番号：${item.number}　（ページ ${pageInput.value}）`;detailInput.value=saved?.workDetail||'';dateInput.value=saved?.completedDate||'';updated.textContent=saved?.updatedAt?`最終更新：${new Date(saved.updatedAt).toLocaleString('ja-JP')}`:'まだ保存されていません';updated.className='updated';selectStatus(saved?.status||'未着手');dialog.showModal()}
-  document.getElementById('statusButtons').onclick=e=>{const b=e.target.closest('[data-value]');if(b)selectStatus(b.dataset.value)};canvas.addEventListener('click',e=>{if(busy||!candidates.length)return;if(suppressClick){suppressClick=false;return}const hit=findAt(eventPoint(e));if(hit)openEditor(hit)});
+  document.getElementById('statusButtons').onclick=e=>{const b=e.target.closest('[data-value]');if(b)selectStatus(b.dataset.value)};canvas.addEventListener('click',e=>{if(busy||!candidates.length||suppressClick)return;const hit=findAt(eventPoint(e));if(hit)openEditor(hit)});
   form.addEventListener('submit',async e=>{e.preventDefault();if(!active||busy)return;const c=center(active);saveButton.disabled=true;saveButton.textContent='保存中…';updated.className='updated';updated.textContent='保存しています…';try{const r=await fetch(saveProgressUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pageNumber:Number(pageInput.value),number:active.number,x:c.x,y:c.y,status:selectedStatus,completedDate:dateInput.value,workDetail:detailInput.value})});const data=await r.json();if(!r.ok)throw new Error(data.error||'保存に失敗しました。');progressMap.set(key(active),data);draw();dialog.close();status.textContent=`${active.number} を「${statusLabel(data.status)}」で保存しました。`}catch(err){updated.className='updated error';updated.textContent=err.message}finally{saveButton.disabled=false;saveButton.textContent='保存'}});
   prev.onclick=()=>loadPage(Number(pageInput.value)-1);next.onclick=()=>loadPage(Number(pageInput.value)+1);reload.onclick=()=>loadPage(Number(pageInput.value));pageInput.onchange=()=>loadPage(Number(pageInput.value));
   (async()=>{setBusy(true);try{const r=await fetch(pdfiumInfoUrl),data=await r.json();if(!r.ok)throw new Error(data.error||'PDF情報を取得できませんでした。');pageCount=data.pageCount;setBusy(false);await loadPage(1)}catch(e){status.className='statusline error';status.textContent=e.message;setBusy(false)}})();
