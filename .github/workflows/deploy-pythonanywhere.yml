@@ -25,6 +25,7 @@ on:
       - feature/project-progress-input
       - feature/project-progress-local-zoom
       - feature/progress-compact-viewer-ui
+      - fix/entry-manual-add-hit-area
   workflow_dispatch:
 
 permissions:
