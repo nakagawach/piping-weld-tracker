@@ -130,21 +130,23 @@
   viewer.addEventListener('touchstart',e=>{if(e.touches.length===1){beginSingleTouch(e.touches[0]);return}if(e.touches.length===2){e.preventDefault();touchMode='pinch';touchMoved=true;suppressClick=true;pinchStartDistance=Math.max(1,touchDistance(e.touches[0],e.touches[1]));pinchStartZoom=drawingZoom}},{passive:false});
   viewer.addEventListener('touchmove',e=>{if(touchMode==='pinch'&&e.touches.length>=2){e.preventDefault();const a=e.touches[0],b=e.touches[1],distance=Math.max(1,touchDistance(a,b)),midX=(a.clientX+b.clientX)/2,midY=(a.clientY+b.clientY)/2;setZoom(pinchStartZoom*distance/pinchStartDistance,midX,midY);suppressClick=true;return}if(touchMode==='pan'&&e.touches.length===1){const t=e.touches[0],dx=t.clientX-touchStartX,dy=t.clientY-touchStartY;if(Math.hypot(dx,dy)>6){touchMoved=true;suppressClick=true;e.preventDefault();viewer.scrollLeft=Math.max(0,touchStartScrollLeft-dx);viewer.scrollTop=Math.max(0,touchStartScrollTop-dy)}}},{passive:false});
   viewer.addEventListener('touchend',e=>{
-    if(e.touches.length===1&&touchMode==='pinch'){beginSingleTouch(e.touches[0]);suppressClick=true;return}
+    if(e.touches.length===1&&touchMode==='pinch'){e.preventDefault();beginSingleTouch(e.touches[0]);suppressClick=true;return}
     if(e.touches.length===0){
       const wasTap=touchMode==='pan'&&!touchMoved&&e.changedTouches.length===1;
       const endedAfterGesture=suppressClick||touchMoved;
       const touch=wasTap?e.changedTouches[0]:null;
       touchMode='';touchMoved=false;
       if(wasTap&&touch&&!busy&&candidates.length){
+        e.preventDefault();
         suppressClick=true;
         const hit=findAt(eventPoint(touch));if(hit)openEditor(hit);
         setTimeout(()=>{suppressClick=false},350);
       }else if(endedAfterGesture){
+        e.preventDefault();
         suppressClick=true;setTimeout(()=>{suppressClick=false},350);
       }else{suppressClick=false}
     }
-  },{passive:true});
+  },{passive:false});
   viewer.addEventListener('touchcancel',()=>{touchMode='';touchMoved=false;suppressClick=false},{passive:true});
 
   function configureContext(){
