@@ -1,16 +1,17 @@
 name: Deploy weld app to PythonAnywhere
 
 on:
-  push:
+  pull_request:
     branches:
       - deploy/rotation-thumbnail-stability
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: deploy-pythonanywhere-weld-rotation-stability
+  group: deploy-pythonanywhere-weld-rotation-stability-pr
   cancel-in-progress: true
 
 jobs:
