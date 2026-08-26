@@ -92,7 +92,13 @@ def create_progress_blueprint(db_path: Path):
         html = html.replace('<div class="spacer"></div>', f'<div class="spacer"></div>{list_button}', 1)
         html = html.replace(
             "await loadPage(1)",
-            "await loadPage(Math.max(1,Number(new URLSearchParams(location.search).get('page'))||1))",
+            "const params=new URLSearchParams(location.search);"
+            "await loadPage(Math.max(1,Number(params.get('page'))||1));"
+            "if(params.has('x')&&params.has('y')){"
+            "const targetX=Number(params.get('x')),targetY=Number(params.get('y'));"
+            "if(Number.isFinite(targetX)&&Number.isFinite(targetY)){"
+            "const target=candidates.find(item=>{const c=center(item);return Math.abs(c.x-targetX)<2&&Math.abs(c.y-targetY)<2});"
+            "if(target)openEditor(target)}}",
             1,
         )
         return html
