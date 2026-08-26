@@ -53,9 +53,18 @@ def create_thumbnail_grid_blueprint(db_path: Path):
   const button=document.createElement('button');
   button.type='button';button.className='button';button.textContent='▦ ページ一覧';button.title='ページを一覧表示';button.onclick=openGrid;
   const controls=document.querySelector('.controls');
-  if(controls){{controls.insertBefore(button,document.getElementById('ocr')||controls.lastChild);return;}}
-  const toolbar=document.querySelector('.toolbar');
-  if(toolbar){{button.classList.add('icon-button');button.textContent='▦';button.setAttribute('aria-label','ページ一覧');toolbar.insertBefore(button,toolbar.querySelector('.spacer')?.nextSibling||toolbar.lastChild);}}
+  if(controls){{controls.insertBefore(button,document.getElementById('ocr')||controls.lastChild);}}
+  else {{
+    const toolbar=document.querySelector('.toolbar');
+    if(toolbar){{button.classList.add('icon-button');button.textContent='▦';button.setAttribute('aria-label','ページ一覧');toolbar.insertBefore(button,toolbar.querySelector('.spacer')?.nextSibling||toolbar.lastChild);}}
+  }}
+  if(source==='entry'){{
+    const requested=Math.max(1,Number(new URLSearchParams(location.search).get('page'))||1);
+    if(requested>1){{
+      const move=()=>{{if(!pageInput||pageInput.disabled||!Number(pageInput.max))return false;pageInput.value=String(Math.min(requested,Number(pageInput.max)));pageInput.dispatchEvent(new Event('change',{{bubbles:true}}));return true;}};
+      if(!move()){{const timer=setInterval(()=>{{if(move())clearInterval(timer);}},60);setTimeout(()=>clearInterval(timer),5000);}}
+    }}
+  }}
 }})();
 </script>
 """
