@@ -27,6 +27,7 @@ on:
       - feature/progress-compact-viewer-ui
       - fix/entry-hit-area-v2
       - feature/entry-bulk-delete
+      - fix/rotation-thumbnail-stability
   workflow_dispatch:
 
 permissions:
@@ -67,7 +68,6 @@ jobs:
               assert normalize_label(raw) == normalized, (raw, normalize_label(raw))
           assert normalize_label("SCALE") is None
           assert normalize_label("3979") is None
-
           words = [
               {"text": "F", "vertices": [{"x": 0, "y": 0}, {"x": 10, "y": 0}, {"x": 10, "y": 12}, {"x": 0, "y": 12}]},
               {"text": "1", "vertices": [{"x": 12, "y": 0}, {"x": 18, "y": 0}, {"x": 18, "y": 12}, {"x": 12, "y": 12}]},
@@ -76,6 +76,20 @@ jobs:
           assert "F1" in labels, labels
           print("OCR label candidate tests passed")
           PY
+
+      - name: Verify UI regression guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'id="rotate"' templates/project_entry.html
+          grep -q 'id="thumbs"' templates/project_entry.html
+          grep -q 'IntersectionObserver' templates/project_entry.html
+          grep -q 'rotation=(rotation+90)%360' templates/project_entry.html
+          ! grep -q "pageInput.value=n;rotation=0" templates/project_entry.html
+          grep -q 'project_progress_list' progress.py
+          grep -q 'setupProgressThumbnails' progress.py
+          grep -q 'updateProgressThumbActive' progress.py
+          ! grep -q "drawingZoom=1;rotation=0" progress.py
 
       - name: Upload weld app files
         env:
@@ -88,12 +102,7 @@ jobs:
           upload_file() {
             local file="$1"
             echo "Uploading ${file}"
-            curl --fail --silent --show-error \
-              --retry 3 --retry-delay 2 \
-              -X POST \
-              -H "Authorization: Token ${PYTHONANYWHERE_API_TOKEN}" \
-              -F "content=@${file}" \
-              "${api_base}/${file}"
+            curl --fail --silent --show-error --retry 3 --retry-delay 2 -X POST -H "Authorization: Token ${PYTHONANYWHERE_API_TOKEN}" -F "content=@${file}" "${api_base}/${file}"
           }
           upload_file "app.py"
           upload_file "projects.py"
@@ -118,45 +127,36 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          fetch_text() {
-            curl --fail --silent --show-error --location --max-time 20 "$1" || true
-          }
+          fetch_text() { curl --fail --silent --show-error --location --max-time 20 "$1" || true; }
           for attempt in 1 2 3 4 5 6; do
-            page_ok=false; map_ok=false; progress_ok=false; projects_screen_ok=false; projects_api_ok=false; pdfium_ok=false; project_progress_ok=false; project_entry_ok=false
-
+            page_ok=false; map_ok=false; progress_ok=false; projects_screen_ok=false; projects_api_ok=false; pdfium_ok=false; project_progress_ok=false; project_entry_ok=false; progress_list_ok=false
             page_html=$(fetch_text "https://nakagawach.pythonanywhere.com/weld/")
             [[ "$page_html" == *"溶接進捗入力テスト"* ]] && page_ok=true
-
             map_json=$(fetch_text "https://nakagawach.pythonanywhere.com/weld/number-map?page=1")
             [[ "$map_json" == *'"pageNumber":1'* ]] && map_ok=true
-
             progress_json=$(fetch_text "https://nakagawach.pythonanywhere.com/weld/weld-progress?page=1")
             [[ "$progress_json" == *'"pageNumber":1'* ]] && progress_ok=true
-
             projects_html=$(fetch_text "https://nakagawach.pythonanywhere.com/weld/projects-screen")
             [[ "$projects_html" == *"工事一覧"* ]] && projects_screen_ok=true
-
             projects_json=$(fetch_text "https://nakagawach.pythonanywhere.com/weld/projects")
             [[ "$projects_json" == *'"projects"'* ]] && projects_api_ok=true
-            project_id=$(printf '%s' "$projects_json" | python -c 'import json,sys; d=json.load(sys.stdin); p=d.get("projects",[]); print(p[0]["id"] if p else "")' 2>/dev/null || true)
-
+            project_id=$(printf '%s' "$projects_json" | python -c 'import json,sys; d=json.load(sys.stdin); p=d.get("projects",[]); print(7 if any(x.get("id")==7 for x in p) else (p[0]["id"] if p else ""))' 2>/dev/null || true)
             if [ -z "$project_id" ]; then
-              pdfium_ok=true; project_progress_ok=true; project_entry_ok=true
+              pdfium_ok=true; project_progress_ok=true; project_entry_ok=true; progress_list_ok=true
             else
               pdfium_info=$(fetch_text "https://nakagawach.pythonanywhere.com/weld/projects/${project_id}/pdfium-info")
               if [[ "$pdfium_info" == *'"pageCount"'* ]] && curl --fail --silent --show-error --location --max-time 30 "https://nakagawach.pythonanywhere.com/weld/projects/${project_id}/pdfium-page?page=1&longEdge=500&format=png" --output /dev/null; then pdfium_ok=true; fi
-
               project_progress_html=$(fetch_text "https://nakagawach.pythonanywhere.com/weld/projects/${project_id}/progress")
               project_progress_json=$(fetch_text "https://nakagawach.pythonanywhere.com/weld/projects/${project_id}/progress-data?page=1")
-              if [[ "$project_progress_html" == *"進捗入力"* ]] && [[ "$project_progress_json" == *'"pageNumber":1'* ]]; then project_progress_ok=true; fi
-
+              if [[ "$project_progress_html" == *'id="progressThumbs"'* ]] && [[ "$project_progress_html" == *'進捗一覧'* || "$project_progress_html" == *'aria-label="進捗一覧"'* ]] && [[ "$project_progress_json" == *'"pageNumber":1'* ]]; then project_progress_ok=true; fi
               project_entry_html=$(fetch_text "https://nakagawach.pythonanywhere.com/weld/projects/${project_id}/entry")
-              if [[ "$project_entry_html" == *"図面エントリー"* ]] && [[ "$project_entry_html" == *"project_id"* || "$project_entry_html" == *"pdfium-info"* ]]; then project_entry_ok=true; fi
+              if [[ "$project_entry_html" == *'id="rotate"'* ]] && [[ "$project_entry_html" == *'id="thumbs"'* ]] && [[ "$project_entry_html" == *'IntersectionObserver'* ]]; then project_entry_ok=true; fi
+              progress_list_html=$(fetch_text "https://nakagawach.pythonanywhere.com/weld/projects/${project_id}/progress-list")
+              if [[ "$progress_list_html" == *"進捗一覧"* ]]; then progress_list_ok=true; fi
             fi
-
-            echo "smoke: page=$page_ok map=$map_ok progress=$progress_ok projects_screen=$projects_screen_ok projects_api=$projects_api_ok pdfium=$pdfium_ok project_progress=$project_progress_ok project_entry=$project_entry_ok project_id=${project_id:-none}"
-            if [ "$page_ok" = true ] && [ "$map_ok" = true ] && [ "$progress_ok" = true ] && [ "$projects_screen_ok" = true ] && [ "$projects_api_ok" = true ] && [ "$pdfium_ok" = true ] && [ "$project_progress_ok" = true ] && [ "$project_entry_ok" = true ]; then echo "Smoke test passed."; exit 0; fi
-            echo "Smoke test attempt ${attempt} failed; retrying..."; sleep 5
+            echo "smoke: page=$page_ok map=$map_ok progress=$progress_ok projects_screen=$projects_screen_ok projects_api=$projects_api_ok pdfium=$pdfium_ok project_progress=$project_progress_ok project_entry=$project_entry_ok progress_list=$progress_list_ok project_id=${project_id:-none}"
+            if [ "$page_ok" = true ] && [ "$map_ok" = true ] && [ "$progress_ok" = true ] && [ "$projects_screen_ok" = true ] && [ "$projects_api_ok" = true ] && [ "$pdfium_ok" = true ] && [ "$project_progress_ok" = true ] && [ "$project_entry_ok" = true ] && [ "$progress_list_ok" = true ]; then echo "Smoke test passed."; exit 0; fi
+            sleep 5
           done
           echo "Smoke test failed after retries."
           exit 1
