@@ -136,5 +136,32 @@
   fetch(pdfiumInfoUrl,{cache:'no-store'}).then(async r=>{const data=await r.json();if(!r.ok)throw new Error(data.error||'PDF情報を取得できませんでした。');pageCount=Number(data.pageCount)||0;if(!pageCount)throw new Error('PDFのページ数を取得できませんでした。');pageInput.max=pageCount;setupThumbnails();return loadPage(1);}).catch(e=>{status.className='status error';status.textContent=`PDFを読み込めませんでした: ${e.message}`;});
 })();
 </script>
+<script>
+(() => {
+  const projectId={{ project_id | tojson }};
+  const rotationKey=`weldDrawingRotation:${projectId}`;
+  const rotateButton=document.getElementById('rotate');
+  const canvas=document.getElementById('canvas');
+  const normalizeThumbs=()=>{
+    document.querySelectorAll('#thumbs img[data-src]').forEach(img=>{
+      const fixed=img.dataset.src.replace(/longEdge=(?:320|360)/,'longEdge=500');
+      if(fixed!==img.dataset.src){img.dataset.src=fixed;if(img.getAttribute('src'))img.src=fixed;}
+      img.loading='lazy';img.decoding='async';
+    });
+  };
+  const thumbObserver=new MutationObserver(normalizeThumbs);
+  thumbObserver.observe(document.documentElement,{subtree:true,childList:true});
+  normalizeThumbs();
+  const saveRotation=()=>{const match=rotateButton?.textContent?.match(/(0|90|180|270)/);if(match){try{localStorage.setItem(rotationKey,match[1]);}catch(_e){}}};
+  if(rotateButton)rotateButton.addEventListener('click',saveRotation);
+  let stored=0;try{stored=Number(localStorage.getItem(rotationKey)||0);}catch(_e){}
+  if(![0,90,180,270].includes(stored)||stored===0)return;
+  const apply=()=>{if(!canvas||canvas.width<=0||!rotateButton||rotateButton.disabled)return false;for(let i=0;i<stored/90;i++)rotateButton.click();return true;};
+  if(apply())return;
+  const readyObserver=new MutationObserver(()=>{if(apply())readyObserver.disconnect();});
+  if(canvas)readyObserver.observe(canvas,{attributes:true,attributeFilter:['width','height']});
+  if(rotateButton)readyObserver.observe(rotateButton,{attributes:true,attributeFilter:['disabled']});
+})();
+</script>
 </body>
 </html>
