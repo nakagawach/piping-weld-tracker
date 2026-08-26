@@ -2,7 +2,7 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-from flask import Blueprint, jsonify, render_template, request
+from flask import Blueprint, jsonify, render_template, request, url_for
 
 from project_render import normalize_label
 
@@ -75,12 +75,107 @@ def create_progress_blueprint(db_path: Path):
         if project is None:
             return "工事が見つかりません。", 404
 
-        return render_template(
+        html = render_template(
             "project_progress.html",
             project_id=project_id,
             project_name=project["project_name"],
             pdf_name=project["original_pdf_name"],
         )
+
+        # V1の既存viewer処理を触らず、ナビゲーションだけ局所追加する。
+        progress_list_url = url_for("progress.project_progress_list", project_id=project_id)
+        list_button = (
+            f'<a class="button icon-button" href="{progress_list_url}" '
+            'aria-label="進捗一覧" title="進捗一覧" '
+            'style="display:inline-flex;align-items:center;justify-content:center;text-decoration:none">☷</a>'
+        )
+        html = html.replace('<div class="spacer"></div>', f'<div class="spacer"></div>{list_button}', 1)
+        html = html.replace(
+            "await loadPage(1)",
+            "await loadPage(Math.max(1,Number(new URLSearchParams(location.search).get('page'))||1))",
+            1,
+        )
+        return html
+
+    @blueprint.get("/projects/<int:project_id>/progress-list")
+    def project_progress_list(project_id):
+        with connect() as connection:
+            project = get_project(connection, project_id)
+        if project is None:
+            return "工事が見つかりません。", 404
+
+        return render_template(
+            "project_progress_list.html",
+            project_id=project_id,
+            project_name=project["project_name"],
+            pdf_name=project["original_pdf_name"],
+        )
+
+    @blueprint.get("/projects/<int:project_id>/progress-list-data")
+    def get_project_progress_list(project_id):
+        key = drawing_key(project_id)
+        with connect() as connection:
+            if get_project(connection, project_id) is None:
+                return jsonify({"error": "工事が見つかりません。"}), 404
+
+            rows = connection.execute(
+                """
+                SELECT
+                    nm.page_number,
+                    nm.item_order,
+                    nm.number_text,
+                    nm.x,
+                    nm.y,
+                    nm.width,
+                    nm.height,
+                    COALESCE(wp.status, '未着手') AS status,
+                    COALESCE(wp.completed_date, '') AS completed_date,
+                    COALESCE(wp.work_detail, '') AS work_detail,
+                    wp.updated_at
+                FROM number_map AS nm
+                LEFT JOIN weld_progress AS wp
+                  ON wp.drawing_key = nm.drawing_key
+                 AND wp.page_number = nm.page_number
+                 AND ABS(wp.position_x - (nm.x + nm.width / 2.0)) < 2
+                 AND ABS(wp.position_y - (nm.y + nm.height / 2.0)) < 2
+                WHERE nm.drawing_key = ?
+                ORDER BY nm.page_number, nm.item_order
+                """,
+                (key,),
+            ).fetchall()
+
+        items = []
+        counts = {"total": 0, "untouched": 0, "working": 0, "done": 0}
+        for row in rows:
+            status = row["status"]
+            if status not in PROGRESS_STATUSES:
+                status = "未着手"
+            counts["total"] += 1
+            if status == "完了":
+                counts["done"] += 1
+            elif status == "施工中":
+                counts["working"] += 1
+            else:
+                counts["untouched"] += 1
+
+            items.append({
+                "pageNumber": row["page_number"],
+                "order": row["item_order"],
+                "number": row["number_text"],
+                "status": status,
+                "completedDate": row["completed_date"],
+                "workDetail": row["work_detail"],
+                "updatedAt": row["updated_at"],
+                "x": round(row["x"] + row["width"] / 2.0),
+                "y": round(row["y"] + row["height"] / 2.0),
+            })
+
+        return jsonify({
+            "drawingKey": key,
+            "counts": counts,
+            "completionRate": round((counts["done"] / counts["total"] * 100), 1) if counts["total"] else 0,
+            "items": items,
+        })
 
     @blueprint.get("/projects/<int:project_id>/progress-data")
     def get_project_progress(project_id):
