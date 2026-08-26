@@ -9,6 +9,7 @@ from flask import Flask, jsonify, render_template, request as flask_request
 
 from progress import create_progress_blueprint
 from projects import create_projects_blueprint
+from thumbnail_grid import create_thumbnail_grid_blueprint
 
 app = Flask(__name__)
 
@@ -20,6 +21,7 @@ PROGRESS_STATUSES = {"未着手", "施工中", "完了"}
 
 app.register_blueprint(create_projects_blueprint(DB_PATH, DATA_DIR))
 app.register_blueprint(create_progress_blueprint(DB_PATH))
+app.register_blueprint(create_thumbnail_grid_blueprint(DB_PATH))
 
 
 def get_google_vision_api_key():
