@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>{{ project_name }} - 進捗一覧</title>
+  <style>
+    *{box-sizing:border-box}:root{color-scheme:light;--blue:#1967d2;--green:#188038;--orange:#e37400;--gray:#5f6368;--border:#dadce0;--bg:#f5f6f8;--text:#202124}
+    body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--text)}button,input,select{font:inherit}button,a{touch-action:manipulation}
+    main{max-width:920px;margin:auto;padding:12px 12px 40px}.topbar{display:flex;align-items:center;gap:10px;margin-bottom:10px}.back{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 12px;border:1px solid #bdc1c6;border-radius:10px;background:#fff;color:var(--text);font-weight:800;text-decoration:none}.titlebox{min-width:0;flex:1}.title{margin:0;font-size:1.25rem}.meta{margin-top:2px;color:var(--gray);font-size:.82rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .overview{background:#fff;border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:10px}.overview-head{display:flex;align-items:end;justify-content:space-between;gap:12px}.big{font-size:1.55rem;font-weight:900;line-height:1}.sub{color:var(--gray);font-size:.82rem;margin-top:5px}.rate{font-size:1.1rem;font-weight:900}.bar{height:9px;background:#e8eaed;border-radius:99px;overflow:hidden;margin-top:10px}.bar>span{display:block;height:100%;width:0;background:var(--green);border-radius:inherit;transition:width .2s ease}
+    .filters{position:sticky;top:0;z-index:10;background:var(--bg);padding:0 0 9px}.status-tabs{display:flex;gap:6px;overflow-x:auto;padding:2px 0;scrollbar-width:none}.status-tabs::-webkit-scrollbar{display:none}.tab{flex:0 0 auto;min-height:40px;padding:0 12px;border:1px solid #bdc1c6;border-radius:999px;background:#fff;font-weight:800;color:var(--text)}.tab.active{border-color:var(--blue);background:#e8f0fe;color:#174ea6}.tab[data-filter="施工中"].active{border-color:var(--orange);background:#fef7e0;color:#8a4b00}.tab[data-filter="完了"].active{border-color:var(--green);background:#e6f4ea;color:#137333}.searchrow{display:grid;grid-template-columns:1fr 120px;gap:7px;margin-top:7px}.searchrow input,.searchrow select{min-height:44px;border:1px solid #bdc1c6;border-radius:10px;background:#fff;padding:0 11px;color:var(--text)}
+    .statusline{min-height:28px;padding:3px 2px;color:var(--gray);font-size:.82rem}.error{color:#b3261e}.page-group{margin:10px 0 16px}.page-head{display:flex;align-items:center;justify-content:space-between;padding:0 3px 7px}.page-title{font-weight:900;font-size:1rem}.page-count{color:var(--gray);font-size:.8rem}.list{background:#fff;border:1px solid var(--border);border-radius:14px;overflow:hidden}.item{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:13px 12px;border-bottom:1px solid #eee;text-decoration:none;color:inherit;min-height:76px}.item:last-child{border-bottom:0}.item:active{background:#f7f8fa}.item-main{min-width:0}.number{font-size:1.08rem;font-weight:900}.detail{margin-top:5px;color:#3c4043;font-size:.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.date{margin-top:4px;color:var(--gray);font-size:.76rem}.right{display:flex;align-items:center;gap:8px}.badge{white-space:nowrap;border-radius:999px;padding:5px 9px;font-size:.78rem;font-weight:900;background:#f1f3f4;color:#5f6368}.badge.working{background:#fef7e0;color:#8a4b00}.badge.done{background:#e6f4ea;color:#137333}.chev{font-size:1.25rem;color:#80868b}.empty{padding:42px 18px;text-align:center;color:var(--gray);background:#fff;border:1px solid var(--border);border-radius:14px;line-height:1.7}
+    @media(max-width:640px){main{padding:0 8px 28px}.topbar{height:52px;margin:0 -8px 8px;padding:4px 8px;background:#fff;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:20}.back{min-height:40px;padding:0 10px;border:0;background:#f1f3f4}.title{font-size:1.08rem}.overview{padding:12px;border-radius:12px}.filters{top:52px}.searchrow{grid-template-columns:1fr 96px}.item{padding:12px 10px;min-height:72px}.badge{padding:4px 7px}.detail{font-size:.84rem}}
+  </style>
+</head>
+<body>
+<main>
+  <div class="topbar">
+    <a class="back" href="{{ url_for('progress.project_progress', project_id=project_id) }}">‹ 図面へ</a>
+    <div class="titlebox"><h1 class="title">進捗一覧</h1><div class="meta">{{ project_name }} / {{ pdf_name }}</div></div>
+  </div>
+
+  <section class="overview" aria-label="工事全体進捗">
+    <div class="overview-head"><div><div class="big"><span id="doneCount">-</span> / <span id="totalCount">-</span></div><div class="sub">完了箇所 / 全対象</div></div><div class="rate" id="rate">- %</div></div>
+    <div class="bar" aria-hidden="true"><span id="bar"></span></div>
+  </section>
+
+  <div class="filters">
+    <div class="status-tabs" id="statusTabs">
+      <button class="tab active" type="button" data-filter="all">すべて <span id="countAll">-</span></button>
+      <button class="tab" type="button" data-filter="未着手">未着手 <span id="countUntouched">-</span></button>
+      <button class="tab" type="button" data-filter="施工中">作業中 <span id="countWorking">-</span></button>
+      <button class="tab" type="button" data-filter="完了">完了 <span id="countDone">-</span></button>
+    </div>
+    <div class="searchrow"><input id="search" type="search" inputmode="search" placeholder="番号・メモを検索" autocomplete="off"><select id="pageFilter" aria-label="ページ絞り込み"><option value="all">全ページ</option></select></div>
+  </div>
+
+  <div class="statusline" id="status">進捗を読み込んでいます…</div>
+  <div id="content"></div>
+</main>
+<script>
+(() => {
+  const dataUrl={{ url_for('progress.get_project_progress_list', project_id=project_id) | tojson }};
+  const progressUrl={{ url_for('progress.project_progress', project_id=project_id) | tojson }};
+  const status=document.getElementById('status'),content=document.getElementById('content'),search=document.getElementById('search'),pageFilter=document.getElementById('pageFilter');
+  let allItems=[],activeFilter='all';
+  const label=v=>v==='施工中'?'作業中':v;
+  const cls=v=>v==='完了'?'done':v==='施工中'?'working':'';
+  const esc=value=>String(value??'').replace(/[&<>'"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));
+  function shortDate(value){if(!value)return '';const d=new Date(value);return Number.isNaN(d.getTime())?'':d.toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}
+  function updateCounts(counts,rate){document.getElementById('totalCount').textContent=counts.total;document.getElementById('doneCount').textContent=counts.done;document.getElementById('countAll').textContent=counts.total;document.getElementById('countUntouched').textContent=counts.untouched;document.getElementById('countWorking').textContent=counts.working;document.getElementById('countDone').textContent=counts.done;document.getElementById('rate').textContent=`${rate}%`;document.getElementById('bar').style.width=`${Math.max(0,Math.min(100,rate))}%`}
+  function setupPages(items){const pages=[...new Set(items.map(x=>x.pageNumber))].sort((a,b)=>a-b);for(const p of pages){const o=document.createElement('option');o.value=String(p);o.textContent=`P${p}`;pageFilter.appendChild(o)}}
+  function render(){const q=search.value.trim().toUpperCase(),page=pageFilter.value;const filtered=allItems.filter(item=>{if(activeFilter!=='all'&&item.status!==activeFilter)return false;if(page!=='all'&&String(item.pageNumber)!==page)return false;if(q&&!`${item.number} ${item.workDetail}`.toUpperCase().includes(q))return false;return true});status.className='statusline';status.textContent=`${filtered.length}件表示`;
+    if(!filtered.length){content.innerHTML='<div class="empty">条件に一致する進捗がありません。</div>';return}
+    const groups=new Map();for(const item of filtered){if(!groups.has(item.pageNumber))groups.set(item.pageNumber,[]);groups.get(item.pageNumber).push(item)}
+    content.innerHTML=[...groups.entries()].map(([page,items])=>`<section class="page-group"><div class="page-head"><div class="page-title">P${page}</div><div class="page-count">${items.length}件</div></div><div class="list">${items.map(item=>{const detail=item.workDetail?esc(item.workDetail):item.completedDate?`完了日 ${esc(item.completedDate)}`:'未入力';const updated=item.updatedAt?`更新 ${esc(shortDate(item.updatedAt))}`:'';return `<a class="item" href="${progressUrl}?page=${encodeURIComponent(item.pageNumber)}&x=${encodeURIComponent(item.x)}&y=${encodeURIComponent(item.y)}"><div class="item-main"><div class="number">${esc(item.number)}</div><div class="detail">${detail}</div>${updated?`<div class="date">${updated}</div>`:''}</div><div class="right"><span class="badge ${cls(item.status)}">${label(item.status)}</span><span class="chev">›</span></div></a>`}).join('')}</div></section>`).join('')}
+  document.getElementById('statusTabs').addEventListener('click',e=>{const b=e.target.closest('[data-filter]');if(!b)return;activeFilter=b.dataset.filter;document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===b));render()});search.addEventListener('input',render);pageFilter.addEventListener('change',render);
+  fetch(dataUrl,{cache:'no-store'}).then(async r=>{const data=await r.json();if(!r.ok)throw new Error(data.error||'進捗一覧を取得できませんでした。');allItems=data.items||[];updateCounts(data.counts||{total:0,untouched:0,working:0,done:0},data.completionRate||0);setupPages(allItems);render()}).catch(e=>{status.className='statusline error';status.textContent=e.message;content.innerHTML='<div class="empty">進捗一覧を表示できませんでした。</div>'});
+})();
+</script>
+</body>
+</html>
