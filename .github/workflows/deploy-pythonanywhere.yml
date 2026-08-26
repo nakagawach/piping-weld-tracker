@@ -28,6 +28,7 @@ on:
       - fix/entry-hit-area-v2
       - feature/entry-bulk-delete
       - fix/rotation-thumbnail-stability
+      - fix/persistent-rotation-async-thumbs
   workflow_dispatch:
 
 permissions:
@@ -72,6 +73,10 @@ jobs:
           grep -q 'id="thumbs"' templates/project_entry.html
           grep -q 'IntersectionObserver' templates/project_entry.html
           grep -q 'rotation=(rotation+90)%360' templates/project_entry.html
+          grep -q 'weldDrawingRotation' templates/project_entry.html
+          grep -q "longEdge=500" templates/project_entry.html
+          grep -q 'weldDrawingRotation' templates/project_progress.html
+          grep -q "longEdge=500" templates/project_progress.html
           grep -q 'setupProgressThumbnails' progress.py
           grep -q 'updateProgressThumbActive' progress.py
           grep -q "new_load_start = \"pageInput.value=n;updateProgressThumbActive();setBusy(true);drawingZoom=1;" progress.py
@@ -117,7 +122,9 @@ jobs:
             entry=$(fetch_text "https://nakagawach.pythonanywhere.com/weld/projects/${project_id}/entry")
             progress=$(fetch_text "https://nakagawach.pythonanywhere.com/weld/projects/${project_id}/progress")
             list=$(fetch_text "https://nakagawach.pythonanywhere.com/weld/projects/${project_id}/progress-list")
-            if [[ "$entry" == *'id="rotate"'* ]] && [[ "$entry" == *'id="thumbs"'* ]] && [[ "$entry" == *'IntersectionObserver'* ]] && [[ "$progress" == *'id="progressThumbs"'* ]] && [[ "$progress" == *'updateProgressThumbActive'* ]] && [[ "$list" == *"進捗一覧"* ]]; then echo "Smoke test passed."; exit 0; fi
-            echo "Smoke test attempt ${attempt} failed"; sleep 5
+            thumb_ok=false
+            if curl --fail --silent --show-error --location --max-time 30 "https://nakagawach.pythonanywhere.com/weld/projects/${project_id}/pdfium-page?page=1&longEdge=500&format=jpeg" --output /dev/null; then thumb_ok=true; fi
+            if [[ "$entry" == *'id="rotate"'* ]] && [[ "$entry" == *'id="thumbs"'* ]] && [[ "$entry" == *'weldDrawingRotation'* ]] && [[ "$entry" == *'longEdge=500'* ]] && [[ "$progress" == *'id="progressThumbs"'* ]] && [[ "$progress" == *'weldDrawingRotation'* ]] && [[ "$progress" == *'longEdge=500'* ]] && [[ "$list" == *"進捗一覧"* ]] && [ "$thumb_ok" = true ]; then echo "Smoke test passed."; exit 0; fi
+            echo "Smoke test attempt ${attempt} failed thumb=$thumb_ok"; sleep 5
           done
           exit 1
