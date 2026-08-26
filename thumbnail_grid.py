@@ -33,7 +33,7 @@ def create_thumbnail_grid_blueprint(db_path: Path):
     def add_thumbnail_grid_button(response):
         if response.status_code != 200 or response.mimetype != "text/html":
             return response
-        match = re.fullmatch(r"/weld/projects/(\d+)/(entry|progress)", request.path)
+        match = re.fullmatch(r"(?:/weld)?/projects/(\d+)/(entry|progress)", request.path)
         if not match:
             return response
         project_id, source = match.groups()
