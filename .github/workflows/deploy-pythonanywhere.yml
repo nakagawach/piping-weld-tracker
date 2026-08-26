@@ -26,6 +26,7 @@ on:
       - feature/project-progress-local-zoom
       - feature/progress-compact-viewer-ui
       - fix/entry-hit-area-v2
+      - feature/entry-bulk-delete
   workflow_dispatch:
 
 permissions:
