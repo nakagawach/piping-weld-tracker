@@ -26,6 +26,7 @@ on:
       - feature/project-progress-local-zoom
       - feature/progress-compact-viewer-ui
       - fix/entry-hit-area-v2
+      - feature/v1.1-progress-list
   workflow_dispatch:
 
 permissions:
@@ -121,7 +122,7 @@ jobs:
             curl --fail --silent --show-error --location --max-time 20 "$1" || true
           }
           for attempt in 1 2 3 4 5 6; do
-            page_ok=false; map_ok=false; progress_ok=false; projects_screen_ok=false; projects_api_ok=false; pdfium_ok=false; project_progress_ok=false; project_entry_ok=false
+            page_ok=false; map_ok=false; progress_ok=false; projects_screen_ok=false; projects_api_ok=false; pdfium_ok=false; project_progress_ok=false; project_entry_ok=false; project_list_ok=false
 
             page_html=$(fetch_text "https://nakagawach.pythonanywhere.com/weld/")
             [[ "$page_html" == *"溶接進捗入力テスト"* ]] && page_ok=true
@@ -140,21 +141,25 @@ jobs:
             project_id=$(printf '%s' "$projects_json" | python -c 'import json,sys; d=json.load(sys.stdin); p=d.get("projects",[]); print(p[0]["id"] if p else "")' 2>/dev/null || true)
 
             if [ -z "$project_id" ]; then
-              pdfium_ok=true; project_progress_ok=true; project_entry_ok=true
+              pdfium_ok=true; project_progress_ok=true; project_entry_ok=true; project_list_ok=true
             else
               pdfium_info=$(fetch_text "https://nakagawach.pythonanywhere.com/weld/projects/${project_id}/pdfium-info")
               if [[ "$pdfium_info" == *'"pageCount"'* ]] && curl --fail --silent --show-error --location --max-time 30 "https://nakagawach.pythonanywhere.com/weld/projects/${project_id}/pdfium-page?page=1&longEdge=500&format=png" --output /dev/null; then pdfium_ok=true; fi
 
               project_progress_html=$(fetch_text "https://nakagawach.pythonanywhere.com/weld/projects/${project_id}/progress")
               project_progress_json=$(fetch_text "https://nakagawach.pythonanywhere.com/weld/projects/${project_id}/progress-data?page=1")
-              if [[ "$project_progress_html" == *"進捗入力"* ]] && [[ "$project_progress_json" == *'"pageNumber":1'* ]]; then project_progress_ok=true; fi
+              if [[ "$project_progress_html" == *"進捗入力"* ]] && [[ "$project_progress_json" == *'"pageNumber":1'* ]] && [[ "$project_progress_html" == *"進捗一覧"* || "$project_progress_html" == *"☷"* ]]; then project_progress_ok=true; fi
 
               project_entry_html=$(fetch_text "https://nakagawach.pythonanywhere.com/weld/projects/${project_id}/entry")
               if [[ "$project_entry_html" == *"図面エントリー"* ]] && [[ "$project_entry_html" == *"project_id"* || "$project_entry_html" == *"pdfium-info"* ]]; then project_entry_ok=true; fi
+
+              project_list_html=$(fetch_text "https://nakagawach.pythonanywhere.com/weld/projects/${project_id}/progress-list")
+              project_list_json=$(fetch_text "https://nakagawach.pythonanywhere.com/weld/projects/${project_id}/progress-list-data")
+              if [[ "$project_list_html" == *"進捗一覧"* ]] && [[ "$project_list_json" == *'"counts"'* ]] && [[ "$project_list_json" == *'"items"'* ]]; then project_list_ok=true; fi
             fi
 
-            echo "smoke: page=$page_ok map=$map_ok progress=$progress_ok projects_screen=$projects_screen_ok projects_api=$projects_api_ok pdfium=$pdfium_ok project_progress=$project_progress_ok project_entry=$project_entry_ok project_id=${project_id:-none}"
-            if [ "$page_ok" = true ] && [ "$map_ok" = true ] && [ "$progress_ok" = true ] && [ "$projects_screen_ok" = true ] && [ "$projects_api_ok" = true ] && [ "$pdfium_ok" = true ] && [ "$project_progress_ok" = true ] && [ "$project_entry_ok" = true ]; then echo "Smoke test passed."; exit 0; fi
+            echo "smoke: page=$page_ok map=$map_ok progress=$progress_ok projects_screen=$projects_screen_ok projects_api=$projects_api_ok pdfium=$pdfium_ok project_progress=$project_progress_ok project_entry=$project_entry_ok project_list=$project_list_ok project_id=${project_id:-none}"
+            if [ "$page_ok" = true ] && [ "$map_ok" = true ] && [ "$progress_ok" = true ] && [ "$projects_screen_ok" = true ] && [ "$projects_api_ok" = true ] && [ "$pdfium_ok" = true ] && [ "$project_progress_ok" = true ] && [ "$project_entry_ok" = true ] && [ "$project_list_ok" = true ]; then echo "Smoke test passed."; exit 0; fi
             echo "Smoke test attempt ${attempt} failed; retrying..."; sleep 5
           done
           echo "Smoke test failed after retries."
