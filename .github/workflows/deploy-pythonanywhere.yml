@@ -29,6 +29,7 @@ on:
       - feature/entry-bulk-delete
       - fix/rotation-thumbnail-stability
       - fix/persistent-rotation-async-thumbs
+      - feature/thumbnail-grid-view
   workflow_dispatch:
 
 permissions:
@@ -47,7 +48,7 @@ jobs:
 
       - name: Syntax check
         shell: bash
-        run: python -m py_compile app.py projects.py project_render.py progress.py
+        run: python -m py_compile app.py projects.py project_render.py progress.py thumbnail_grid.py
 
       - name: OCR label candidate tests
         shell: bash
@@ -81,6 +82,10 @@ jobs:
           grep -q 'updateProgressThumbActive' progress.py
           grep -q "new_load_start = \"pageInput.value=n;updateProgressThumbActive();setBusy(true);drawingZoom=1;" progress.py
           grep -q 'project_progress_list' progress.py
+          grep -q 'project_thumbnail_grid_v2.html' thumbnail_grid.py
+          grep -q 'data-cols="4"' templates/project_thumbnail_grid_v2.html
+          grep -q 'IntersectionObserver' templates/project_thumbnail_grid_v2.html
+          grep -q 'longEdge=500' templates/project_thumbnail_grid_v2.html
 
       - name: Upload weld app files
         env:
@@ -95,6 +100,7 @@ jobs:
           upload_file "projects.py"
           upload_file "project_render.py"
           upload_file "progress.py"
+          upload_file "thumbnail_grid.py"
           upload_file "requirements.txt"
           while IFS= read -r -d '' file; do upload_file "$file"; done < <(find templates -type f -print0)
           if [ -d static ]; then while IFS= read -r -d '' file; do upload_file "$file"; done < <(find static -type f -print0); fi
@@ -122,9 +128,10 @@ jobs:
             entry=$(fetch_text "https://nakagawach.pythonanywhere.com/weld/projects/${project_id}/entry")
             progress=$(fetch_text "https://nakagawach.pythonanywhere.com/weld/projects/${project_id}/progress")
             list=$(fetch_text "https://nakagawach.pythonanywhere.com/weld/projects/${project_id}/progress-list")
+            grid=$(fetch_text "https://nakagawach.pythonanywhere.com/weld/projects/${project_id}/thumbnails?source=progress&page=1")
             thumb_ok=false
             if curl --fail --silent --show-error --location --max-time 30 "https://nakagawach.pythonanywhere.com/weld/projects/${project_id}/pdfium-page?page=1&longEdge=500&format=jpeg" --output /dev/null; then thumb_ok=true; fi
-            if [[ "$entry" == *'id="rotate"'* ]] && [[ "$entry" == *'id="thumbs"'* ]] && [[ "$entry" == *'weldDrawingRotation'* ]] && [[ "$entry" == *'longEdge=500'* ]] && [[ "$progress" == *'id="progressThumbs"'* ]] && [[ "$progress" == *'weldDrawingRotation'* ]] && [[ "$progress" == *'longEdge=500'* ]] && [[ "$list" == *"進捗一覧"* ]] && [ "$thumb_ok" = true ]; then echo "Smoke test passed."; exit 0; fi
+            if [[ "$entry" == *'data-thumbnail-grid-launch'* ]] && [[ "$progress" == *'data-thumbnail-grid-launch'* ]] && [[ "$entry" == *'weldDrawingRotation'* ]] && [[ "$progress" == *'weldDrawingRotation'* ]] && [[ "$list" == *"進捗一覧"* ]] && [[ "$grid" == *'data-cols="4"'* ]] && [[ "$grid" == *'longEdge=500'* ]] && [[ "$grid" == *'IntersectionObserver'* ]] && [ "$thumb_ok" = true ]; then echo "Smoke test passed."; exit 0; fi
             echo "Smoke test attempt ${attempt} failed thumb=$thumb_ok"; sleep 5
           done
           exit 1
