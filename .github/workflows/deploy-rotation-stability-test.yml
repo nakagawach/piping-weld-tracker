@@ -21,10 +21,13 @@ jobs:
         run: |
           set -euo pipefail
           python -m py_compile app.py projects.py project_render.py progress.py
+          grep -q 'id="rotate"' templates/project_entry.html
+          grep -q 'id="thumbs"' templates/project_entry.html
           grep -q 'IntersectionObserver' templates/project_entry.html
-          ! grep -q "pageInput.value=n;rotation=0" templates/project_entry.html
           grep -q 'setupProgressThumbnails' progress.py
-          ! grep -q "drawingZoom=1;rotation=0" progress.py
+          grep -q 'updateProgressThumbActive' progress.py
+          grep -q "new_load_start = \"pageInput.value=n;updateProgressThumbActive();setBusy(true);drawingZoom=1;" progress.py
+          grep -q 'project_progress_list' progress.py
 
       - name: Upload application files
         env:
@@ -60,7 +63,7 @@ jobs:
             entry=$(curl --fail --silent --show-error --location --max-time 20 "https://nakagawach.pythonanywhere.com/weld/projects/7/entry" || true)
             progress=$(curl --fail --silent --show-error --location --max-time 20 "https://nakagawach.pythonanywhere.com/weld/projects/7/progress" || true)
             list=$(curl --fail --silent --show-error --location --max-time 20 "https://nakagawach.pythonanywhere.com/weld/projects/7/progress-list" || true)
-            if [[ "$entry" == *'id="thumbs"'* ]] && [[ "$entry" == *'IntersectionObserver'* ]] && [[ "$progress" == *'id="progressThumbs"'* ]] && [[ "$progress" == *'setupProgressThumbnails'* ]] && [[ "$list" == *'進捗一覧'* ]]; then
+            if [[ "$entry" == *'id="thumbs"'* ]] && [[ "$entry" == *'IntersectionObserver'* ]] && [[ "$entry" == *'回転角はページを移動しても維持'* ]] && [[ "$progress" == *'id="progressThumbs"'* ]] && [[ "$progress" == *'updateProgressThumbActive'* ]] && [[ "$list" == *'進捗一覧'* ]]; then
               echo "Rotation stability smoke test passed."
               exit 0
             fi
