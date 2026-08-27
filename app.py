@@ -11,6 +11,7 @@ from global_favorites import create_global_favorites_blueprint
 from progress import create_progress_blueprint
 from projects import create_projects_blueprint
 from thumbnail_grid import create_thumbnail_grid_blueprint
+from ui_shell import create_ui_shell_blueprint
 
 app = Flask(__name__)
 
@@ -24,6 +25,7 @@ app.register_blueprint(create_projects_blueprint(DB_PATH, DATA_DIR))
 app.register_blueprint(create_progress_blueprint(DB_PATH))
 app.register_blueprint(create_thumbnail_grid_blueprint(DB_PATH))
 app.register_blueprint(create_global_favorites_blueprint(DB_PATH))
+app.register_blueprint(create_ui_shell_blueprint())
 
 
 def get_google_vision_api_key():
