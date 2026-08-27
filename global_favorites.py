@@ -59,25 +59,30 @@ def create_global_favorites_blueprint(db_path: Path):
             response.set_data(html.replace("</body>", script + "</body>", 1))
             return response
 
-        if re.fullmatch(r"(?:/weld)?/projects/\d+/(entry|progress|thumbnails)", path):
-            script = """
+        match = re.fullmatch(r"(?:/weld)?/projects/\d+/(entry|progress|thumbnails)", path)
+        if match:
+            source = match.group(1)
+            script = f"""
 <script data-global-favorites-launch>
-(() => {
+(() => {{
   const go=()=>location.href='/weld/favorites';
+  const source={source!r};
+  const moreMenu=document.querySelector('.more-menu');
+  if(moreMenu){{
+    const b=document.createElement('button');b.type='button';b.className='button';b.textContent='★ お気に入り一覧';b.title='工事横断のお気に入り一覧';b.onclick=go;
+    moreMenu.appendChild(b);return;
+  }}
+  const controls=document.querySelector('.controls');
+  if(controls){{
+    const b=document.createElement('button');b.type='button';b.className='button';b.textContent='★ 一覧';b.title='工事横断のお気に入り一覧';b.onclick=go;
+    controls.appendChild(b);return;
+  }}
   const top=document.querySelector('.top');
-  if(top){
+  if(top){{
     const b=document.createElement('button');b.type='button';b.className='button';b.textContent='★ お気に入り';b.title='工事横断のお気に入り一覧';
-    b.style.cssText='border-color:#f9ab00;color:#8a5a00;font-weight:800;background:#fff8e1';b.onclick=go;
-    const existing=top.querySelector('#back');if(existing)top.insertBefore(b,existing);else top.appendChild(b);
-    return;
-  }
-  const toolbar=document.querySelector('.toolbar');
-  if(toolbar){
-    const b=document.createElement('button');b.type='button';b.className='button icon-button';b.textContent='★';b.setAttribute('aria-label','お気に入り一覧');b.title='工事横断のお気に入り一覧';
-    b.style.cssText='color:#f9ab00;font-size:1.25rem';b.onclick=go;
-    const spacer=toolbar.querySelector('.spacer');toolbar.insertBefore(b,spacer?.nextSibling||toolbar.lastChild);
-  }
-})();
+    b.style.cssText='border-color:#f9ab00;color:#8a5a00;font-weight:800;background:#fff8e1';b.onclick=go;top.appendChild(b);
+  }}
+}})();
 </script>
 """
             response.set_data(html.replace("</body>", script + "</body>", 1))
