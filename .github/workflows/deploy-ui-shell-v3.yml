@@ -96,3 +96,11 @@ jobs:
           PUBLIC_BASE_URL: https://nakagawach.pythonanywhere.com/weld
           PUBLIC_PROJECT_ID: '7'
         run: python tests/public_ui_shell_e2e.py
+
+      - name: Upload public UI screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-ui-shell-v3
+          path: artifacts/public-ui
+          if-no-files-found: warn
