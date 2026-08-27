@@ -43,7 +43,7 @@ def create_responsive_header_blueprint():
   body.weld-progress-v4 .top{display:none!important}
   body.weld-progress-v4 .card{border:0!important;border-radius:0!important}
   body.weld-progress-v4 .toolbar{position:sticky!important;top:var(--appbar-h)!important;z-index:60!important;height:auto!important;min-height:48px!important;display:flex!important;flex-wrap:wrap!important;align-items:center!important;gap:4px!important;padding:4px max(6px,env(safe-area-inset-right)) 4px max(6px,env(safe-area-inset-left))!important;white-space:normal!important;background:#fff!important}
-  body.weld-progress-v4 .toolbar>.spacer,body.weld-progress-v4 .toolbar>.desktop-tools,body.weld-progress-v4 .toolbar>.compact-fullscreen,body.weld-progress-v4 .toolbar>.more{display:none!important}
+  body.weld-progress-v4 .toolbar>.spacer,body.weld-progress-v4 .toolbar>.desktop-tools,body.weld-progress-v4 .toolbar>.more{display:none!important}
   body.weld-progress-v4 .weld-page-nav-group{display:flex;align-items:center;gap:3px;flex:0 1 auto;min-width:0}
   body.weld-progress-v4 .weld-action-group{display:flex;align-items:center;justify-content:flex-end;gap:4px;flex:1 1 auto;min-width:0}
   body.weld-progress-v4 .weld-page-nav-group .nav-button{min-width:38px!important;padding:0 6px!important}
@@ -53,14 +53,14 @@ def create_responsive_header_blueprint():
   body.weld-progress-v4 .weld-page-nav-group .page-total{font-size:.78rem!important}
   body.weld-progress-v4 .weld-action-group>.button{min-width:40px!important;min-height:40px!important;padding:0 6px!important;display:inline-flex!important;align-items:center!important;justify-content:center!important}
   body.weld-progress-v4 .weld-action-group>.page-favorite-view{font-size:1.35rem!important}
-  body.weld-progress-v4 .weld-action-group>.compact-rotate{display:inline-flex!important}
+  body.weld-progress-v4 .weld-action-group>.compact-rotate,body.weld-progress-v4 .weld-action-group>.compact-fullscreen{display:inline-flex!important}
   body.weld-progress-v4 .statusline{display:none!important}
 }
 @media(max-width:390px) and (orientation:portrait){
   body.weld-progress-v4 .toolbar{align-items:stretch!important}
   body.weld-progress-v4 .weld-page-nav-group{flex:1 1 100%;justify-content:center}
   body.weld-progress-v4 .weld-action-group{flex:1 1 100%;justify-content:space-between}
-  body.weld-progress-v4 .weld-action-group>.button{flex:1 1 0;max-width:64px}
+  body.weld-progress-v4 .weld-action-group>.button{flex:1 1 0;max-width:56px}
   body.weld-progress-v4 .viewer{max-height:calc(100dvh - var(--appbar-h) - 98px - 31px - 62px)!important;min-height:calc(100dvh - var(--appbar-h) - 98px - 31px - 62px)!important}
 }
 @media(min-width:391px) and (max-width:820px){
@@ -112,9 +112,15 @@ def create_responsive_header_blueprint():
   const morePlaceholder=document.createComment('more-menu-home');if(more)more.parentNode.insertBefore(morePlaceholder,more);
 
   const moveActions=()=>{
-    const candidates=[toolbar.querySelector('.page-favorite-view'),document.getElementById('rotateCompact'),toolbar.querySelector('[aria-label="ページ一覧"]'),toolbar.querySelector('[aria-label="進捗一覧"]')];
+    const candidates=[toolbar.querySelector('.page-favorite-view'),document.getElementById('rotateCompact'),document.getElementById('fullscreenCompact'),toolbar.querySelector('[aria-label="ページ一覧"]'),toolbar.querySelector('[aria-label="進捗一覧"]')];
     for(const el of candidates){if(el&&el.parentNode!==actionGroup)actionGroup.appendChild(el)}
   };
+  const closeMoreOutside=e=>{if(more?.open&&!more.contains(e.target))more.removeAttribute('open')};
+  const closeMoreEscape=e=>{if(e.key==='Escape'&&more?.open)more.removeAttribute('open')};
+  document.addEventListener('pointerdown',closeMoreOutside,true);
+  document.addEventListener('keydown',closeMoreEscape);
+  window.addEventListener('pagehide',()=>{document.removeEventListener('pointerdown',closeMoreOutside,true);document.removeEventListener('keydown',closeMoreEscape)},{once:true});
+
   const mq=matchMedia('(max-width:820px)');
   const apply=()=>{
     if(mq.matches){if(more&&more.parentNode!==appbar)appbar.appendChild(more);moveActions()}
