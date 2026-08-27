@@ -138,10 +138,13 @@ def main():
             expect(page.locator("main > .top")).not_to_be_visible()
             expect(page.locator("#thumbnailGridButton")).to_be_visible(timeout=5000)
             expect(page.locator(".page-favorite-view")).to_be_visible(timeout=5000)
-            page.locator(".ui3-entry-more > summary").click()
+            overflow = page.locator(".ui3-entry-more > summary")
+            overflow.click()
             expect(page.locator(".ui3-entry-more #reset")).to_be_visible()
             expect(page.locator(".ui3-entry-more #bulkDelete")).to_be_visible()
             expect(page.locator(".ui3-entry-more [data-go-favorites]")).to_be_visible(timeout=5000)
+            overflow.click()
+            expect(page.locator(".ui3-entry-more #reset")).not_to_be_visible()
 
             # Entry由来ページ一覧はEntryの同ページへ固定で戻る。
             page.locator("#thumbnailGridButton").click()
