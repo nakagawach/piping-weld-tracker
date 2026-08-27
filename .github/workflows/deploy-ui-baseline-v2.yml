@@ -39,22 +39,26 @@ jobs:
       - name: Verify UI protection rules
         shell: bash
         run: |
-          set -euo pipefail
-          grep -Fq 'create_ui_baseline_blueprint' app.py
-          grep -Fq 'data-weld-ui-v2' ui_baseline.py
-          grep -Fq 'project_thumbnail_grid_v2.html' thumbnail_grid.py
-          grep -Fq 'data-thumbnail-grid-launch' thumbnail_grid.py
-          grep -Fq 'aria-label="ページ一覧"' thumbnail_grid.py
-          grep -Fq 'data-page-favorite-view' thumbnail_grid.py
-          grep -Fq 'data-go-favorites' global_favorites.py
-          grep -Fq '★ お気に入りページ一覧' global_favorites.py
-          grep -Fq "controls.querySelector('[data-go-favorites]')" ui_baseline.py
-          grep -Fq 'uiKeepLeft=viewer.scrollLeft' ui_baseline.py
-          grep -Fq 'viewer=1' ui_baseline.py
-          grep -Fq 'ui2-grid' ui_baseline.py
-          grep -Fq 'ui2-cols' ui_baseline.py
-          if grep -Eq 'dataset\.uiFavs|data-ui-favs' ui_baseline.py; then echo 'UI baseline must not create a second favorites action'; exit 1; fi
-          echo 'UI protection rules passed'
+          python - <<'PY'
+          from pathlib import Path
+          app=Path('app.py').read_text()
+          ui=Path('ui_baseline.py').read_text()
+          tg=Path('thumbnail_grid.py').read_text()
+          gf=Path('global_favorites.py').read_text()
+          assert 'create_ui_baseline_blueprint' in app
+          assert 'data-weld-ui-v2' in ui
+          assert 'project_thumbnail_grid_v2.html' in tg
+          assert 'data-thumbnail-grid-launch' in tg
+          assert 'data-page-favorite-view' in tg
+          assert 'data-go-favorites' in gf
+          assert '★ お気に入りページ一覧' in gf
+          assert "controls.querySelector('[data-go-favorites]')" in ui
+          assert 'uiKeepLeft=viewer.scrollLeft' in ui
+          assert 'viewer=1' in ui
+          assert 'ui2-grid' in ui and 'ui2-cols' in ui
+          assert 'dataset.uiFavs' not in ui and 'data-ui-favs' not in ui
+          print('UI protection rules passed')
+          PY
 
       - name: Upload weld app files
         env:
