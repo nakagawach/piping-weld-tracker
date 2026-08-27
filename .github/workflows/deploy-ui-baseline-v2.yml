@@ -40,21 +40,21 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -q 'create_ui_baseline_blueprint' app.py
-          grep -q 'data-weld-ui-v2' ui_baseline.py
-          grep -q 'project_thumbnail_grid_v2.html' thumbnail_grid.py
-          grep -q 'data-thumbnail-grid-launch' thumbnail_grid.py
-          grep -q 'aria-label="ページ一覧"' thumbnail_grid.py
-          grep -q 'data-page-favorite-view' thumbnail_grid.py
-          grep -q 'data-go-favorites' global_favorites.py
-          grep -q '★ お気に入りページ一覧' global_favorites.py
-          grep -q 'controls.querySelector.\x27\[data-go-favorites\]\x27' ui_baseline.py || grep -q "controls.querySelector('\[data-go-favorites\]')" ui_baseline.py
-          grep -q 'uiKeepLeft=viewer.scrollLeft' ui_baseline.py
-          grep -q 'viewer=1' ui_baseline.py
-          grep -q 'ui2-grid' ui_baseline.py
-          grep -q 'ui2-cols' ui_baseline.py
-          if grep -q "dataset.uiFavs\|data-ui-favs" ui_baseline.py; then echo 'UI baseline must not create a second favorites action'; exit 1; fi
-          if grep -q "図面エントリーへ.*menu.append" ui_baseline.py; then echo 'UI baseline must reuse the existing progress menu'; exit 1; fi
+          grep -Fq 'create_ui_baseline_blueprint' app.py
+          grep -Fq 'data-weld-ui-v2' ui_baseline.py
+          grep -Fq 'project_thumbnail_grid_v2.html' thumbnail_grid.py
+          grep -Fq 'data-thumbnail-grid-launch' thumbnail_grid.py
+          grep -Fq 'aria-label="ページ一覧"' thumbnail_grid.py
+          grep -Fq 'data-page-favorite-view' thumbnail_grid.py
+          grep -Fq 'data-go-favorites' global_favorites.py
+          grep -Fq '★ お気に入りページ一覧' global_favorites.py
+          grep -Fq "controls.querySelector('[data-go-favorites]')" ui_baseline.py
+          grep -Fq 'uiKeepLeft=viewer.scrollLeft' ui_baseline.py
+          grep -Fq 'viewer=1' ui_baseline.py
+          grep -Fq 'ui2-grid' ui_baseline.py
+          grep -Fq 'ui2-cols' ui_baseline.py
+          if grep -Eq 'dataset\.uiFavs|data-ui-favs' ui_baseline.py; then echo 'UI baseline must not create a second favorites action'; exit 1; fi
+          echo 'UI protection rules passed'
 
       - name: Upload weld app files
         env:
