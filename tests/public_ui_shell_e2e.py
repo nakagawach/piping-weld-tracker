@@ -28,7 +28,7 @@ def main():
 
         page.goto(f"{BASE_URL}/projects/{PROJECT_ID}/progress?page=1", wait_until="domcontentloaded", timeout=30000)
         expect(page.locator("[data-ui3-header='progress']")).to_be_visible()
-        expect_back(page, f"{BASE_URL}/projects-screen".replace("https://nakagawach.pythonanywhere.com", ""), "工事一覧へ")
+        expect_back(page, "/projects-screen", "工事一覧へ")
         expect(page.locator("main > .top")).not_to_be_visible()
         expect(page.locator("#backCompact")).to_have_count(0)
         expect(page.locator("#thumbnailGridButton")).to_be_visible(timeout=7000)
@@ -38,18 +38,18 @@ def main():
         page.locator("#thumbnailGridButton").click()
         page.wait_for_url(f"**/weld/projects/{PROJECT_ID}/thumbnails?source=progress&page=1", timeout=30000)
         expect(page.locator("[data-ui3-header='thumbnails']")).to_be_visible()
-        expect_back(page, f"/weld/projects/{PROJECT_ID}/progress?page=1", "進捗へ")
+        expect_back(page, f"/projects/{PROJECT_ID}/progress?page=1", "進捗へ")
         page.locator(".ui3-appbar .ui3-back").click()
         page.wait_for_url(f"**/weld/projects/{PROJECT_ID}/progress?page=1", timeout=30000)
 
         page.locator("[aria-label='進捗一覧']").click()
         page.wait_for_url(f"**/weld/projects/{PROJECT_ID}/progress-list", timeout=30000)
         expect(page.locator("[data-ui3-header='progress-list']")).to_be_visible()
-        expect_back(page, f"/weld/projects/{PROJECT_ID}/progress?page=1", "進捗へ")
+        expect_back(page, f"/projects/{PROJECT_ID}/progress?page=1", "進捗へ")
 
         page.goto(f"{BASE_URL}/projects/{PROJECT_ID}/entry?page=1", wait_until="domcontentloaded", timeout=30000)
         expect(page.locator("[data-ui3-header='entry']")).to_be_visible()
-        expect_back(page, "/weld/projects-screen", "工事一覧へ")
+        expect_back(page, "/projects-screen", "工事一覧へ")
         expect(page.locator("#thumbnailGridButton")).to_be_visible(timeout=7000)
         expect(page.locator(".page-favorite-view")).to_be_visible(timeout=7000)
         overflow = page.locator(".ui3-entry-more > summary")
@@ -61,11 +61,11 @@ def main():
 
         page.locator("#thumbnailGridButton").click()
         page.wait_for_url(f"**/weld/projects/{PROJECT_ID}/thumbnails?source=entry&page=1", timeout=30000)
-        expect_back(page, f"/weld/projects/{PROJECT_ID}/entry?page=1", "エントリーへ")
+        expect_back(page, f"/projects/{PROJECT_ID}/entry?page=1", "エントリーへ")
 
         page.goto(f"{BASE_URL}/favorites", wait_until="domcontentloaded", timeout=30000)
         expect(page.locator("[data-ui3-header='favorites']")).to_be_visible()
-        expect_back(page, "/weld/projects-screen", "工事一覧へ")
+        expect_back(page, "/projects-screen", "工事一覧へ")
 
         browser.close()
     print("Public UI shell browser regression: PASS")
