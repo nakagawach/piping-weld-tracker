@@ -1,9 +1,9 @@
-name: Deploy mobile viewer UI v5
+name: Deploy mobile fullscreen v6
 
 on:
   push:
     branches:
-      - fix/mobile-viewer-ui-v5
+      - fix/mobile-fullscreen-v6
   workflow_dispatch:
 
 permissions:
@@ -36,21 +36,22 @@ jobs:
           print("OCR regression passed")
           PY
 
-      - name: Verify mobile viewer UI guards
+      - name: Verify mobile fullscreen guards
         shell: bash
         run: |
           set -euo pipefail
-          grep -q 'data-responsive-header-v5' responsive_header.py
-          grep -q 'weld-mobile-appbar' responsive_header.py
-          grep -q 'weld-appbar-fullscreen' responsive_header.py
-          grep -q 'weld-page-nav-group' responsive_header.py
-          grep -q 'weld-action-group' responsive_header.py
+          grep -q 'data-responsive-header-v6' responsive_header.py
+          grep -q 'weld-progress-v6' responsive_header.py
           grep -q 'weld-focus-mode' responsive_header.py
           grep -q 'weld-focus-exit' responsive_header.py
-          grep -q "more.querySelectorAll('\[data-go-fullscreen\],#backCompact')" responsive_header.py
+          grep -q 'const zoomIn=document.getElementById' responsive_header.py
+          grep -q 'const zoomReset=document.getElementById' responsive_header.py
+          grep -q 'while(canvas.getBoundingClientRect().height < viewer.clientHeight-1' responsive_header.py
+          grep -q 'zoomIn.click()' responsive_header.py
+          grep -q 'zoomReset.click()' responsive_header.py
+          grep -q "window.visualViewport?.addEventListener('resize',refit)" responsive_header.py
+          ! grep -q 'requestFullscreen' responsive_header.py
           grep -q "document.addEventListener('pointerdown',closeMoreOutside,true)" responsive_header.py
-          grep -q 'requestFullscreen' responsive_header.py
-          grep -q '100dvh' responsive_header.py
           grep -q 'rotateCompact' responsive_header.py
           grep -q 'aria-label="ページ一覧"' responsive_header.py
           grep -q 'aria-label="進捗一覧"' responsive_header.py
@@ -101,7 +102,7 @@ jobs:
             entry=$(fetch "https://nakagawach.pythonanywhere.com/weld/projects/7/entry")
             grid=$(fetch "https://nakagawach.pythonanywhere.com/weld/projects/7/thumbnails?source=progress&page=1")
             favorites=$(fetch "https://nakagawach.pythonanywhere.com/weld/favorites")
-            if [[ "$progress" == *'data-responsive-header-v5'* ]] && [[ "$progress" == *'weld-appbar-fullscreen'* ]] && [[ "$progress" == *'weld-focus-mode'* ]] && [[ "$progress" == *'weld-focus-exit'* ]] && [[ "$progress" == *'requestFullscreen'* ]] && [[ "$progress" == *'data-page-favorite-view'* ]] && [[ "$progress" == *'図面エントリーへ'* ]] && [[ "$entry" == *'data-responsive-header-v5'* ]] && [[ "$grid" == *'data-responsive-header-v5'* ]] && [[ "$favorites" == *'data-responsive-header-v5'* ]]; then
+            if [[ "$progress" == *'data-responsive-header-v6'* ]] && [[ "$progress" == *'while(canvas.getBoundingClientRect().height < viewer.clientHeight-1'* ]] && [[ "$progress" == *'zoomIn.click()'* ]] && [[ "$progress" == *'visualViewport'* ]] && [[ "$progress" == *'data-page-favorite-view'* ]] && [[ "$progress" == *'図面エントリーへ'* ]] && [[ "$entry" == *'data-responsive-header-v6'* ]] && [[ "$grid" == *'data-responsive-header-v6'* ]] && [[ "$favorites" == *'data-responsive-header-v6'* ]]; then
               echo "Smoke test passed"; exit 0
             fi
             echo "Smoke attempt $attempt failed"; sleep 5
