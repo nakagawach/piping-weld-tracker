@@ -1,4 +1,4 @@
-name: Deploy progress UI v9
+name: Deploy UI baseline v1
 
 on:
   push:
@@ -21,7 +21,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Syntax check
-        run: python -m py_compile app.py projects.py project_render.py progress.py thumbnail_grid.py global_favorites.py progress_ui.py
+        run: python -m py_compile app.py projects.py project_render.py progress.py thumbnail_grid.py global_favorites.py ui_baseline.py
 
       - name: OCR regression tests
         shell: bash
@@ -36,26 +36,30 @@ jobs:
           print("OCR regression passed")
           PY
 
-      - name: Verify UI design guards
+      - name: Verify UI baseline guards
         shell: bash
         run: |
           set -euo pipefail
-          grep -q "create_progress_ui_blueprint" app.py
-          grep -q "data-progress-ui-v9" progress_ui.py
-          grep -q "weld-nav-v9" progress_ui.py
-          grep -q "weld-pages-v9" progress_ui.py
-          grep -q "weld-actions-v9" progress_ui.py
-          grep -q "viewer=1" progress_ui.py
-          grep -q "weld-viewer-v9" progress_ui.py
-          grep -q "height:100dvh" progress_ui.py
-          grep -q "position:absolute" progress_ui.py
-          grep -q "図面エントリーへ" progress_ui.py
-          grep -q "お気に入り一覧" progress_ui.py
-          grep -q "pointerdown" progress_ui.py
-          if grep -q "html.weld-viewer-v9 .card{position:fixed" progress_ui.py; then echo "viewer must not use fixed card"; exit 1; fi
+          grep -q "create_ui_baseline_blueprint" app.py
+          ! grep -q "create_progress_ui_blueprint" app.py
+          grep -q "data-weld-ui-baseline" ui_baseline.py
+          grep -q -- "--ui-touch:48px" ui_baseline.py
+          grep -q "ui-appbar" ui_baseline.py
+          grep -q "ui-page-group" ui_baseline.py
+          grep -q "ui-drawing-actions" ui_baseline.py
+          grep -q "ui-favorite-columns" ui_baseline.py
+          grep -q "position:sticky" ui_baseline.py
+          grep -q "viewer=1" ui_baseline.py
+          grep -q "weld-viewer-mode" ui_baseline.py
+          grep -q "height:100dvh" ui_baseline.py
+          grep -q "weldKeepLeft" ui_baseline.py
+          grep -q "sessionStorage" ui_baseline.py
+          grep -q "pointerdown" ui_baseline.py
+          grep -q "longEdge=500" templates/project_thumbnail_grid_v2.html
           grep -q "weldDrawingRotation" templates/project_progress.html
           grep -q "data-page-favorite-view" thumbnail_grid.py
           grep -q "data-progress-empty-patch" thumbnail_grid.py
+          if grep -q "html.weld-viewer-mode .card{position:fixed" ui_baseline.py; then echo "viewer must not use fixed card"; exit 1; fi
 
       - name: Upload weld app files
         env:
@@ -72,7 +76,7 @@ jobs:
           upload_file progress.py
           upload_file thumbnail_grid.py
           upload_file global_favorites.py
-          upload_file progress_ui.py
+          upload_file ui_baseline.py
           upload_file requirements.txt
           while IFS= read -r -d '' file; do upload_file "$file"; done < <(find templates -type f -print0)
           if [ -d static ]; then while IFS= read -r -d '' file; do upload_file "$file"; done < <(find static -type f -print0); fi
@@ -95,11 +99,14 @@ jobs:
           set -euo pipefail
           fetch(){ curl --fail --silent --show-error --location --max-time 25 "$1" || true; }
           for attempt in 1 2 3 4 5 6; do
+            projects=$(fetch "https://nakagawach.pythonanywhere.com/weld/projects-screen")
             normal=$(fetch "https://nakagawach.pythonanywhere.com/weld/projects/7/progress?page=1")
             viewer=$(fetch "https://nakagawach.pythonanywhere.com/weld/projects/7/progress?page=1&viewer=1")
             entry=$(fetch "https://nakagawach.pythonanywhere.com/weld/projects/7/entry?page=1")
             thumbs=$(fetch "https://nakagawach.pythonanywhere.com/weld/projects/7/thumbnails?source=progress&page=1")
-            if [[ "$normal" == *'data-progress-ui-v9'* ]] && [[ "$normal" == *'weld-nav-v9'* ]] && [[ "$normal" == *'viewer=1'* ]] && [[ "$normal" == *'図面エントリーへ'* ]] && [[ "$viewer" == *'weld-viewer-v9'* ]] && [[ "$viewer" == *'weld-viewer-controls-v9'* ]] && [[ "$entry" == *'data-progress-ui-v9'* ]] && [[ "$thumbs" == *'data-progress-ui-v9'* ]]; then
+            favorites=$(fetch "https://nakagawach.pythonanywhere.com/weld/favorites")
+            plist=$(fetch "https://nakagawach.pythonanywhere.com/weld/projects/7/progress-list")
+            if [[ "$projects" == *'data-weld-ui-baseline'* ]] && [[ "$normal" == *'data-weld-ui-baseline'* ]] && [[ "$normal" == *'ui-page-group'* ]] && [[ "$normal" == *'weldKeepLeft'* ]] && [[ "$viewer" == *'weld-viewer-mode'* ]] && [[ "$viewer" == *'ui-viewer-controls'* ]] && [[ "$entry" == *'data-weld-ui-baseline'* ]] && [[ "$thumbs" == *'data-weld-ui-baseline'* ]] && [[ "$favorites" == *'ui-favorite-columns'* ]] && [[ "$plist" == *'data-weld-ui-baseline'* ]]; then
               echo "Smoke test passed"; exit 0
             fi
             echo "Smoke attempt $attempt failed"; sleep 5
