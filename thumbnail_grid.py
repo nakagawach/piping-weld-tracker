@@ -198,7 +198,7 @@ def create_thumbnail_grid_blueprint(db_path: Path):
     location.href=`/weld/projects/${{projectId}}/thumbnails?source=${{source}}&page=${{page}}`;
   }};
   const button=document.createElement('button');
-  button.type='button';button.id='thumbnailGridButton';button.className='button';button.textContent='▦ ページ一覧';button.title='ページを一覧表示';button.onclick=openGrid;
+  button.type='button';button.id='thumbnailGridButton';button.dataset.thumbnailGridLaunch='1';button.className='button';button.textContent='▦ ページ一覧';button.title='ページを一覧表示';button.onclick=openGrid;
   const controls=document.querySelector('.controls');
   if(controls){{controls.insertBefore(button,document.getElementById('ocr')||controls.lastChild);}}
   else {{
