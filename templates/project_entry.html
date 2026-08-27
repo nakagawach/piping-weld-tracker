@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ project_name }} - 図面エントリー</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:#f5f6f8;color:#202124}main{max-width:1200px;margin:auto;padding:18px 14px 40px}.top{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:14px}.button{min-height:42px;padding:0 14px;border:1px solid #bdc1c6;border-radius:8px;background:#fff;color:#202124;font:inherit;cursor:pointer}.primary{border-color:#1967d2;background:#1967d2;color:#fff;font-weight:700}.danger{border-color:#b3261e;color:#b3261e;font-weight:700}.title{margin:0;font-size:1.35rem}.meta,.note{color:#5f6368}.meta{margin-top:4px}.card{background:#fff;border:1px solid #dadce0;border-radius:12px;padding:14px}.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin-bottom:12px}label{display:grid;gap:5px;font-weight:600}input[type=number]{width:90px;min-height:42px;padding:0 10px;border:1px solid #bdc1c6;border-radius:8px;font:inherit}.thumbs{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 8px;margin-bottom:4px;scrollbar-width:thin}.thumb{flex:0 0 92px;border:2px solid transparent;border-radius:9px;background:#fff;padding:4px;cursor:pointer}.thumb.active{border-color:#1967d2;background:#e8f0fe}.thumb img{display:block;width:100%;height:62px;object-fit:contain;background:#f1f3f4;border-radius:5px}.thumb span{display:block;margin-top:3px;font-size:.78rem;font-weight:700;text-align:center}.viewer{overflow:auto;max-height:76vh;border:1px solid #dadce0;border-radius:8px;background:#eee}canvas{display:block;max-width:100%;height:auto;margin:auto;background:#fff;cursor:pointer;touch-action:manipulation}.status{min-height:1.5em;margin:10px 0}.page-state{display:inline-block;padding:4px 9px;border-radius:999px;background:#f1f3f4;color:#5f6368;font-size:.85rem;font-weight:700}.page-state.working{background:#fef7e0;color:#b06000}.page-state.saved{background:#e6f4ea;color:#137333}.summary{margin:10px 0;padding:10px;border-radius:8px;background:#f7f8fa}.note{font-size:.9rem;line-height:1.6}.error{color:#b3261e}button:disabled{opacity:.5;cursor:wait}@media(max-width:640px){.top{align-items:stretch;flex-direction:column}.top .button{width:100%}#bulkDelete{display:none}.thumb{flex-basis:78px}.thumb img{height:52px}}
+  </style>
+</head>
+<body>
+<main>
+  <div class="top">
+    <div><h1 class="title">図面エントリー</h1><div class="meta">{{ project_name }} / {{ pdf_name }}</div></div>
+    <button class="button" id="back" type="button">← 工事一覧へ</button>
+  </div>
+  <section class="card">
+    <div class="controls">
+      <label>ページ<input id="page" type="number" min="1" value="1" inputmode="numeric"></label>
+      <button class="button" id="prev" type="button">前へ</button>
+      <button class="button" id="next" type="button">次へ</button>
+      <button class="button" id="rotate" type="button">↻ 0°</button>
+      <button class="button" id="ocr" type="button">OCR実行</button>
+      <button class="button" id="reset" type="button" disabled>読込時に戻す</button>
+      <button class="button danger" id="bulkDelete" type="button" disabled>選択削除</button>
+      <button class="button primary" id="save" type="button" disabled>番号配置を確定保存</button>
+      <span class="page-state" id="pageState">未処理</span>
+    </div>
+    <div class="status" id="status">PDFを読み込んでいます…</div>
+    <div class="summary" id="summary" hidden></div>
+    <div class="thumbs" id="thumbs" aria-label="ページサムネイル"></div>
+    <div class="viewer"><canvas id="canvas"></canvas></div>
+    <p class="note">青枠をクリック/タップすると番号・記号を変更、空欄で削除できます。空白を1回クリック/タップすると手動追加できます。PCではShiftキーを押しながらドラッグすると範囲内の候補を複数選択でき、「選択削除」またはDeleteキーでまとめて削除できます。↻で90°ずつ回転できます。回転角はページを移動しても維持します。サムネイルからページ移動できます。OCRでは数字・丸数字に加え、F1、S2、A-12などの英数字ラベルも候補化します。表示画像は初回生成後に再利用し、OCRはサーバー側で6,000px画像をGoogle Visionへ直接送信します。</p>
+  </section>
+</main>
+<script>
+(() => {
+  const OCR_LONG_EDGE = 6000;
+  const DISPLAY_LONG_EDGE = 1600;
+  const DISPLAY_COORD_SCALE = DISPLAY_LONG_EDGE / OCR_LONG_EDGE;
+  const HIT_TARGET_CSS_PX = 12;
+
+  const projectId = {{ project_id | tojson }};
+  const numberMapUrl = {{ url_for('projects.get_project_number_map', project_id=project_id) | tojson }};
+  const pdfiumInfoUrl = {{ url_for('projects.pdfium_info', project_id=project_id) | tojson }};
+  const pdfiumPageUrl = {{ url_for('projects.pdfium_page', project_id=project_id) | tojson }};
+  const projectOcrUrl = {{ url_for('projects.ocr_project_page', project_id=project_id) | tojson }};
+  const projectsScreenUrl = {{ url_for('projects_screen') | tojson }};
+  const pageInput = document.getElementById('page');
+  const status = document.getElementById('status');
+  const summary = document.getElementById('summary');
+  const pageState = document.getElementById('pageState');
+  const canvas = document.getElementById('canvas');
+  const displaySourceCanvas = document.createElement('canvas');
+  const prev = document.getElementById('prev');
+  const next = document.getElementById('next');
+  const rotateButton = document.getElementById('rotate');
+  const ocrButton = document.getElementById('ocr');
+  const resetButton = document.getElementById('reset');
+  const bulkDeleteButton = document.getElementById('bulkDelete');
+  const saveButton = document.getElementById('save');
+  const thumbs = document.getElementById('thumbs');
+  let pageCount = 0;
+  let candidates = [];
+  let originalCandidates = [];
+  let nextId = 1;
+  let busy = false;
+  let dirty = false;
+  let savedPage = false;
+  let rotation = 0;
+  let selectionStart = null;
+  let selectionCurrent = null;
+  let selectionPointerId = null;
+  let selectedIds = new Set();
+  let suppressNextClick = false;
+  let thumbObserver = null;
+
+  document.getElementById('back').onclick = () => { window.location.href = projectsScreenUrl; };
+
+  function clone(list){return list.map(x=>({...x,bbox:{...x.bbox}}));}
+  function normalizeLabel(value){
+    let t=String(value??'').normalize('NFKC').toUpperCase().replace(/[❶➀]/g,'1').replace(/[❷➁]/g,'2').replace(/[❸➂]/g,'3').replace(/[❹➃]/g,'4').replace(/[❺➄]/g,'5').replace(/[❻➅]/g,'6').replace(/[❼➆]/g,'7').replace(/[❽➇]/g,'8').replace(/[❾➈]/g,'9').replace(/[❿➉]/g,'10').replace(/[‐‑‒–—−ー]/g,'-').replace(/\s+/g,'').trim();
+    const pairs=[['(',')'],['[',']'],['{','}'],['<','>']];
+    let changed=true;while(changed&&t.length>=2){changed=false;for(const [l,r] of pairs){if(t.startsWith(l)&&t.endsWith(r)){t=t.slice(1,-1);changed=true;break;}}}
+    t=t.replace(/^[.,:;・]+|[.,:;・]+$/g,'');
+    if(!t||t.length>12)return null;
+    if(/^\d+$/.test(t)){const n=Number(t);return n>=1&&n<=999?String(n):null;}
+    return /^(?:[A-Z]{1,4}[-/]?\d{1,4}(?:[-/][A-Z0-9]{1,4})?|\d{1,4}[-/]?[A-Z]{1,3})$/.test(t)?t:null;
+  }
+  function toDisplayBox(b){return{x:b.x*DISPLAY_COORD_SCALE,y:b.y*DISPLAY_COORD_SCALE,w:b.w*DISPLAY_COORD_SCALE,h:b.h*DISPLAY_COORD_SCALE};}
+  function canvasPoint(e){const r=canvas.getBoundingClientRect();return{x:(e.clientX-r.left)*canvas.width/r.width,y:(e.clientY-r.top)*canvas.height/r.height};}
+  function point(e){const p=canvasPoint(e),w=displaySourceCanvas.width,h=displaySourceCanvas.height;let x=p.x,y=p.y;if(rotation===90){x=p.y;y=h-p.x;}else if(rotation===180){x=w-p.x;y=h-p.y;}else if(rotation===270){x=w-p.y;y=p.x;}return{x:x/DISPLAY_COORD_SCALE,y:y/DISPLAY_COORD_SCALE};}
+  function cssPxToOcrX(px){const r=canvas.getBoundingClientRect();if(rotation===90||rotation===270)return px*displaySourceCanvas.width/r.height/DISPLAY_COORD_SCALE;return px*displaySourceCanvas.width/r.width/DISPLAY_COORD_SCALE;}
+  function cssPxToOcrY(px){const r=canvas.getBoundingClientRect();if(rotation===90||rotation===270)return px*displaySourceCanvas.height/r.width/DISPLAY_COORD_SCALE;return px*displaySourceCanvas.height/r.height/DISPLAY_COORD_SCALE;}
+  function median(values){if(!values.length)return null;const a=[...values].sort((x,y)=>x-y),m=Math.floor(a.length/2);return a.length%2?a[m]:(a[m-1]+a[m])/2;}
+  function distanceSq(p,b){const cx=b.x+b.w/2,cy=b.y+b.h/2;return(p.x-cx)**2+(p.y-cy)**2;}
+  function findAt(p){const minX=cssPxToOcrX(HIT_TARGET_CSS_PX),minY=cssPxToOcrY(HIT_TARGET_CSS_PX);const hits=candidates.filter(item=>{const b=item.bbox;const extraX=Math.max(0,(minX-b.w)/2),extraY=Math.max(0,(minY-b.h)/2);return p.x>=b.x-extraX&&p.x<=b.x+b.w+extraX&&p.y>=b.y-extraY&&p.y<=b.y+b.h+extraY;});if(!hits.length)return null;hits.sort((a,b)=>distanceSq(p,a.bbox)-distanceSq(p,b.bbox)||(a.bbox.w*a.bbox.h-b.bbox.w*b.bbox.h));return hits[0];}
+  function referenceBoxes(center,number){const chars=number.length;const sameLength=candidates.filter(x=>x.source==='ocr'&&String(x.number).length===chars&&x.bbox.w>0&&x.bbox.h>0);const pool=sameLength.length?sameLength:candidates.filter(x=>x.source==='ocr'&&x.bbox.w>0&&x.bbox.h>0);return pool.sort((a,b)=>distanceSq(center,a.bbox)-distanceSq(center,b.bbox)).slice(0,7);}
+  function autoManualBox(center,number){const refs=referenceBoxes(center,number);let w=median(refs.map(x=>x.bbox.w)),h=median(refs.map(x=>x.bbox.h));if(!w||!h){w=cssPxToOcrX(14);h=cssPxToOcrY(14);}w=Math.max(1,w);h=Math.max(1,h);const pageWidth=displaySourceCanvas.width/DISPLAY_COORD_SCALE,pageHeight=displaySourceCanvas.height/DISPLAY_COORD_SCALE;const x=Math.max(0,Math.min(pageWidth-w,center.x-w/2));const y=Math.max(0,Math.min(pageHeight-h,center.y-h/2));return{x,y,w,h};}
+  function updateState(){pageState.className='page-state';if(dirty){pageState.classList.add('working');pageState.textContent=savedPage?'再OCR・未保存':'OCR済・未保存';}else if(savedPage){pageState.classList.add('saved');pageState.textContent='✓ 保存済';}else{pageState.textContent='未処理';}}
+  function updateBulkDelete(){bulkDeleteButton.disabled=busy||selectedIds.size===0;bulkDeleteButton.textContent=selectedIds.size?`選択削除 (${selectedIds.size})`:'選択削除';}
+  function ensureThumbLoaded(page){const img=thumbs.querySelector(`.thumb[data-page="${page}"] img`);if(img&&img.dataset.src&&!img.src){img.src=img.dataset.src;}}
+  function updateThumbActive(){thumbs.querySelectorAll('.thumb').forEach(b=>b.classList.toggle('active',Number(b.dataset.page)===Number(pageInput.value)));const n=Number(pageInput.value);ensureThumbLoaded(n);if(n>1)ensureThumbLoaded(n-1);if(n<pageCount)ensureThumbLoaded(n+1);const active=thumbs.querySelector('.thumb.active');if(active)active.scrollIntoView({block:'nearest',inline:'nearest'});}
+  function clearSelection(){selectionStart=null;selectionCurrent=null;selectionPointerId=null;selectedIds.clear();updateBulkDelete();}
+  function setBusy(value){busy=value;ocrButton.disabled=value;rotateButton.disabled=value;saveButton.disabled=value||!candidates.length;resetButton.disabled=value||!originalCandidates.length;prev.disabled=value||Number(pageInput.value)<=1;next.disabled=value||!pageCount||Number(pageInput.value)>=pageCount;pageInput.disabled=value;updateBulkDelete();}
+  function selectionBounds(){if(!selectionStart||!selectionCurrent)return null;return{x1:Math.min(selectionStart.x,selectionCurrent.x),y1:Math.min(selectionStart.y,selectionCurrent.y),x2:Math.max(selectionStart.x,selectionCurrent.x),y2:Math.max(selectionStart.y,selectionCurrent.y)};}
+  function refreshSelection(){const r=selectionBounds();selectedIds.clear();if(r){for(const item of candidates){const b=item.bbox,cx=b.x+b.w/2,cy=b.y+b.h/2;if(cx>=r.x1&&cx<=r.x2&&cy>=r.y1&&cy<=r.y2)selectedIds.add(item.id);}}updateBulkDelete();}
+  function configureContext(){const w=displaySourceCanvas.width,h=displaySourceCanvas.height;if(rotation===90||rotation===270){canvas.width=h;canvas.height=w;}else{canvas.width=w;canvas.height=h;}const ctx=canvas.getContext('2d');if(rotation===90){ctx.translate(h,0);ctx.rotate(Math.PI/2);}else if(rotation===180){ctx.translate(w,h);ctx.rotate(Math.PI);}else if(rotation===270){ctx.translate(0,w);ctx.rotate(-Math.PI/2);}return ctx;}
+
+  function draw(){const ctx=configureContext();ctx.drawImage(displaySourceCanvas,0,0);for(const item of candidates){const b=toDisplayBox(item.bbox);const manual=item.source==='manual';const selected=selectedIds.has(item.id);const pad=manual?Math.max(1,Math.max(b.w,b.h)*.08):Math.max(2,Math.max(b.w,b.h)*.35);ctx.save();ctx.strokeStyle=selected?'#b3261e':manual?'#188038':'#1967d2';ctx.fillStyle=ctx.strokeStyle;ctx.lineWidth=selected?Math.max(2,displaySourceCanvas.width/800):manual?Math.max(1,displaySourceCanvas.width/1400):Math.max(1.5,displaySourceCanvas.width/1000);if(selected){ctx.fillStyle='rgba(179,38,30,.16)';ctx.fillRect(b.x-pad,b.y-pad,b.w+pad*2,b.h+pad*2);}ctx.strokeRect(b.x-pad,b.y-pad,b.w+pad*2,b.h+pad*2);const fontPx=manual?Math.max(9,b.h*.72):Math.max(14,b.h*.8);ctx.fillStyle=selected?'#b3261e':manual?'#188038':'#1967d2';ctx.font=`${fontPx}px system-ui`;ctx.fillText(item.number,b.x,Math.max(fontPx,b.y-pad-3));ctx.restore();}const r=selectionBounds();if(r){ctx.save();ctx.strokeStyle='#b3261e';ctx.fillStyle='rgba(179,38,30,.08)';ctx.lineWidth=Math.max(1.5,displaySourceCanvas.width/1000);ctx.setLineDash([8,5]);ctx.fillRect(r.x1*DISPLAY_COORD_SCALE,r.y1*DISPLAY_COORD_SCALE,(r.x2-r.x1)*DISPLAY_COORD_SCALE,(r.y2-r.y1)*DISPLAY_COORD_SCALE);ctx.strokeRect(r.x1*DISPLAY_COORD_SCALE,r.y1*DISPLAY_COORD_SCALE,(r.x2-r.x1)*DISPLAY_COORD_SCALE,(r.y2-r.y1)*DISPLAY_COORD_SCALE);ctx.restore();}summary.hidden=false;summary.textContent=`候補 ${candidates.length}件（OCR ${candidates.filter(x=>x.source==='ocr').length} / 手動 ${candidates.filter(x=>x.source==='manual').length}）`;saveButton.disabled=busy||!candidates.length;resetButton.disabled=busy||!originalCandidates.length;updateBulkDelete();updateState();}
+  async function responseBlob(url){const r=await fetch(url);if(!r.ok)throw new Error((await r.text())||'PDF画像を取得できませんでした。');return r.blob();}
+  function blobToImage(blob){return new Promise((resolve,reject)=>{const objectUrl=URL.createObjectURL(blob);const img=new Image();img.onload=()=>{URL.revokeObjectURL(objectUrl);resolve(img);};img.onerror=()=>{URL.revokeObjectURL(objectUrl);reject(new Error('PDF画像を表示できませんでした。'));};img.src=objectUrl;});}
+  async function setDisplayFromBlob(blob){const img=await blobToImage(blob);const scale=DISPLAY_LONG_EDGE/Math.max(img.naturalWidth,img.naturalHeight);displaySourceCanvas.width=Math.max(1,Math.round(img.naturalWidth*scale));displaySourceCanvas.height=Math.max(1,Math.round(img.naturalHeight*scale));const ctx=displaySourceCanvas.getContext('2d');ctx.clearRect(0,0,displaySourceCanvas.width,displaySourceCanvas.height);ctx.drawImage(img,0,0,displaySourceCanvas.width,displaySourceCanvas.height);}
+  async function renderDisplay(pageNumber){const blob=await responseBlob(`${pdfiumPageUrl}?page=${pageNumber}&longEdge=${DISPLAY_LONG_EDGE}&format=png`);await setDisplayFromBlob(blob);}
+  async function loadNumberMap(pageNumber){const r=await fetch(`${numberMapUrl}?page=${pageNumber}`);const data=await r.json();if(!r.ok)throw new Error(data.error||'番号マップを取得できませんでした。');return data;}
+  function confirmLeave(){return !dirty||confirm('OCRまたは番号配置の変更をまだ保存していません。保存せずページを移動しますか？');}
+  function setupThumbnails(){thumbs.innerHTML='';if(thumbObserver)thumbObserver.disconnect();thumbObserver='IntersectionObserver' in window?new IntersectionObserver(entries=>{for(const entry of entries){if(entry.isIntersecting){const img=entry.target.querySelector('img');if(img&&img.dataset.src&&!img.src)img.src=img.dataset.src;}}},{root:thumbs,rootMargin:'0px 120px'}):null;for(let p=1;p<=pageCount;p++){const button=document.createElement('button');button.type='button';button.className='thumb';button.dataset.page=String(p);const src=`${pdfiumPageUrl}?page=${p}&longEdge=360&format=jpeg`;button.innerHTML=`<img alt="P${p} サムネイル" data-src="${src}"><span>P${p}</span>`;button.addEventListener('click',()=>loadPage(p));thumbs.appendChild(button);if(thumbObserver)thumbObserver.observe(button);}if(!thumbObserver){ensureThumbLoaded(1);if(pageCount>1)ensureThumbLoaded(2);}updateThumbActive();}
+
+  async function loadPage(pageNumber){if(!pageCount||busy)return;if(!confirmLeave())return;const n=Math.max(1,Math.min(pageCount,Number(pageNumber)||1));pageInput.value=n;clearSelection();updateThumbActive();setBusy(true);status.className='status';status.textContent=`${n} / ${pageCount} ページを読み込み中…`;try{const [data]=await Promise.all([loadNumberMap(n),renderDisplay(n)]);candidates=(data.candidates||[]).map(x=>({id:nextId++,...x,bbox:{...x.bbox}}));originalCandidates=clone(candidates);savedPage=Boolean(data.saved);dirty=false;draw();ocrButton.textContent=data.saved?'再OCR':'OCR実行';status.textContent=data.saved?`保存済み番号マップを復元しました（${candidates.length}件） / 回転 ${rotation}°`:`${n} / ${pageCount} ページ。未処理です。OCR実行してください。 / 回転 ${rotation}°`;}catch(e){status.className='status error';status.textContent=e.message;}finally{setBusy(false);}}
+  async function runOcr(){if(!pageCount||busy)return;const n=Number(pageInput.value);clearSelection();setBusy(true);status.className='status';status.textContent='サーバー側で6,000px画像を生成しGoogle Vision OCRを実行中…';try{const r=await fetch(projectOcrUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pageNumber:n})});const data=await r.json();if(!r.ok)throw new Error(data.error||'OCRに失敗しました。');candidates=(data.candidates||[]).map(x=>({id:nextId++,...x,bbox:{...x.bbox}}));originalCandidates=clone(candidates);dirty=true;draw();status.textContent=`OCR完了：候補 ${candidates.length}件。青枠を確認・補正して確定保存してください。`;}catch(e){status.className='status error';status.textContent=e.message;}finally{setBusy(false);}}
+  function deleteSelected(){if(busy||!selectedIds.size)return;const count=selectedIds.size;candidates=candidates.filter(item=>!selectedIds.has(item.id));clearSelection();dirty=true;draw();status.className='status';status.textContent=`${count}件を選択削除しました。確定保存するまでDBには反映されません。`;}
+
+  canvas.addEventListener('pointerdown',e=>{if(busy||e.pointerType!=='mouse'||e.button!==0||!e.shiftKey||!displaySourceCanvas.width)return;e.preventDefault();selectionStart=point(e);selectionCurrent=selectionStart;selectionPointerId=e.pointerId;selectedIds.clear();canvas.setPointerCapture(e.pointerId);refreshSelection();draw();});
+  canvas.addEventListener('pointermove',e=>{if(selectionPointerId!==e.pointerId||!selectionStart)return;e.preventDefault();selectionCurrent=point(e);refreshSelection();draw();});
+  canvas.addEventListener('pointerup',e=>{if(selectionPointerId!==e.pointerId||!selectionStart)return;e.preventDefault();selectionCurrent=point(e);refreshSelection();if(canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId);selectionStart=null;selectionCurrent=null;selectionPointerId=null;suppressNextClick=true;draw();status.className='status';status.textContent=selectedIds.size?`${selectedIds.size}件を選択しました。「選択削除」またはDeleteキーで削除できます。`:'範囲内に候補はありませんでした。';});
+  canvas.addEventListener('pointercancel',e=>{if(selectionPointerId!==e.pointerId)return;clearSelection();draw();});
+  canvas.addEventListener('click',e=>{if(suppressNextClick){suppressNextClick=false;return;}if(busy||!displaySourceCanvas.width)return;clearSelection();const p=point(e),hit=findAt(p);if(hit){const value=prompt('番号・記号を変更します。空欄で削除します。',hit.number);if(value===null)return;const t=String(value).trim();if(!t){candidates=candidates.filter(x=>x.id!==hit.id);dirty=true;draw();return;}const label=normalizeLabel(t);if(!label){alert('数字、丸数字、またはF1 / S2 / A-12等の英数字で入力してください。');return;}hit.number=label;dirty=true;draw();return;}const value=prompt('この位置に追加する番号・記号（例: 12、①、F1、S2）を入力してください。');if(value===null||!String(value).trim())return;const label=normalizeLabel(value);if(!label){alert('数字、丸数字、またはF1 / S2 / A-12等の英数字で入力してください。');return;}candidates.push({id:nextId++,number:label,source:'manual',bbox:autoManualBox(p,label)});dirty=true;draw();});
+  rotateButton.onclick=()=>{if(busy||!displaySourceCanvas.width)return;clearSelection();rotation=(rotation+90)%360;rotateButton.textContent=`↻ ${rotation}°`;draw();status.className='status';status.textContent=`表示を${rotation}°回転しました。この角度はページ移動後も維持します。`;};
+  bulkDeleteButton.onclick=deleteSelected;
+  document.addEventListener('keydown',e=>{if(e.key==='Delete'&&selectedIds.size&&!busy){e.preventDefault();deleteSelected();}});
+
+  saveButton.onclick=async()=>{if(busy||!candidates.length)return;setBusy(true);status.className='status';status.textContent='番号配置を保存中…';try{const r=await fetch(numberMapUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pageNumber:Number(pageInput.value),candidates:candidates.map(({number,source,bbox})=>({number,source,bbox}))})});const data=await r.json();if(!r.ok)throw new Error(data.error||'保存に失敗しました。');originalCandidates=clone(candidates);savedPage=true;dirty=false;clearSelection();ocrButton.textContent='再OCR';updateState();status.textContent=`番号配置を保存しました（${data.count}件）`;}catch(e){status.className='status error';status.textContent=e.message;}finally{setBusy(false);}};
+  resetButton.onclick=()=>{candidates=clone(originalCandidates);clearSelection();dirty=false;draw();status.className='status';status.textContent='読込時の番号配置へ戻しました。';};
+  prev.onclick=()=>loadPage(Number(pageInput.value)-1);next.onclick=()=>loadPage(Number(pageInput.value)+1);pageInput.onchange=()=>loadPage(pageInput.value);ocrButton.onclick=runOcr;
+
+  fetch(pdfiumInfoUrl,{cache:'no-store'}).then(async r=>{const data=await r.json();if(!r.ok)throw new Error(data.error||'PDF情報を取得できませんでした。');pageCount=Number(data.pageCount)||0;if(!pageCount)throw new Error('PDFのページ数を取得できませんでした。');pageInput.max=pageCount;setupThumbnails();return loadPage(1);}).catch(e=>{status.className='status error';status.textContent=`PDFを読み込めませんでした: ${e.message}`;});
+})();
+</script>
+<script>
+(() => {
+  const projectId={{ project_id | tojson }};
+  const rotationKey=`weldDrawingRotation:${projectId}`;
+  const rotateButton=document.getElementById('rotate');
+  const canvas=document.getElementById('canvas');
+  const normalizeThumbs=()=>{
+    document.querySelectorAll('#thumbs img[data-src]').forEach(img=>{
+      const fixed=img.dataset.src.replace(/longEdge=(?:320|360)/,'longEdge=500');
+      if(fixed!==img.dataset.src){img.dataset.src=fixed;if(img.getAttribute('src'))img.src=fixed;}
+      img.loading='lazy';img.decoding='async';
+    });
+  };
+  const thumbObserver=new MutationObserver(normalizeThumbs);
+  thumbObserver.observe(document.documentElement,{subtree:true,childList:true});
+  normalizeThumbs();
+  const saveRotation=()=>{const match=rotateButton?.textContent?.match(/(0|90|180|270)/);if(match){try{localStorage.setItem(rotationKey,match[1]);}catch(_e){}}};
+  if(rotateButton)rotateButton.addEventListener('click',saveRotation);
+  let stored=0;try{stored=Number(localStorage.getItem(rotationKey)||0);}catch(_e){}
+  if(![0,90,180,270].includes(stored)||stored===0)return;
+  const apply=()=>{if(!canvas||canvas.width<=0||!rotateButton||rotateButton.disabled)return false;for(let i=0;i<stored/90;i++)rotateButton.click();return true;};
+  if(apply())return;
+  const readyObserver=new MutationObserver(()=>{if(apply())readyObserver.disconnect();});
+  if(canvas)readyObserver.observe(canvas,{attributes:true,attributeFilter:['width','height']});
+  if(rotateButton)readyObserver.observe(rotateButton,{attributes:true,attributeFilter:['disabled']});
+})();
+</script>
+</body>
+</html>

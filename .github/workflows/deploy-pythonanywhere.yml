@@ -1,0 +1,161 @@
+name: Deploy weld app to PythonAnywhere
+
+on:
+  push:
+    branches:
+      - feature/deploy-automation
+      - feature/google-vision-ocr
+      - feature/manual-number-map-editor
+      - feature/drawing-region-ocr
+      - feature/highres-single-ocr
+      - feature/manual-number-correction-ui
+      - feature/always-edit-entry-ui
+      - feature/save-number-map
+      - feature/weld-progress-entry
+      - feature/project-pdf-registration-safe
+      - feature/project-delete
+      - feature/project-entry-after-delete
+      - feature/project-entry-ocr
+      - feature/project-entry-auto-area
+      - feature/project-entry-fast-display
+      - feature/project-entry-adaptive-area
+      - feature/pdfium-project-entry
+      - feature/pdfium-cache-server-ocr-v2
+      - feature/ocr-label-candidates
+      - feature/project-progress-input
+      - feature/project-progress-local-zoom
+      - feature/progress-compact-viewer-ui
+      - fix/entry-hit-area-v2
+      - feature/entry-bulk-delete
+      - fix/rotation-thumbnail-stability
+      - fix/persistent-rotation-async-thumbs
+      - feature/thumbnail-grid-view
+      - fix/thumbnail-grid-performance
+      - fix/progress-empty-and-rotated-thumbs
+      - feature/page-favorites
+      - feature/global-favorites
+      - fix/progress-nav-favorite-sync
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-pythonanywhere-weld
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Syntax check
+        shell: bash
+        run: python -m py_compile app.py projects.py project_render.py progress.py thumbnail_grid.py global_favorites.py
+
+      - name: OCR label candidate tests
+        shell: bash
+        run: |
+          python - <<'PY'
+          from project_render import extract_label_candidates, normalize_label
+          expected = {"①":"1","㊿":"50","❶":"1","Ｆ１":"F1","S2":"S2","A-12":"A-12","F1-2":"F1-2","12A":"12A"}
+          for raw, normalized in expected.items():
+              assert normalize_label(raw) == normalized, (raw, normalize_label(raw))
+          assert normalize_label("SCALE") is None
+          assert normalize_label("3979") is None
+          words=[{"text":"F","vertices":[{"x":0,"y":0},{"x":10,"y":0},{"x":10,"y":12},{"x":0,"y":12}]},{"text":"1","vertices":[{"x":12,"y":0},{"x":18,"y":0},{"x":18,"y":12},{"x":12,"y":12}]}]
+          labels={item["number"] for item in extract_label_candidates(words)}
+          assert "F1" in labels, labels
+          print("OCR label candidate tests passed")
+          PY
+
+      - name: Verify UI regression guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'id="rotate"' templates/project_entry.html
+          grep -q 'id="thumbs"' templates/project_entry.html
+          grep -q 'IntersectionObserver' templates/project_entry.html
+          grep -q 'rotation=(rotation+90)%360' templates/project_entry.html
+          grep -q 'weldDrawingRotation' templates/project_entry.html
+          grep -q "longEdge=500" templates/project_entry.html
+          grep -q 'weldDrawingRotation' templates/project_progress.html
+          grep -q "longEdge=500" templates/project_progress.html
+          grep -q 'setupProgressThumbnails' progress.py
+          grep -q 'updateProgressThumbActive' progress.py
+          grep -q 'project_progress_list' progress.py
+          grep -q 'project_thumbnail_grid_v2.html' thumbnail_grid.py
+          grep -q 'data-thumbnail-rotation-patch' thumbnail_grid.py
+          grep -q 'data-page-favorites-grid' thumbnail_grid.py
+          grep -q 'data-page-favorite-view' thumbnail_grid.py
+          grep -q 'weldFavoritePages' thumbnail_grid.py
+          grep -q 'goEntryEmpty' thumbnail_grid.py
+          grep -q "canvas.style.display='none'" thumbnail_grid.py
+          grep -q 'data-cols="4"' templates/project_thumbnail_grid_v2.html
+          grep -q 'MAX_CONCURRENT=2' templates/project_thumbnail_grid_v2.html
+          grep -q 'requestIdleCallback' templates/project_thumbnail_grid_v2.html
+          grep -q 'create_global_favorites_blueprint' app.py
+          grep -q '@blueprint.get("/favorites")' global_favorites.py
+          grep -q 'data-global-favorites-launch' global_favorites.py
+          grep -q '図面エントリーへ' global_favorites.py
+          grep -q 'お気に入り一覧' global_favorites.py
+          grep -q 'setInterval(checkPage,200)' global_favorites.py
+          grep -q 'weldFavoritePages' templates/global_favorites.html
+          grep -q '進捗入力' templates/global_favorites.html
+          grep -q 'エントリー' templates/global_favorites.html
+
+      - name: Upload weld app files
+        env:
+          PYTHONANYWHERE_API_TOKEN: ${{ secrets.PYTHONANYWHERE_API_TOKEN }}
+          GOOGLE_VISION_API_KEY: ${{ secrets.GOOGLE_VISION_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          api_base="https://www.pythonanywhere.com/api/v0/user/nakagawach/files/path/home/nakagawach/piping-weld-tracker"
+          upload_file(){ local file="$1"; echo "Uploading ${file}"; curl --fail --silent --show-error --retry 3 --retry-delay 2 -X POST -H "Authorization: Token ${PYTHONANYWHERE_API_TOKEN}" -F "content=@${file}" "${api_base}/${file}"; }
+          upload_file "app.py"
+          upload_file "projects.py"
+          upload_file "project_render.py"
+          upload_file "progress.py"
+          upload_file "thumbnail_grid.py"
+          upload_file "global_favorites.py"
+          upload_file "requirements.txt"
+          while IFS= read -r -d '' file; do upload_file "$file"; done < <(find templates -type f -print0)
+          if [ -d static ]; then while IFS= read -r -d '' file; do upload_file "$file"; done < <(find static -type f -print0); fi
+          if [ -z "${GOOGLE_VISION_API_KEY:-}" ]; then echo "GOOGLE_VISION_API_KEY secret is not configured."; exit 1; fi
+          printf 'GOOGLE_VISION_API_KEY=%s\n' "$GOOGLE_VISION_API_KEY" > .env
+          upload_file ".env"
+
+      - name: Reload PythonAnywhere web app
+        env:
+          PYTHONANYWHERE_API_TOKEN: ${{ secrets.PYTHONANYWHERE_API_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 3 --retry-delay 2 -X POST -H "Authorization: Token ${PYTHONANYWHERE_API_TOKEN}" "https://www.pythonanywhere.com/api/v0/user/nakagawach/webapps/nakagawach.pythonanywhere.com/reload/"
+
+      - name: Smoke test weld app
+        shell: bash
+        run: |
+          set -euo pipefail
+          fetch_text(){ curl --fail --silent --show-error --location --max-time 20 "$1" || true; }
+          for attempt in 1 2 3 4 5 6; do
+            projects_json=$(fetch_text "https://nakagawach.pythonanywhere.com/weld/projects")
+            project_id=$(printf '%s' "$projects_json" | python -c 'import json,sys; d=json.load(sys.stdin); p=d.get("projects",[]); print(7 if any(x.get("id")==7 for x in p) else (p[0]["id"] if p else ""))' 2>/dev/null || true)
+            [ -n "$project_id" ] || { echo "No project id"; sleep 5; continue; }
+            projects_screen=$(fetch_text "https://nakagawach.pythonanywhere.com/weld/projects-screen")
+            favorites=$(fetch_text "https://nakagawach.pythonanywhere.com/weld/favorites")
+            entry=$(fetch_text "https://nakagawach.pythonanywhere.com/weld/projects/${project_id}/entry")
+            progress=$(fetch_text "https://nakagawach.pythonanywhere.com/weld/projects/${project_id}/progress")
+            list=$(fetch_text "https://nakagawach.pythonanywhere.com/weld/projects/${project_id}/progress-list")
+            grid=$(fetch_text "https://nakagawach.pythonanywhere.com/weld/projects/${project_id}/thumbnails?source=progress&page=1")
+            thumb_ok=true
+            for p in 1 2 3; do
+              if ! curl --fail --silent --show-error --location --max-time 30 "https://nakagawach.pythonanywhere.com/weld/projects/${project_id}/pdfium-page?page=${p}&longEdge=500&format=jpeg" --output /dev/null; then thumb_ok=false; break; fi
+            done
+            if [[ "$projects_screen" == *'data-global-favorites-launch'* ]] && [[ "$favorites" == *'お気に入りページ'* ]] && [[ "$favorites" == *'weldFavoritePages'* ]] && [[ "$favorites" == *'longEdge=500'* ]] && [[ "$entry" == *'data-thumbnail-grid-launch'* ]] && [[ "$entry" == *'data-page-favorite-view'* ]] && [[ "$entry" == *'data-global-favorites-launch'* ]] && [[ "$progress" == *'data-page-favorite-view'* ]] && [[ "$progress" == *'data-global-favorites-launch'* ]] && [[ "$progress" == *'図面エントリーへ'* ]] && [[ "$progress" == *'setInterval(checkPage,200)'* ]] && [[ "$progress" == *'data-progress-empty-patch'* ]] && [[ "$progress" == *'goEntryEmpty'* ]] && [[ "$progress" == *"canvas.style.display='none'"* ]] && [[ "$grid" == *'data-thumbnail-rotation-patch'* ]] && [[ "$grid" == *'data-page-favorites-grid'* ]] && [[ "$grid" == *'data-global-favorites-launch'* ]] && [[ "$list" == *"進捗一覧"* ]] && [ "$thumb_ok" = true ]; then echo "Smoke test passed."; exit 0; fi
+            echo "Smoke test attempt ${attempt} failed thumb=$thumb_ok"; sleep 5
+          done
+          exit 1

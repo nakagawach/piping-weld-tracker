@@ -1,0 +1,117 @@
+import os
+from pathlib import Path
+from urllib.parse import urljoin
+
+from playwright.sync_api import expect, sync_playwright
+
+
+BASE_URL = os.environ.get("PUBLIC_BASE_URL", "https://nakagawach.pythonanywhere.com/weld").rstrip("/")
+PROJECT_ID = int(os.environ.get("PUBLIC_PROJECT_ID", "7"))
+SHOT_DIR = Path("artifacts/public-ui")
+
+
+def expect_back(page, expected_url, label):
+    back = page.locator(".ui3-appbar .ui3-back")
+    expect(back).to_have_count(1)
+    expect(back).to_be_visible()
+    expect(back).to_have_attribute("aria-label", label)
+    href = back.get_attribute("href")
+    assert href, "back link has no href"
+    actual = urljoin(page.url, href)
+    assert actual == expected_url, (actual, expected_url, href)
+    box = back.bounding_box()
+    assert box and box["height"] >= 44, box
+
+
+def shot(page, name):
+    SHOT_DIR.mkdir(parents=True, exist_ok=True)
+    page.screenshot(path=str(SHOT_DIR / name), full_page=False)
+
+
+def main():
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page(viewport={"width": 390, "height": 844})
+
+        page.goto(f"{BASE_URL}/projects-screen", wait_until="domcontentloaded", timeout=30000)
+        expect(page.locator(".header.ui3-root")).to_be_visible()
+        expect(page.locator("#new-project")).to_be_visible()
+        expect(page.locator("[data-ui3-favorites]")).to_be_visible()
+        expect(page.get_by_text("サンプル工事（既存テストデータ）")).to_have_count(0)
+        expect(page.locator("#open-current")).to_have_count(0)
+        shot(page, "01-projects.png")
+
+        page.goto(f"{BASE_URL}/projects/{PROJECT_ID}/progress?page=1", wait_until="domcontentloaded", timeout=30000)
+        expect(page.locator("[data-ui3-header='progress']")).to_be_visible()
+        expect_back(page, f"{BASE_URL}/projects-screen", "工事一覧へ")
+        expect(page.locator("main > .top")).not_to_be_visible()
+        expect(page.locator("#backCompact")).to_have_count(0)
+        expect(page.locator("#thumbnailGridButton")).to_be_visible(timeout=7000)
+        expect(page.locator("[aria-label='進捗一覧']")).to_be_visible(timeout=7000)
+        expect(page.locator(".page-favorite-view")).to_be_visible(timeout=7000)
+        pages_box = page.locator(".ui3-pages").bounding_box()
+        drawing_box = page.locator(".ui3-drawing").bounding_box()
+        toolbar_box = page.locator(".toolbar").bounding_box()
+        assert pages_box and drawing_box and toolbar_box
+        assert pages_box["x"] < drawing_box["x"], (pages_box, drawing_box)
+        assert drawing_box["x"] + drawing_box["width"] >= toolbar_box["x"] + toolbar_box["width"] - 12, (drawing_box, toolbar_box)
+        shot(page, "02-progress.png")
+
+        page.locator("#thumbnailGridButton").click()
+        page.wait_for_url(f"**/weld/projects/{PROJECT_ID}/thumbnails?source=progress&page=1", timeout=30000)
+        expect(page.locator("[data-ui3-header='thumbnails']")).to_be_visible()
+        expect_back(page, f"{BASE_URL}/projects/{PROJECT_ID}/progress?page=1", "進捗へ")
+        shot(page, "03-thumbnails.png")
+        page.locator(".ui3-appbar .ui3-back").click()
+        page.wait_for_url(f"**/weld/projects/{PROJECT_ID}/progress?page=1", timeout=30000)
+
+        page.locator("[aria-label='進捗一覧']").click()
+        page.wait_for_url(f"**/weld/projects/{PROJECT_ID}/progress-list", timeout=30000)
+        expect(page.locator("[data-ui3-header='progress-list']")).to_be_visible()
+        expect_back(page, f"{BASE_URL}/projects/{PROJECT_ID}/progress?page=1", "進捗へ")
+        shot(page, "04-progress-list.png")
+
+        page.goto(f"{BASE_URL}/projects/{PROJECT_ID}/entry?page=1", wait_until="domcontentloaded", timeout=30000)
+        expect(page.locator("[data-ui3-header='entry']")).to_be_visible()
+        expect_back(page, f"{BASE_URL}/projects-screen", "工事一覧へ")
+        expect(page.locator("#thumbnailGridButton")).to_be_visible(timeout=7000)
+        expect(page.locator(".page-favorite-view")).to_be_visible(timeout=7000)
+        shot(page, "05-entry.png")
+        overflow = page.locator(".ui3-entry-more > summary")
+        overflow.click()
+        expect(page.locator(".ui3-entry-more #reset")).to_be_visible()
+        expect(page.locator(".ui3-entry-more #bulkDelete")).to_be_visible()
+        expect(page.locator(".ui3-entry-more [data-go-favorites]")).to_be_visible(timeout=7000)
+        shot(page, "06-entry-menu.png")
+        overflow.click()
+
+        page.locator("#thumbnailGridButton").click()
+        page.wait_for_url(f"**/weld/projects/{PROJECT_ID}/thumbnails?source=entry&page=1", timeout=30000)
+        expect_back(page, f"{BASE_URL}/projects/{PROJECT_ID}/entry?page=1", "エントリーへ")
+
+        page.goto(f"{BASE_URL}/projects/{PROJECT_ID}/progress?page=1&viewer=1", wait_until="domcontentloaded", timeout=30000)
+        expect(page.locator("html.weld-viewer-v3")).to_have_count(1)
+        expect(page.locator(".ui3-appbar")).to_have_count(0)
+        expect(page.locator(".weld-viewer-controls")).to_be_visible()
+        expect(page.locator(".weld-viewer-controls [aria-label='90度回転']")).to_be_visible()
+        close_viewer = page.locator(".weld-viewer-controls [aria-label='図面集中表示を終了']")
+        expect(close_viewer).to_be_visible()
+        shot(page, "07-viewer.png")
+        close_viewer.click()
+        page.wait_for_url(f"**/weld/projects/{PROJECT_ID}/progress?page=1", timeout=30000)
+
+        page.goto(f"{BASE_URL}/favorites", wait_until="domcontentloaded", timeout=30000)
+        expect(page.locator("[data-ui3-header='favorites']")).to_be_visible()
+        expect_back(page, f"{BASE_URL}/projects-screen", "工事一覧へ")
+        expect(page.locator(".columns [data-cols]")).to_have_count(4)
+        page.locator(".columns [data-cols='4']").click()
+        expect(page.locator(".columns [data-cols='4']")).to_have_class("active")
+        assert page.locator("#grid").evaluate("el => el.style.getPropertyValue('--cols')") == "4"
+        shot(page, "08-favorites.png")
+
+        browser.close()
+    print("Public UI shell browser regression: PASS")
+
+
+if __name__ == "__main__":
+    main()

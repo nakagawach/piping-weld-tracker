@@ -1,0 +1,73 @@
+name: Deploy rotation stability test
+
+on:
+  push:
+    branches:
+      - fix/rotation-thumbnail-stability
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-stability:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Syntax and regression guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile app.py projects.py project_render.py progress.py
+          grep -q 'id="rotate"' templates/project_entry.html
+          grep -q 'id="thumbs"' templates/project_entry.html
+          grep -q 'IntersectionObserver' templates/project_entry.html
+          grep -q 'setupProgressThumbnails' progress.py
+          grep -q 'updateProgressThumbActive' progress.py
+          grep -q "new_load_start = \"pageInput.value=n;updateProgressThumbActive();setBusy(true);drawingZoom=1;" progress.py
+          grep -q 'project_progress_list' progress.py
+
+      - name: Upload application files
+        env:
+          PYTHONANYWHERE_API_TOKEN: ${{ secrets.PYTHONANYWHERE_API_TOKEN }}
+          GOOGLE_VISION_API_KEY: ${{ secrets.GOOGLE_VISION_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          api_base="https://www.pythonanywhere.com/api/v0/user/nakagawach/files/path/home/nakagawach/piping-weld-tracker"
+          upload_file() { curl --fail --silent --show-error --retry 3 --retry-delay 2 -X POST -H "Authorization: Token ${PYTHONANYWHERE_API_TOKEN}" -F "content=@$1" "${api_base}/$1"; }
+          upload_file app.py
+          upload_file projects.py
+          upload_file project_render.py
+          upload_file progress.py
+          upload_file requirements.txt
+          while IFS= read -r -d '' file; do upload_file "$file"; done < <(find templates -type f -print0)
+          if [ -d static ]; then while IFS= read -r -d '' file; do upload_file "$file"; done < <(find static -type f -print0); fi
+          printf 'GOOGLE_VISION_API_KEY=%s\n' "$GOOGLE_VISION_API_KEY" > .env
+          upload_file .env
+
+      - name: Reload PythonAnywhere
+        env:
+          PYTHONANYWHERE_API_TOKEN: ${{ secrets.PYTHONANYWHERE_API_TOKEN }}
+        shell: bash
+        run: |
+          curl --fail --silent --show-error --retry 3 --retry-delay 2 -X POST -H "Authorization: Token ${PYTHONANYWHERE_API_TOKEN}" "https://www.pythonanywhere.com/api/v0/user/nakagawach/webapps/nakagawach.pythonanywhere.com/reload/"
+
+      - name: Smoke test deployed pages
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3 4 5 6; do
+            entry=$(curl --fail --silent --show-error --location --max-time 20 "https://nakagawach.pythonanywhere.com/weld/projects/7/entry" || true)
+            progress=$(curl --fail --silent --show-error --location --max-time 20 "https://nakagawach.pythonanywhere.com/weld/projects/7/progress" || true)
+            list=$(curl --fail --silent --show-error --location --max-time 20 "https://nakagawach.pythonanywhere.com/weld/projects/7/progress-list" || true)
+            if [[ "$entry" == *'id="thumbs"'* ]] && [[ "$entry" == *'IntersectionObserver'* ]] && [[ "$entry" == *'回転角はページを移動しても維持'* ]] && [[ "$progress" == *'id="progressThumbs"'* ]] && [[ "$progress" == *'updateProgressThumbActive'* ]] && [[ "$list" == *'進捗一覧'* ]]; then
+              echo "Rotation stability smoke test passed."
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Rotation stability smoke test failed."
+          exit 1

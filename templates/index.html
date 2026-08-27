@@ -5,34 +5,531 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>溶接進捗管理</title>
   <style>
-    body {
-      margin: 0;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: #f5f6f8;
-      color: #202124;
-    }
-    main {
-      max-width: 720px;
-      margin: 0 auto;
-      padding: 48px 20px;
-    }
-    .card {
-      background: #fff;
-      border: 1px solid #ddd;
-      border-radius: 12px;
-      padding: 28px;
-    }
-    h1 { margin-top: 0; }
+    body { margin: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f6f8; color: #202124; }
+    main { max-width: 1200px; margin: 0 auto; padding: 24px 16px 40px; }
+    .card { background: #fff; border: 1px solid #ddd; border-radius: 12px; padding: 20px; }
+    h1 { margin: 0 0 8px; }
+    h2 { margin: 26px 0 8px; font-size: 1.2rem; }
     p { line-height: 1.7; }
+    .pdf-frame { width: 100%; height: 760px; border: 1px solid #ccc; border-radius: 8px; background: #eee; }
+    .fallback { margin-top: 12px; }
+    .fallback a { color: #0b57d0; }
+    .detect-panel { margin-top: 22px; padding-top: 4px; border-top: 1px solid #e0e0e0; }
+    .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
+    label { display: grid; gap: 6px; }
+    input[type="number"] { width: 90px; min-height: 40px; padding: 0 10px; border: 1px solid #b7b7b7; border-radius: 8px; font: inherit; }
+    input[type="date"], select, textarea { box-sizing: border-box; width: 100%; padding: 9px 10px; border: 1px solid #b7b7b7; border-radius: 8px; font: inherit; background: #fff; }
+    textarea { min-height: 110px; resize: vertical; }
+    button { min-height: 44px; padding: 0 18px; border: 1px solid #b7b7b7; border-radius: 8px; background: #fff; color: #202124; font: inherit; cursor: pointer; }
+    button.primary { border-color: #1967d2; background: #1967d2; color: #fff; font-weight: 700; }
+    button:disabled { cursor: wait; opacity: 0.55; }
+    #ocr-status { min-height: 1.5em; margin: 12px 0; }
+    .preview-wrap { margin-top: 12px; overflow: auto; max-height: 760px; border: 1px solid #ddd; border-radius: 8px; background: #fff; }
+    #preview-canvas { display: block; max-width: 100%; height: auto; cursor: pointer; touch-action: manipulation; }
+    .result-wrap { overflow-x: auto; margin-top: 12px; max-height: 420px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th, td { padding: 7px 9px; border-bottom: 1px solid #e2e2e2; text-align: left; white-space: nowrap; }
+    th { position: sticky; top: 0; background: #f7f7f7; }
+    .candidate { font-weight: 700; }
+    .summary { margin-top: 12px; padding: 12px; border-radius: 8px; background: #f7f8fa; }
+    .note { color: #5f6368; font-size: 0.9rem; }
+    dialog { width: min(520px, calc(100vw - 32px)); border: 0; border-radius: 12px; padding: 0; box-shadow: 0 10px 36px rgba(0,0,0,.25); }
+    dialog::backdrop { background: rgba(0,0,0,.35); }
+    .dialog-body { padding: 20px; }
+    .dialog-body h3 { margin: 0 0 16px; }
+    .dialog-fields { display: grid; gap: 14px; }
+    .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+    .mode-badge { font-weight: 700; }
+    @media (max-width: 700px) { .pdf-frame { height: 560px; } }
   </style>
 </head>
 <body>
-  <main>
-    <section class="card">
-      <h1>溶接進捗管理</h1>
-      <p>PythonAnywhere + Flask の初期接続テストです。</p>
-      <p>次の段階で、配管アイソメ図PDFの表示と溶接番号検出を追加します。</p>
-    </section>
-  </main>
+<main><section class="card">
+  <h1>溶接進捗管理</h1>
+  <p>PythonAnywhere内に保存したPDFを表示しています。</p>
+  <iframe class="pdf-frame" src="{{ url_for('static', filename='sample.pdf') }}" title="配管図サンプルPDF"></iframe>
+  <p class="fallback">PDFが枠内に表示されない場合は <a href="{{ url_for('static', filename='sample.pdf') }}" target="_blank" rel="noopener noreferrer">新しいタブでPDFを開く</a> を使ってください。</p>
+
+  <section class="detect-panel" aria-labelledby="ocr-title">
+    <h2 id="ocr-title">溶接進捗入力テスト（6,000px基準）</h2>
+    <p>保存済み番号マップはそのまま利用します。番号配置が確定したページでは、図面上の番号をクリックして施工状態・完了日・作業内容を入力できます。</p>
+    <div class="controls">
+      <label>対象ページ<input id="page-number" type="number" min="1" value="1" inputmode="numeric"></label>
+      <button id="ocr-button" type="button">再OCR</button>
+      <button id="reset-button" type="button" disabled>読込時に戻す</button>
+      <button id="save-button" class="primary" type="button" disabled>番号配置を確定保存</button>
+      <button id="mode-button" type="button" disabled>番号配置を編集</button>
+    </div>
+    <p id="ocr-status" aria-live="polite">保存済みデータを確認します…</p>
+    <div class="summary" id="candidate-summary" hidden></div>
+    <div class="preview-wrap" id="preview-wrap" hidden><canvas id="preview-canvas"></canvas></div>
+    <div class="result-wrap">
+      <table id="candidate-table" hidden>
+        <thead><tr><th>由来</th><th>番号</th><th>状態</th><th>X</th><th>Y</th></tr></thead>
+        <tbody id="candidate-body"></tbody>
+      </table>
+    </div>
+    <div class="result-wrap">
+      <table id="ocr-table" hidden>
+        <thead><tr><th>種別</th><th>文字</th><th>X</th><th>Y</th><th>幅</th><th>高さ</th></tr></thead>
+        <tbody id="ocr-body"></tbody>
+      </table>
+    </div>
+    <p class="note"><span class="mode-badge" id="mode-label">番号配置編集</span>。番号配置を確定保存すると施工入力モードへ切り替わります。施工入力モードでは番号をクリックすると状態・完了日・作業内容を保存できます。</p>
+  </section>
+</section></main>
+
+<dialog id="progress-dialog">
+  <form id="progress-form" method="dialog" class="dialog-body">
+    <h3 id="progress-title">施工情報</h3>
+    <div class="dialog-fields">
+      <label>状態
+        <select id="progress-status">
+          <option value="未着手">未着手</option>
+          <option value="施工中">施工中</option>
+          <option value="完了">完了</option>
+        </select>
+      </label>
+      <label>完了日<input id="progress-date" type="date"></label>
+      <label>作業内容<textarea id="progress-detail" maxlength="1000" placeholder="何を実施したかを入力"></textarea></label>
+    </div>
+    <div class="dialog-actions">
+      <button id="progress-cancel" type="button">キャンセル</button>
+      <button id="progress-save" class="primary" type="submit">保存</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+(() => {
+  const pdfUrl = {{ url_for('static', filename='sample.pdf') | tojson }};
+  const ocrUrl = {{ url_for('ocr') | tojson }};
+  const numberMapUrl = {{ url_for('get_number_map') | tojson }};
+  const saveNumberMapUrl = {{ url_for('save_number_map') | tojson }};
+  const progressUrl = {{ url_for('get_weld_progress') | tojson }};
+  const saveProgressUrl = {{ url_for('save_weld_progress') | tojson }};
+
+  const pageInput = document.getElementById('page-number');
+  const ocrButton = document.getElementById('ocr-button');
+  const resetButton = document.getElementById('reset-button');
+  const saveButton = document.getElementById('save-button');
+  const modeButton = document.getElementById('mode-button');
+  const modeLabel = document.getElementById('mode-label');
+  const status = document.getElementById('ocr-status');
+  const previewWrap = document.getElementById('preview-wrap');
+  const canvas = document.getElementById('preview-canvas');
+  const candidateSummary = document.getElementById('candidate-summary');
+  const candidateTable = document.getElementById('candidate-table');
+  const candidateBody = document.getElementById('candidate-body');
+  const ocrTable = document.getElementById('ocr-table');
+  const ocrBody = document.getElementById('ocr-body');
+  const sourceCanvas = document.createElement('canvas');
+
+  const progressDialog = document.getElementById('progress-dialog');
+  const progressForm = document.getElementById('progress-form');
+  const progressTitle = document.getElementById('progress-title');
+  const progressStatus = document.getElementById('progress-status');
+  const progressDate = document.getElementById('progress-date');
+  const progressDetail = document.getElementById('progress-detail');
+  const progressCancel = document.getElementById('progress-cancel');
+
+  let pdfDocument = null;
+  let words = [];
+  let originalCandidates = [];
+  let candidates = [];
+  let nextId = 1;
+  let currentPageNumber = 1;
+  let editMode = true;
+  let currentProgressTarget = null;
+  let progressByPosition = new Map();
+
+  if (!window.pdfjsLib) {
+    status.textContent = 'PDF解析ライブラリを読み込めませんでした。';
+    ocrButton.disabled = true;
+    saveButton.disabled = true;
+    return;
+  }
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+  function normalizedNumber(text) {
+    const valueText = String(text || '').trim();
+    if (!/^\d{1,2}$/.test(valueText)) return null;
+    const value = Number(valueText);
+    return value >= 1 && value <= 99 ? String(value) : null;
+  }
+
+  function bboxFromVertices(vertices) {
+    const xs = vertices.map(v => Number(v.x) || 0);
+    const ys = vertices.map(v => Number(v.y) || 0);
+    if (!xs.length || !ys.length) return null;
+    const minX = Math.min(...xs), maxX = Math.max(...xs);
+    const minY = Math.min(...ys), maxY = Math.max(...ys);
+    return { x: minX, y: minY, w: Math.max(1, maxX - minX), h: Math.max(1, maxY - minY) };
+  }
+
+  function cloneCandidates(list) {
+    return list.map(item => ({ ...item, bbox: { ...item.bbox } }));
+  }
+
+  function candidateCenter(item) {
+    return {
+      x: Math.round(item.bbox.x + item.bbox.w / 2),
+      y: Math.round(item.bbox.y + item.bbox.h / 2),
+    };
+  }
+
+  function positionKey(item) {
+    const center = candidateCenter(item);
+    return `${center.x}:${center.y}`;
+  }
+
+  function eventPoint(event) {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: (event.clientX - rect.left) * canvas.width / rect.width,
+      y: (event.clientY - rect.top) * canvas.height / rect.height,
+    };
+  }
+
+  function setMode(nextEditMode) {
+    editMode = nextEditMode;
+    modeLabel.textContent = editMode ? '番号配置編集' : '施工入力';
+    modeButton.textContent = editMode ? '施工入力へ戻る' : '番号配置を編集';
+    saveButton.disabled = !editMode || candidates.length === 0;
+    resetButton.disabled = !editMode || originalCandidates.length === 0;
+    drawCandidates();
+  }
+
+  function drawCandidates() {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(sourceCanvas, 0, 0);
+
+    for (const item of candidates) {
+      const { x, y, w, h } = item.bbox;
+      const pad = Math.max(4, Math.max(w, h) * 0.35);
+      const progress = progressByPosition.get(positionKey(item));
+      let color = item.source === 'manual' ? '#188038' : '#1967d2';
+      if (!editMode && progress?.status === '完了') color = '#188038';
+      if (!editMode && progress?.status === '施工中') color = '#b06000';
+
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.fillStyle = color;
+      ctx.lineWidth = Math.max(2, canvas.width / 1000);
+      ctx.strokeRect(x - pad, y - pad, w + pad * 2, h + pad * 2);
+      ctx.font = `${Math.max(20, h * 0.8)}px system-ui`;
+      ctx.fillText(item.number, x, Math.max(22, y - pad - 4));
+      ctx.restore();
+    }
+
+    candidateSummary.hidden = false;
+    const progressCount = [...progressByPosition.values()].filter(item => item.status !== '未着手').length;
+    candidateSummary.textContent = `番号 ${candidates.length}件 / 施工情報入力済み ${progressCount}件 / モード: ${editMode ? '番号配置編集' : '施工入力'}`;
+
+    candidateBody.replaceChildren();
+    for (const item of candidates) {
+      const row = document.createElement('tr');
+      const center = candidateCenter(item);
+      const progress = progressByPosition.get(positionKey(item));
+      const values = [item.source === 'manual' ? '手動' : 'OCR', item.number, progress?.status || '未着手', center.x, center.y];
+      for (const value of values) {
+        const cell = document.createElement('td');
+        cell.textContent = String(value);
+        row.appendChild(cell);
+      }
+      candidateBody.appendChild(row);
+    }
+    candidateTable.hidden = candidates.length === 0;
+    modeButton.disabled = candidates.length === 0;
+  }
+
+  function findCandidateAt(point) {
+    const extra = Math.max(18, canvas.width / 250);
+    for (let i = candidates.length - 1; i >= 0; i -= 1) {
+      const b = candidates[i].bbox;
+      if (point.x >= b.x - extra && point.x <= b.x + b.w + extra && point.y >= b.y - extra && point.y <= b.y + b.h + extra) return candidates[i];
+    }
+    return null;
+  }
+
+  async function ensurePdf() {
+    if (!pdfDocument) pdfDocument = await pdfjsLib.getDocument(pdfUrl).promise;
+    pageInput.max = String(pdfDocument.numPages);
+    return pdfDocument;
+  }
+
+  async function renderPage(pageNumber) {
+    const pdf = await ensurePdf();
+    if (!Number.isInteger(pageNumber) || pageNumber < 1 || pageNumber > pdf.numPages) {
+      throw new Error(`ページ番号は1〜${pdf.numPages}で指定してください。`);
+    }
+    const page = await pdf.getPage(pageNumber);
+    const base = page.getViewport({ scale: 1 });
+    const targetLongSide = 6000;
+    const scale = Math.min(8, targetLongSide / Math.max(base.width, base.height));
+    const viewport = page.getViewport({ scale });
+    sourceCanvas.width = canvas.width = Math.ceil(viewport.width);
+    sourceCanvas.height = canvas.height = Math.ceil(viewport.height);
+    await page.render({ canvasContext: sourceCanvas.getContext('2d'), viewport }).promise;
+    currentPageNumber = pageNumber;
+    previewWrap.hidden = false;
+  }
+
+  function adoptCandidates(list) {
+    nextId = 1;
+    candidates = list.map(item => ({
+      id: nextId++,
+      number: String(item.number),
+      source: item.source === 'ocr' ? 'ocr' : 'manual',
+      bbox: { x: Number(item.bbox.x), y: Number(item.bbox.y), w: Number(item.bbox.w), h: Number(item.bbox.h) },
+    }));
+    originalCandidates = cloneCandidates(candidates);
+    drawCandidates();
+  }
+
+  async function loadProgress(pageNumber) {
+    progressByPosition = new Map();
+    const response = await fetch(`${progressUrl}?page=${encodeURIComponent(pageNumber)}`, { cache: 'no-store' });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || '施工情報を取得できませんでした。');
+    for (const item of (Array.isArray(result.items) ? result.items : [])) {
+      progressByPosition.set(`${item.x}:${item.y}`, item);
+    }
+  }
+
+  function openProgress(target) {
+    const key = positionKey(target);
+    const existing = progressByPosition.get(key) || { status: '未着手', completedDate: '', workDetail: '' };
+    currentProgressTarget = target;
+    progressTitle.textContent = `番号 ${target.number} の施工情報`;
+    progressStatus.value = existing.status || '未着手';
+    progressDate.value = existing.completedDate || '';
+    progressDetail.value = existing.workDetail || '';
+    progressDialog.showModal();
+  }
+
+  canvas.addEventListener('click', event => {
+    if (previewWrap.hidden || !sourceCanvas.width) return;
+    const point = eventPoint(event);
+    const target = findCandidateAt(point);
+
+    if (!editMode) {
+      if (target) openProgress(target);
+      return;
+    }
+
+    if (target) {
+      const entered = window.prompt(`番号 ${target.number} を変更します。\n削除する場合は空欄にしてOKを押してください。`, target.number);
+      if (entered === null) return;
+      if (String(entered).trim() === '') {
+        candidates = candidates.filter(item => item.id !== target.id);
+        drawCandidates();
+        status.textContent = `番号 ${target.number} を候補から削除しました。保存するまではDBへ反映されません。`;
+        return;
+      }
+      const number = normalizedNumber(entered);
+      if (!number) {
+        window.alert('1〜99の数字を入力してください。');
+        return;
+      }
+      target.number = number;
+      drawCandidates();
+      status.textContent = `番号を ${number} に変更しました。保存するまではDBへ反映されません。`;
+      return;
+    }
+
+    const entered = window.prompt('この位置に追加する番号（1〜99）を入力してください。');
+    if (entered === null) return;
+    const number = normalizedNumber(entered);
+    if (!number) {
+      window.alert('1〜99の数字を入力してください。');
+      return;
+    }
+    const size = Math.max(28, canvas.width / 120);
+    candidates.push({ id: nextId++, number, source: 'manual', bbox: { x: point.x - size / 2, y: point.y - size / 2, w: size, h: size } });
+    drawCandidates();
+    status.textContent = `番号 ${number} を手動追加しました。保存するまではDBへ反映されません。`;
+  });
+
+  progressCancel.addEventListener('click', () => progressDialog.close());
+
+  progressForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (!currentProgressTarget) return;
+    const center = candidateCenter(currentProgressTarget);
+    try {
+      status.textContent = `番号 ${currentProgressTarget.number} の施工情報を保存しています…`;
+      const response = await fetch(saveProgressUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pageNumber: currentPageNumber,
+          number: currentProgressTarget.number,
+          x: center.x,
+          y: center.y,
+          status: progressStatus.value,
+          completedDate: progressDate.value,
+          workDetail: progressDetail.value,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || '施工情報の保存に失敗しました。');
+      progressByPosition.set(`${result.x}:${result.y}`, result);
+      progressDialog.close();
+      drawCandidates();
+      status.textContent = `番号 ${result.number} の施工情報を保存しました（${result.status}）。`;
+    } catch (err) {
+      console.error(err);
+      status.textContent = `施工情報保存エラー: ${err.message}`;
+    }
+  });
+
+  resetButton.addEventListener('click', () => {
+    if (!editMode) return;
+    candidates = cloneCandidates(originalCandidates);
+    nextId = Math.max(1, ...candidates.map(c => c.id + 1));
+    drawCandidates();
+    status.textContent = '画面を読み込んだ時点の番号候補に戻しました。';
+  });
+
+  async function saveCurrentMap() {
+    saveButton.disabled = true;
+    try {
+      status.textContent = '番号マップを保存しています…';
+      const response = await fetch(saveNumberMapUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pageNumber: currentPageNumber,
+          candidates: candidates.map(item => ({ number: item.number, source: item.source, bbox: item.bbox })),
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || '保存に失敗しました。');
+      originalCandidates = cloneCandidates(candidates);
+      await loadProgress(currentPageNumber);
+      setMode(false);
+      status.textContent = `番号配置を保存しました。ページ${result.pageNumber}・${result.count}件。番号をクリックすると施工情報を入力できます。`;
+    } catch (err) {
+      console.error(err);
+      status.textContent = `保存エラー: ${err.message}`;
+      saveButton.disabled = false;
+    }
+  }
+
+  async function runOcr() {
+    ocrButton.disabled = true;
+    resetButton.disabled = true;
+    saveButton.disabled = true;
+    modeButton.disabled = true;
+    ocrTable.hidden = true;
+    ocrBody.replaceChildren();
+    words = [];
+    candidates = [];
+    originalCandidates = [];
+    progressByPosition = new Map();
+    setMode(true);
+
+    try {
+      const pageNumber = Number(pageInput.value);
+      status.textContent = 'PDFを6,000px基準で画像化しています…';
+      await renderPage(pageNumber);
+      const dataUrl = sourceCanvas.toDataURL('image/jpeg', 0.90);
+      const imageBase64 = dataUrl.split(',', 2)[1];
+      const approxRequestMiB = imageBase64.length / 1024 / 1024;
+      status.textContent = `Google VisionでOCRしています… (${canvas.width}×${canvas.height}px / 約${approxRequestMiB.toFixed(1)}MiB / API 1回)`;
+
+      const response = await fetch(ocrUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pageNumber, imageBase64 }),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        const detail = result.detail ? ` ${typeof result.detail === 'string' ? result.detail : JSON.stringify(result.detail)}` : '';
+        throw new Error((result.error || 'OCRに失敗しました。') + detail);
+      }
+
+      words = Array.isArray(result.words) ? result.words : [];
+      const detected = [];
+      for (const word of words) {
+        const bbox = bboxFromVertices(Array.isArray(word.vertices) ? word.vertices : []);
+        if (!bbox) continue;
+        const number = normalizedNumber(word.text);
+        if (number) detected.push({ number, source: 'ocr', bbox });
+
+        const row = document.createElement('tr');
+        if (number) row.className = 'candidate';
+        const values = [number ? '番号候補' : '文字', word.text, Math.round(bbox.x), Math.round(bbox.y), Math.round(bbox.w), Math.round(bbox.h)];
+        for (const value of values) {
+          const cell = document.createElement('td');
+          cell.textContent = String(value);
+          row.appendChild(cell);
+        }
+        ocrBody.appendChild(row);
+      }
+
+      adoptCandidates(detected);
+      setMode(true);
+      ocrTable.hidden = words.length === 0;
+      status.textContent = `API 1回: OCR ${words.length}件、番号候補 ${candidates.length}件。補正後に番号配置を確定保存してください。`;
+    } catch (err) {
+      console.error(err);
+      status.textContent = `OCRエラー: ${err.message}`;
+    } finally {
+      ocrButton.disabled = false;
+    }
+  }
+
+  async function loadPage() {
+    ocrButton.disabled = true;
+    resetButton.disabled = true;
+    saveButton.disabled = true;
+    modeButton.disabled = true;
+    candidateSummary.hidden = true;
+    candidateTable.hidden = true;
+    ocrTable.hidden = true;
+    candidateBody.replaceChildren();
+    ocrBody.replaceChildren();
+    words = [];
+    candidates = [];
+    originalCandidates = [];
+    progressByPosition = new Map();
+
+    try {
+      const pageNumber = Number(pageInput.value);
+      status.textContent = '保存済み番号マップを確認しています…';
+      await renderPage(pageNumber);
+      const response = await fetch(`${numberMapUrl}?page=${encodeURIComponent(pageNumber)}`, { cache: 'no-store' });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || '保存済みデータを取得できませんでした。');
+
+      if (result.saved && Array.isArray(result.candidates) && result.candidates.length) {
+        adoptCandidates(result.candidates);
+        await loadProgress(pageNumber);
+        setMode(false);
+        status.textContent = `保存済み番号マップ ${candidates.length}件を読み込みました。番号をクリックすると施工情報を入力できます。Google Vision APIは使用していません。`;
+        return;
+      }
+
+      status.textContent = '保存済み番号マップがないため初回OCRを実行します…';
+      await runOcr();
+    } catch (err) {
+      console.error(err);
+      status.textContent = `読込エラー: ${err.message}`;
+      ocrButton.disabled = false;
+    }
+  }
+
+  saveButton.addEventListener('click', saveCurrentMap);
+  ocrButton.addEventListener('click', runOcr);
+  modeButton.addEventListener('click', () => setMode(!editMode));
+  pageInput.addEventListener('change', loadPage);
+
+  loadPage();
+})();
+</script>
 </body>
 </html>

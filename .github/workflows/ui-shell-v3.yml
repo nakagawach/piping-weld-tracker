@@ -1,0 +1,52 @@
+name: UI Shell V3 Browser Regression
+
+on:
+  push:
+    branches:
+      - fix/ui-shell-v3
+  pull_request:
+    branches:
+      - fix/progress-nav-favorite-sync
+
+jobs:
+  ui-browser-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install app dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install browser test dependencies
+        run: |
+          pip install playwright
+          playwright install --with-deps chromium
+
+      - name: Syntax check
+        run: python -m py_compile app.py ui_shell.py progress.py projects.py thumbnail_grid.py global_favorites.py
+
+      - name: Existing OCR regression tests
+        run: |
+          if [ -f tests/test_ocr_candidate_filter.py ]; then python tests/test_ocr_candidate_filter.py; fi
+
+      - name: Shared UI browser regression
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python tests/ui_shell_e2e.py
+
+      - name: UI protection checks
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          text = Path('ui_shell.py').read_text(encoding='utf-8')
+          assert 'history.back' not in text
+          assert 'document.referrer' not in text
+          assert 'DB_VERSION' not in text
+          assert 'GOOGLE_VISION_API_KEY' not in text
+          assert 'data-weld-ui-shell-v3' in text
+          print('UI protection checks: PASS')
+          PY
