@@ -29,6 +29,7 @@ def create_responsive_header_blueprint():
 <style data-responsive-header-v4>
 :root{--appbar-h:50px}
 .weld-mobile-appbar{display:none}
+.weld-page-nav-group,.weld-action-group{display:contents}
 @media(max-width:820px){
   .weld-mobile-appbar{display:flex;align-items:center;gap:8px;min-height:var(--appbar-h);padding:5px max(8px,env(safe-area-inset-right)) 5px max(8px,env(safe-area-inset-left));background:#fff;border-bottom:1px solid #dadce0;position:sticky;top:0;z-index:80}
   .weld-appbar-back{flex:0 0 auto;min-height:40px;padding:0 9px;border:0;border-radius:9px;background:#f1f3f4;color:#202124;font-weight:800;white-space:nowrap}
@@ -43,7 +44,7 @@ def create_responsive_header_blueprint():
   body.weld-progress-v4 .top{display:none!important}
   body.weld-progress-v4 .card{border:0!important;border-radius:0!important}
   body.weld-progress-v4 .toolbar{position:sticky!important;top:var(--appbar-h)!important;z-index:60!important;height:auto!important;min-height:48px!important;display:flex!important;flex-wrap:wrap!important;align-items:center!important;gap:4px!important;padding:4px max(6px,env(safe-area-inset-right)) 4px max(6px,env(safe-area-inset-left))!important;white-space:normal!important;background:#fff!important}
-  body.weld-progress-v4 .toolbar>.spacer,body.weld-progress-v4 .toolbar>.desktop-tools,body.weld-progress-v4 .toolbar>.compact-fullscreen,body.weld-progress-v4 .toolbar>.more{display:none!important}
+  body.weld-progress-v4 .toolbar>.spacer,body.weld-progress-v4 .toolbar>.desktop-tools,body.weld-progress-v4 .toolbar>.more{display:none!important}
   body.weld-progress-v4 .weld-page-nav-group{display:flex;align-items:center;gap:3px;flex:0 1 auto;min-width:0}
   body.weld-progress-v4 .weld-action-group{display:flex;align-items:center;justify-content:flex-end;gap:4px;flex:1 1 auto;min-width:0}
   body.weld-progress-v4 .weld-page-nav-group .nav-button{min-width:38px!important;padding:0 6px!important}
@@ -53,14 +54,14 @@ def create_responsive_header_blueprint():
   body.weld-progress-v4 .weld-page-nav-group .page-total{font-size:.78rem!important}
   body.weld-progress-v4 .weld-action-group>.button{min-width:40px!important;min-height:40px!important;padding:0 6px!important;display:inline-flex!important;align-items:center!important;justify-content:center!important}
   body.weld-progress-v4 .weld-action-group>.page-favorite-view{font-size:1.35rem!important}
-  body.weld-progress-v4 .weld-action-group>.compact-rotate{display:inline-flex!important}
+  body.weld-progress-v4 .weld-action-group>.compact-rotate,body.weld-progress-v4 .weld-action-group>.compact-fullscreen{display:inline-flex!important}
   body.weld-progress-v4 .statusline{display:none!important}
 }
 @media(max-width:390px) and (orientation:portrait){
   body.weld-progress-v4 .toolbar{align-items:stretch!important}
   body.weld-progress-v4 .weld-page-nav-group{flex:1 1 100%;justify-content:center}
   body.weld-progress-v4 .weld-action-group{flex:1 1 100%;justify-content:space-between}
-  body.weld-progress-v4 .weld-action-group>.button{flex:1 1 0;max-width:64px}
+  body.weld-progress-v4 .weld-action-group>.button{flex:1 1 0;max-width:58px}
   body.weld-progress-v4 .viewer{max-height:calc(100dvh - var(--appbar-h) - 98px - 31px - 62px)!important;min-height:calc(100dvh - var(--appbar-h) - 98px - 31px - 62px)!important}
 }
 @media(min-width:391px) and (max-width:820px){
@@ -74,8 +75,6 @@ def create_responsive_header_blueprint():
   body.weld-progress-v4 .progress-thumb{flex-basis:66px!important}
   body.weld-progress-v4 .progress-thumb img{height:38px!important}
 }
-
-/* non-viewer screens: back/navigation stays on the leading side */
 @media(max-width:820px){
   body.weld-simple-header-v4 main{padding-top:0!important}
   body.weld-simple-header-v4 .top{display:flex!important;align-items:center!important;justify-content:flex-start!important;gap:8px!important;background:#fff!important;border-bottom:1px solid #dadce0!important;padding:5px max(8px,env(safe-area-inset-right)) 5px max(8px,env(safe-area-inset-left))!important;margin:0 0 8px!important;position:sticky!important;top:0!important;z-index:50!important}
@@ -111,8 +110,16 @@ def create_responsive_header_blueprint():
   const actionGroup=document.createElement('div');actionGroup.className='weld-action-group';actionGroup.setAttribute('aria-label','図面操作');toolbar.appendChild(actionGroup);
   const morePlaceholder=document.createComment('more-menu-home');if(more)more.parentNode.insertBefore(morePlaceholder,more);
 
+  const closeMore=()=>more?.removeAttribute('open');
+  if(more){
+    document.addEventListener('pointerdown',e=>{if(more.hasAttribute('open')&&!more.contains(e.target))closeMore()},true);
+    document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMore()});
+    more.addEventListener('click',e=>{if(e.target.closest('.more-menu button'))queueMicrotask(closeMore)});
+  }
+
   const moveActions=()=>{
-    const candidates=[toolbar.querySelector('.page-favorite-view'),document.getElementById('rotateCompact'),toolbar.querySelector('[aria-label="ページ一覧"]'),toolbar.querySelector('[aria-label="進捗一覧"]')];
+    const menuFullscreen=more?.querySelector('[data-go-fullscreen]');if(menuFullscreen)menuFullscreen.remove();
+    const candidates=[toolbar.querySelector('.page-favorite-view'),document.getElementById('rotateCompact'),document.getElementById('fullscreenCompact'),toolbar.querySelector('[aria-label="ページ一覧"]'),toolbar.querySelector('[aria-label="進捗一覧"]')];
     for(const el of candidates){if(el&&el.parentNode!==actionGroup)actionGroup.appendChild(el)}
   };
   const mq=matchMedia('(max-width:820px)');
@@ -121,6 +128,7 @@ def create_responsive_header_blueprint():
     else if(more&&more.parentNode===appbar){morePlaceholder.parentNode.insertBefore(more,morePlaceholder.nextSibling)}
   };
   const observer=new MutationObserver(()=>{moveActions();apply()});observer.observe(toolbar,{childList:true,subtree:false});
+  if(more)observer.observe(more,{childList:true,subtree:true});
   mq.addEventListener?.('change',apply);apply();setTimeout(()=>{moveActions();apply()},0);setTimeout(()=>{moveActions();apply()},250);
 })();
 </script>
