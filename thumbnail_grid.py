@@ -109,7 +109,7 @@ def create_thumbnail_grid_blueprint(db_path: Path):
   const paint=()=>{{const p=current(),on=favorites.has(p);star.textContent=on?'★':'☆';star.classList.toggle('is-favorite',on);star.setAttribute('aria-label',on?`P${{p}} お気に入り解除`:`P${{p}} お気に入り登録`);star.title=on?'お気に入り解除':'お気に入り登録'}};
   star.onclick=e=>{{e.preventDefault();e.stopPropagation();const p=current();favorites.has(p)?favorites.delete(p):favorites.add(p);save();paint()}};
   const controls=document.querySelector('.controls');const toolbar=document.querySelector('.toolbar');
-  if(controls){{star.classList.add('icon-button');controls.insertBefore(star,document.getElementById('ocr')||controls.lastChild)}}else if(toolbar){{star.classList.add('icon-button');const anchor=toolbar.querySelector('[data-thumbnail-grid-launch], .spacer');toolbar.insertBefore(star,anchor?.nextSibling||toolbar.lastChild)}}
+  if(controls){{star.classList.add('icon-button');controls.insertBefore(star,document.getElementById('ocr')||controls.lastChild)}}else if(toolbar){{star.classList.add('icon-button');const anchor=toolbar.querySelector('#thumbnailGridButton, .spacer');toolbar.insertBefore(star,anchor?.nextSibling||toolbar.lastChild)}}
   const deferPaint=()=>{{setTimeout(paint,0);setTimeout(paint,120)}};
   pageInput.addEventListener('change',deferPaint);
   document.addEventListener('click',e=>{{if(e.target.closest('#prev,#next,.progress-thumb,[data-page]'))deferPaint()}},true);
@@ -198,12 +198,16 @@ def create_thumbnail_grid_blueprint(db_path: Path):
     location.href=`/weld/projects/${{projectId}}/thumbnails?source=${{source}}&page=${{page}}`;
   }};
   const button=document.createElement('button');
-  button.type='button';button.className='button';button.textContent='▦ ページ一覧';button.title='ページを一覧表示';button.onclick=openGrid;
+  button.type='button';button.id='thumbnailGridButton';button.className='button';button.textContent='▦ ページ一覧';button.title='ページを一覧表示';button.onclick=openGrid;
   const controls=document.querySelector('.controls');
   if(controls){{controls.insertBefore(button,document.getElementById('ocr')||controls.lastChild);}}
   else {{
     const toolbar=document.querySelector('.toolbar');
-    if(toolbar){{button.classList.add('icon-button');button.textContent='▦';button.setAttribute('aria-label','ページ一覧');toolbar.insertBefore(button,toolbar.querySelector('.spacer')?.nextSibling||toolbar.lastChild);}}
+    if(toolbar){{
+      button.classList.add('icon-button');button.textContent='▦';button.setAttribute('aria-label','ページ一覧');
+      const actionBar=toolbar.querySelector('.ui2-drawing');
+      if(actionBar)actionBar.appendChild(button);else toolbar.insertBefore(button,toolbar.querySelector('.spacer')?.nextSibling||toolbar.lastChild);
+    }}
   }}
   if(source==='entry'){{
     const requested=Math.max(1,Number(new URLSearchParams(location.search).get('page'))||1);
