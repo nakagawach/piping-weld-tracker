@@ -47,9 +47,10 @@ def create_global_favorites_blueprint(db_path: Path):
   const newButton=document.getElementById('new-project');
   if(!header||!newButton)return;
   const wrap=document.createElement('div');
+  wrap.className='ui3-root-actions';
   wrap.style.cssText='display:flex;gap:8px;align-items:center;flex-wrap:wrap';
   const fav=document.createElement('button');
-  fav.type='button';fav.className='button';fav.textContent='★ お気に入り';fav.title='工事を横断してお気に入りページを表示';
+  fav.type='button';fav.className='button';fav.dataset.ui3Favorites='1';fav.textContent='★ お気に入り';fav.title='工事を横断してお気に入りページを表示';fav.setAttribute('aria-label','お気に入りページ一覧');
   fav.style.cssText='border-color:#f9ab00;color:#8a5a00;font-weight:800;background:#fff8e1';
   fav.onclick=()=>location.href='favorites';
   newButton.parentNode.insertBefore(wrap,newButton);wrap.appendChild(fav);wrap.appendChild(newButton);
