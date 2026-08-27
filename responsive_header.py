@@ -25,6 +25,16 @@ def create_responsive_header_blueprint():
         if not (progress_match or entry_match or grid_match or is_favorites or is_progress_list):
             return response
 
+        if progress_match:
+            zoom_api_marker = "function resetPosition(){viewer.scrollLeft=0;viewer.scrollTop=0}"
+            zoom_api_replacement = (
+                "window.__weldSetZoom=(value)=>setZoom(value);"
+                "window.__weldGetZoom=()=>drawingZoom;"
+                "function resetPosition(){viewer.scrollLeft=0;viewer.scrollTop=0}"
+            )
+            if zoom_api_marker in html:
+                html = html.replace(zoom_api_marker, zoom_api_replacement, 1)
+
         common_style = """
 <style data-responsive-header-v5>
 :root{--weld-appbar-h:50px}
@@ -110,15 +120,17 @@ body.weld-focus-mode .weld-focus-exit{display:inline-flex!important;position:fix
   const back=document.getElementById('back');
   const more=document.getElementById('moreMenu');
   const fullscreen=document.getElementById('fullscreenCompact');
+  const viewer=document.getElementById('viewer');
+  const canvas=document.getElementById('canvas');
   const prev=document.getElementById('prev'),pageField=toolbar?.querySelector('.page-field'),next=document.getElementById('next');
-  if(!toolbar||!back||!prev||!pageField||!next||!fullscreen)return;
+  if(!toolbar||!back||!prev||!pageField||!next||!fullscreen||!viewer||!canvas)return;
   document.body.classList.add('weld-progress-v5');
 
   const appbar=document.createElement('div');appbar.className='weld-mobile-appbar';appbar.setAttribute('role','navigation');appbar.setAttribute('aria-label','画面ナビゲーション');
   const appBack=document.createElement('button');appBack.type='button';appBack.className='weld-appbar-back';appBack.innerHTML='<span class="chev">‹</span><span>工事一覧</span>';appBack.onclick=()=>back.click();
   const title=document.createElement('div');title.className='weld-appbar-title';
   const meta=top?.querySelector('.meta')?.textContent?.trim()||'';title.innerHTML='<strong>進捗入力</strong><small></small>';title.querySelector('small').textContent=meta;
-  fullscreen.classList.add('weld-appbar-fullscreen');fullscreen.textContent='⛶';fullscreen.setAttribute('aria-label','図面を集中表示');fullscreen.title='図面を集中表示';
+  fullscreen.classList.add('weld-appbar-fullscreen');fullscreen.textContent='⛶';fullscreen.setAttribute('aria-label','図面を全画面表示');fullscreen.title='図面を全画面表示';
   appbar.append(appBack,title,fullscreen);toolbar.parentNode.insertBefore(appbar,toolbar);
 
   const pageGroup=document.createElement('div');pageGroup.className='weld-page-nav-group';pageGroup.setAttribute('aria-label','ページ移動');
@@ -141,16 +153,33 @@ body.weld-focus-mode .weld-focus-exit{display:inline-flex!important;position:fix
   const closeMoreEscape=e=>{if(e.key==='Escape'&&more?.open)more.removeAttribute('open')};
   document.addEventListener('pointerdown',closeMoreOutside,true);document.addEventListener('keydown',closeMoreEscape);
 
-  const exitFocus=document.createElement('button');exitFocus.type='button';exitFocus.className='weld-focus-exit';exitFocus.textContent='×';exitFocus.setAttribute('aria-label','集中表示を終了');exitFocus.hidden=true;document.body.appendChild(exitFocus);
-  let nativeFullscreen=false;
+  const exitFocus=document.createElement('button');exitFocus.type='button';exitFocus.className='weld-focus-exit';exitFocus.textContent='×';exitFocus.setAttribute('aria-label','全画面表示を終了');exitFocus.hidden=true;document.body.appendChild(exitFocus);
+  let nativeFullscreen=false,savedZoom=1;
+  const centerViewer=()=>{
+    viewer.scrollLeft=Math.max(0,(viewer.scrollWidth-viewer.clientWidth)/2);
+    viewer.scrollTop=Math.max(0,(viewer.scrollHeight-viewer.clientHeight)/2);
+  };
+  const fitCover=()=>{
+    const getZoom=window.__weldGetZoom,setZoom=window.__weldSetZoom;
+    if(typeof getZoom!=='function'||typeof setZoom!=='function')return;
+    const current=Math.max(1,Number(getZoom())||1),rect=canvas.getBoundingClientRect();
+    if(!rect.width||!rect.height||!viewer.clientWidth||!viewer.clientHeight)return;
+    const factor=Math.max(viewer.clientWidth/rect.width,viewer.clientHeight/rect.height,1);
+    setZoom(Math.min(4,current*factor));
+    requestAnimationFrame(centerViewer);
+  };
   const leaveFocus=async()=>{
     document.body.classList.remove('weld-focus-mode');exitFocus.hidden=true;
+    if(typeof window.__weldSetZoom==='function')window.__weldSetZoom(savedZoom);
+    requestAnimationFrame(centerViewer);
     if(document.fullscreenElement){try{await document.exitFullscreen()}catch(_e){}}
     nativeFullscreen=false;
   };
   const enterFocus=async()=>{
     if(more?.open)more.removeAttribute('open');
+    savedZoom=typeof window.__weldGetZoom==='function'?Math.max(1,Number(window.__weldGetZoom())||1):1;
     document.body.classList.add('weld-focus-mode');exitFocus.hidden=false;
+    requestAnimationFrame(()=>requestAnimationFrame(fitCover));
     const target=document.documentElement;
     if(target.requestFullscreen&&!document.fullscreenElement){
       try{await target.requestFullscreen({navigationUI:'hide'});nativeFullscreen=true}catch(_e){try{await target.requestFullscreen();nativeFullscreen=true}catch(_e2){}}
@@ -158,7 +187,7 @@ body.weld-focus-mode .weld-focus-exit{display:inline-flex!important;position:fix
   };
   fullscreen.onclick=e=>{e.preventDefault();e.stopPropagation();document.body.classList.contains('weld-focus-mode')?leaveFocus():enterFocus()};
   exitFocus.onclick=leaveFocus;
-  document.addEventListener('fullscreenchange',()=>{if(nativeFullscreen&&!document.fullscreenElement&&document.body.classList.contains('weld-focus-mode')){nativeFullscreen=false;document.body.classList.remove('weld-focus-mode');exitFocus.hidden=true}});
+  document.addEventListener('fullscreenchange',()=>{if(nativeFullscreen&&!document.fullscreenElement&&document.body.classList.contains('weld-focus-mode')){nativeFullscreen=false;document.body.classList.remove('weld-focus-mode');exitFocus.hidden=true;if(typeof window.__weldSetZoom==='function')window.__weldSetZoom(savedZoom)}});
 
   const mq=matchMedia('(max-width:820px)');
   const apply=()=>{
