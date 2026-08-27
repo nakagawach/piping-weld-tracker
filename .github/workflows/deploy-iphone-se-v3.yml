@@ -1,9 +1,9 @@
-name: Deploy iPhone SE toolbar v3
+name: Deploy navigation header consistency
 
 on:
   push:
     branches:
-      - fix/iphone-se-landscape-toolbar-v3
+      - fix/navigation-header-consistency
   workflow_dispatch:
 
 permissions:
@@ -21,7 +21,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Syntax check
-        run: python -m py_compile app.py projects.py project_render.py progress.py thumbnail_grid.py global_favorites.py
+        run: python -m py_compile app.py projects.py project_render.py progress.py thumbnail_grid.py global_favorites.py navigation_ui.py
 
       - name: OCR regression tests
         shell: bash
@@ -36,10 +36,15 @@ jobs:
           print("OCR regression passed")
           PY
 
-      - name: Verify mobile toolbar guards
+      - name: Verify navigation and mobile toolbar guards
         shell: bash
         run: |
           set -euo pipefail
+          grep -q 'apply_navigation_ui' global_favorites.py
+          grep -q 'data-navigation-ui' navigation_ui.py
+          grep -q 'mobile-project-back' navigation_ui.py
+          grep -q '工事一覧へ戻る' navigation_ui.py
+          grep -q 'nav-back-unified' navigation_ui.py
           grep -q 'data-iphone-se-toolbar-v3' global_favorites.py
           grep -q 'max-width:820px' global_favorites.py
           grep -q 'orientation:landscape' global_favorites.py
@@ -68,6 +73,7 @@ jobs:
           upload_file progress.py
           upload_file thumbnail_grid.py
           upload_file global_favorites.py
+          upload_file navigation_ui.py
           upload_file requirements.txt
           while IFS= read -r -d '' file; do upload_file "$file"; done < <(find templates -type f -print0)
           if [ -d static ]; then while IFS= read -r -d '' file; do upload_file "$file"; done < <(find static -type f -print0); fi
@@ -92,8 +98,10 @@ jobs:
           for attempt in 1 2 3 4 5 6; do
             progress=$(fetch "https://nakagawach.pythonanywhere.com/weld/projects/7/progress")
             entry=$(fetch "https://nakagawach.pythonanywhere.com/weld/projects/7/entry")
+            grid=$(fetch "https://nakagawach.pythonanywhere.com/weld/projects/7/thumbnails?source=progress&page=1")
             favorites=$(fetch "https://nakagawach.pythonanywhere.com/weld/favorites")
-            if [[ "$progress" == *'data-iphone-se-toolbar-v3'* ]] && [[ "$progress" == *'data-go-fullscreen'* ]] && [[ "$progress" == *'data-page-favorite-view'* ]] && [[ "$progress" == *'図面エントリーへ'* ]] && [[ "$progress" == *'お気に入り一覧'* ]] && [[ "$entry" == *'data-page-favorite-view'* ]] && [[ "$favorites" == *'お気に入りページ'* ]]; then
+            list=$(fetch "https://nakagawach.pythonanywhere.com/weld/projects/7/progress-list")
+            if [[ "$progress" == *'data-navigation-ui'* ]] && [[ "$progress" == *'mobile-project-back'* ]] && [[ "$progress" == *'data-iphone-se-toolbar-v3'* ]] && [[ "$progress" == *'data-go-fullscreen'* ]] && [[ "$entry" == *'data-navigation-ui'* ]] && [[ "$grid" == *'data-navigation-ui'* ]] && [[ "$favorites" == *'data-navigation-ui'* ]] && [[ "$list" == *'data-navigation-ui'* ]] && [[ "$progress" == *'data-page-favorite-view'* ]] && [[ "$progress" == *'図面エントリーへ'* ]] && [[ "$progress" == *'お気に入り一覧'* ]]; then
               echo "Smoke test passed"; exit 0
             fi
             echo "Smoke attempt $attempt failed"; sleep 5
