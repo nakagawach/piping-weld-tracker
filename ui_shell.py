@@ -30,7 +30,7 @@ def create_ui_shell_blueprint():
         if progress and request.args.get("viewer") == "1":
             return response
 
-        prefix = "/weld" if path.startswith("/weld/") or path == "/weld" else ""
+        prefix = request.script_root.rstrip("/")
 
         css = r"""
 <style data-weld-ui-shell-v3>
