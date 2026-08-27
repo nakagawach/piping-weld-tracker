@@ -78,16 +78,16 @@ def create_global_favorites_blueprint(db_path: Path):
       const entry=document.createElement('button');entry.type='button';entry.className='button';entry.dataset.goEntry='1';entry.textContent='✎ 図面エントリーへ';entry.title='現在ページを図面エントリーで開く';entry.onclick=goEntry;moreMenu.appendChild(entry);
     }}
     if(!moreMenu.querySelector('[data-go-favorites]')){{
-      const fav=document.createElement('button');fav.type='button';fav.className='button';fav.dataset.goFavorites='1';fav.textContent='★ お気に入り一覧';fav.title='工事横断のお気に入り一覧';fav.onclick=goFavorites;moreMenu.appendChild(fav);
+      const fav=document.createElement('button');fav.type='button';fav.className='button';fav.dataset.goFavorites='1';fav.textContent='★ お気に入りページ一覧';fav.title='工事横断のお気に入りページ一覧';fav.onclick=goFavorites;moreMenu.appendChild(fav);
     }}
   }} else {{
     const controls=document.querySelector('.controls');
     if(controls&&!controls.querySelector('[data-go-favorites]')){{
-      const fav=document.createElement('button');fav.type='button';fav.className='button';fav.dataset.goFavorites='1';fav.textContent='★ 一覧';fav.title='工事横断のお気に入り一覧';fav.onclick=goFavorites;controls.appendChild(fav);
+      const fav=document.createElement('button');fav.type='button';fav.className='button';fav.dataset.goFavorites='1';fav.textContent='★ お気に入りページ一覧';fav.title='工事横断のお気に入りページ一覧';fav.style.cssText='display:block!important';fav.onclick=goFavorites;controls.appendChild(fav);
     }} else if(!controls){{
       const top=document.querySelector('.top');
       if(top&&!top.querySelector('[data-go-favorites]')){{
-        const fav=document.createElement('button');fav.type='button';fav.className='button';fav.dataset.goFavorites='1';fav.textContent='★ お気に入り';fav.title='工事横断のお気に入り一覧';
+        const fav=document.createElement('button');fav.type='button';fav.className='button';fav.dataset.goFavorites='1';fav.textContent='★ お気に入りページ一覧';fav.title='工事横断のお気に入りページ一覧';
         fav.style.cssText='border-color:#f9ab00;color:#8a5a00;font-weight:800;background:#fff8e1';fav.onclick=goFavorites;top.appendChild(fav);
       }}
     }}
