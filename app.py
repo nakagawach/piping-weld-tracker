@@ -9,6 +9,7 @@ from flask import Flask, jsonify, render_template, request as flask_request
 
 from global_favorites import create_global_favorites_blueprint
 from progress import create_progress_blueprint
+from progress_ui import create_progress_ui_blueprint
 from projects import create_projects_blueprint
 from thumbnail_grid import create_thumbnail_grid_blueprint
 
@@ -24,6 +25,7 @@ app.register_blueprint(create_projects_blueprint(DB_PATH, DATA_DIR))
 app.register_blueprint(create_progress_blueprint(DB_PATH))
 app.register_blueprint(create_thumbnail_grid_blueprint(DB_PATH))
 app.register_blueprint(create_global_favorites_blueprint(DB_PATH))
+app.register_blueprint(create_progress_ui_blueprint())
 
 
 def get_google_vision_api_key():
