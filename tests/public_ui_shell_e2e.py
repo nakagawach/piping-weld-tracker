@@ -36,6 +36,9 @@ def main():
         page.goto(f"{BASE_URL}/projects-screen", wait_until="domcontentloaded", timeout=30000)
         expect(page.locator(".header.ui3-root")).to_be_visible()
         expect(page.locator("#new-project")).to_be_visible()
+        expect(page.locator("[data-ui3-favorites]")).to_be_visible()
+        expect(page.get_by_text("サンプル工事（既存テストデータ）")).to_have_count(0)
+        expect(page.locator("#open-current")).to_have_count(0)
         shot(page, "01-projects.png")
 
         page.goto(f"{BASE_URL}/projects/{PROJECT_ID}/progress?page=1", wait_until="domcontentloaded", timeout=30000)
@@ -46,6 +49,12 @@ def main():
         expect(page.locator("#thumbnailGridButton")).to_be_visible(timeout=7000)
         expect(page.locator("[aria-label='進捗一覧']")).to_be_visible(timeout=7000)
         expect(page.locator(".page-favorite-view")).to_be_visible(timeout=7000)
+        pages_box = page.locator(".ui3-pages").bounding_box()
+        drawing_box = page.locator(".ui3-drawing").bounding_box()
+        toolbar_box = page.locator(".toolbar").bounding_box()
+        assert pages_box and drawing_box and toolbar_box
+        assert pages_box["x"] < drawing_box["x"], (pages_box, drawing_box)
+        assert drawing_box["x"] + drawing_box["width"] >= toolbar_box["x"] + toolbar_box["width"] - 12, (drawing_box, toolbar_box)
         shot(page, "02-progress.png")
 
         page.locator("#thumbnailGridButton").click()
@@ -94,6 +103,10 @@ def main():
         page.goto(f"{BASE_URL}/favorites", wait_until="domcontentloaded", timeout=30000)
         expect(page.locator("[data-ui3-header='favorites']")).to_be_visible()
         expect_back(page, f"{BASE_URL}/projects-screen", "工事一覧へ")
+        expect(page.locator(".columns [data-cols]")).to_have_count(4)
+        page.locator(".columns [data-cols='4']").click()
+        expect(page.locator(".columns [data-cols='4']")).to_have_class("active")
+        assert page.locator("#grid").evaluate("el => el.style.getPropertyValue('--cols')") == "4"
         shot(page, "08-favorites.png")
 
         browser.close()
