@@ -67,6 +67,16 @@ def main():
         page.wait_for_url(f"**/weld/projects/{PROJECT_ID}/thumbnails?source=entry&page=1", timeout=30000)
         expect_back(page, f"{BASE_URL}/projects/{PROJECT_ID}/entry?page=1", "エントリーへ")
 
+        page.goto(f"{BASE_URL}/projects/{PROJECT_ID}/progress?page=1&viewer=1", wait_until="domcontentloaded", timeout=30000)
+        expect(page.locator("html.weld-viewer-v3")).to_have_count(1)
+        expect(page.locator(".ui3-appbar")).to_have_count(0)
+        expect(page.locator(".weld-viewer-controls")).to_be_visible()
+        expect(page.locator(".weld-viewer-controls [aria-label='90度回転']")).to_be_visible()
+        close_viewer = page.locator(".weld-viewer-controls [aria-label='図面集中表示を終了']")
+        expect(close_viewer).to_be_visible()
+        close_viewer.click()
+        page.wait_for_url(f"**/weld/projects/{PROJECT_ID}/progress?page=1", timeout=30000)
+
         page.goto(f"{BASE_URL}/favorites", wait_until="domcontentloaded", timeout=30000)
         expect(page.locator("[data-ui3-header='favorites']")).to_be_visible()
         expect_back(page, f"{BASE_URL}/projects-screen", "工事一覧へ")
