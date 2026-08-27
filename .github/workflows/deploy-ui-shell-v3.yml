@@ -32,7 +32,7 @@ jobs:
           playwright install --with-deps chromium
 
       - name: Syntax check
-        run: python -m py_compile app.py projects.py project_render.py progress.py thumbnail_grid.py global_favorites.py ui_shell.py
+        run: python -m py_compile app.py projects.py project_render.py progress.py thumbnail_grid.py global_favorites.py ui_shell.py viewer_mode.py
 
       - name: OCR regression tests
         shell: bash
@@ -66,6 +66,7 @@ jobs:
           upload_file thumbnail_grid.py
           upload_file global_favorites.py
           upload_file ui_shell.py
+          upload_file viewer_mode.py
           upload_file requirements.txt
           while IFS= read -r -d '' file; do upload_file "$file"; done < <(find templates -type f -print0)
           if [ -d static ]; then while IFS= read -r -d '' file; do upload_file "$file"; done < <(find static -type f -print0); fi
