@@ -1,0 +1,97 @@
+name: Deploy UI shell v3
+
+on:
+  push:
+    branches:
+      - fix/ui-shell-v3
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-pythonanywhere-weld
+  cancel-in-progress: false
+
+jobs:
+  deploy-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install test dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install playwright
+          playwright install --with-deps chromium
+
+      - name: Syntax check
+        run: python -m py_compile app.py projects.py project_render.py progress.py thumbnail_grid.py global_favorites.py ui_shell.py
+
+      - name: OCR regression tests
+        shell: bash
+        run: |
+          python - <<'PY'
+          from project_render import extract_label_candidates, normalize_label
+          expected={"①":"1","Ｆ１":"F1","S2":"S2","A-12":"A-12","F1-2":"F1-2","12A":"12A"}
+          for raw,value in expected.items(): assert normalize_label(raw)==value
+          assert normalize_label("SCALE") is None
+          words=[{"text":"F","vertices":[{"x":0,"y":0},{"x":10,"y":0},{"x":10,"y":12},{"x":0,"y":12}]},{"text":"1","vertices":[{"x":12,"y":0},{"x":18,"y":0},{"x":18,"y":12},{"x":12,"y":12}]}]
+          assert "F1" in {x["number"] for x in extract_label_candidates(words)}
+          print("OCR regression passed")
+          PY
+
+      - name: Local browser regression before deploy
+        run: python tests/ui_shell_e2e.py
+
+      - name: Upload weld app files only
+        env:
+          PYTHONANYWHERE_API_TOKEN: ${{ secrets.PYTHONANYWHERE_API_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${PYTHONANYWHERE_API_TOKEN:-}"
+          api_base="https://www.pythonanywhere.com/api/v0/user/nakagawach/files/path/home/nakagawach/piping-weld-tracker"
+          upload_file(){ local file="$1"; echo "Uploading ${file}"; curl --fail --silent --show-error --retry 3 --retry-delay 2 -X POST -H "Authorization: Token ${PYTHONANYWHERE_API_TOKEN}" -F "content=@${file}" "${api_base}/${file}"; }
+          upload_file app.py
+          upload_file projects.py
+          upload_file project_render.py
+          upload_file progress.py
+          upload_file thumbnail_grid.py
+          upload_file global_favorites.py
+          upload_file ui_shell.py
+          upload_file requirements.txt
+          while IFS= read -r -d '' file; do upload_file "$file"; done < <(find templates -type f -print0)
+          if [ -d static ]; then while IFS= read -r -d '' file; do upload_file "$file"; done < <(find static -type f -print0); fi
+
+      - name: Reload PythonAnywhere weld webapp
+        env:
+          PYTHONANYWHERE_API_TOKEN: ${{ secrets.PYTHONANYWHERE_API_TOKEN }}
+        shell: bash
+        run: |
+          curl --fail --silent --show-error --retry 3 --retry-delay 2 -X POST -H "Authorization: Token ${PYTHONANYWHERE_API_TOKEN}" "https://www.pythonanywhere.com/api/v0/user/nakagawach/webapps/nakagawach.pythonanywhere.com/reload/"
+
+      - name: Wait for published shell marker
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3 4 5 6; do
+            body=$(curl --fail --silent --show-error --location --max-time 25 'https://nakagawach.pythonanywhere.com/weld/projects/7/progress?page=1' || true)
+            if [[ "$body" == *'data-weld-ui-shell-v3'* ]] && [[ "$body" == *'<script data-thumbnail-grid-launch>'* ]]; then
+              echo 'Published shell marker confirmed'; exit 0
+            fi
+            echo "Publish check attempt $attempt failed"; sleep 5
+          done
+          exit 1
+
+      - name: Public PythonAnywhere browser regression
+        env:
+          PUBLIC_BASE_URL: https://nakagawach.pythonanywhere.com/weld
+          PUBLIC_PROJECT_ID: '7'
+        run: python tests/public_ui_shell_e2e.py
