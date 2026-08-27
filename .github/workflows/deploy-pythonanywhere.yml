@@ -33,6 +33,7 @@ on:
       - fix/thumbnail-grid-performance
       - fix/progress-empty-and-rotated-thumbs
       - feature/page-favorites
+      - feature/global-favorites
   workflow_dispatch:
 
 permissions:
@@ -51,7 +52,7 @@ jobs:
 
       - name: Syntax check
         shell: bash
-        run: python -m py_compile app.py projects.py project_render.py progress.py thumbnail_grid.py
+        run: python -m py_compile app.py projects.py project_render.py progress.py thumbnail_grid.py global_favorites.py
 
       - name: OCR label candidate tests
         shell: bash
@@ -94,6 +95,12 @@ jobs:
           grep -q 'data-cols="4"' templates/project_thumbnail_grid_v2.html
           grep -q 'MAX_CONCURRENT=2' templates/project_thumbnail_grid_v2.html
           grep -q 'requestIdleCallback' templates/project_thumbnail_grid_v2.html
+          grep -q 'create_global_favorites_blueprint' app.py
+          grep -q '@blueprint.get("/favorites")' global_favorites.py
+          grep -q 'data-global-favorites-launch' global_favorites.py
+          grep -q 'weldFavoritePages' templates/global_favorites.html
+          grep -q '進捗入力' templates/global_favorites.html
+          grep -q 'エントリー' templates/global_favorites.html
 
       - name: Upload weld app files
         env:
@@ -109,6 +116,7 @@ jobs:
           upload_file "project_render.py"
           upload_file "progress.py"
           upload_file "thumbnail_grid.py"
+          upload_file "global_favorites.py"
           upload_file "requirements.txt"
           while IFS= read -r -d '' file; do upload_file "$file"; done < <(find templates -type f -print0)
           if [ -d static ]; then while IFS= read -r -d '' file; do upload_file "$file"; done < <(find static -type f -print0); fi
@@ -133,6 +141,8 @@ jobs:
             projects_json=$(fetch_text "https://nakagawach.pythonanywhere.com/weld/projects")
             project_id=$(printf '%s' "$projects_json" | python -c 'import json,sys; d=json.load(sys.stdin); p=d.get("projects",[]); print(7 if any(x.get("id")==7 for x in p) else (p[0]["id"] if p else ""))' 2>/dev/null || true)
             [ -n "$project_id" ] || { echo "No project id"; sleep 5; continue; }
+            projects_screen=$(fetch_text "https://nakagawach.pythonanywhere.com/weld/projects-screen")
+            favorites=$(fetch_text "https://nakagawach.pythonanywhere.com/weld/favorites")
             entry=$(fetch_text "https://nakagawach.pythonanywhere.com/weld/projects/${project_id}/entry")
             progress=$(fetch_text "https://nakagawach.pythonanywhere.com/weld/projects/${project_id}/progress")
             list=$(fetch_text "https://nakagawach.pythonanywhere.com/weld/projects/${project_id}/progress-list")
@@ -141,7 +151,7 @@ jobs:
             for p in 1 2 3; do
               if ! curl --fail --silent --show-error --location --max-time 30 "https://nakagawach.pythonanywhere.com/weld/projects/${project_id}/pdfium-page?page=${p}&longEdge=500&format=jpeg" --output /dev/null; then thumb_ok=false; break; fi
             done
-            if [[ "$entry" == *'data-thumbnail-grid-launch'* ]] && [[ "$entry" == *'data-page-favorite-view'* ]] && [[ "$progress" == *'data-page-favorite-view'* ]] && [[ "$progress" == *'data-progress-empty-patch'* ]] && [[ "$progress" == *'goEntryEmpty'* ]] && [[ "$progress" == *"canvas.style.display='none'"* ]] && [[ "$grid" == *'data-thumbnail-rotation-patch'* ]] && [[ "$grid" == *'data-page-favorites-grid'* ]] && [[ "$grid" == *'weldFavoritePages'* ]] && [[ "$list" == *"進捗一覧"* ]] && [[ "$grid" == *'data-cols="4"'* ]] && [[ "$grid" == *'MAX_CONCURRENT=2'* ]] && [ "$thumb_ok" = true ]; then echo "Smoke test passed."; exit 0; fi
+            if [[ "$projects_screen" == *'data-global-favorites-launch'* ]] && [[ "$favorites" == *'お気に入りページ'* ]] && [[ "$favorites" == *'weldFavoritePages'* ]] && [[ "$favorites" == *'longEdge=500'* ]] && [[ "$entry" == *'data-thumbnail-grid-launch'* ]] && [[ "$entry" == *'data-page-favorite-view'* ]] && [[ "$entry" == *'data-global-favorites-launch'* ]] && [[ "$progress" == *'data-page-favorite-view'* ]] && [[ "$progress" == *'data-global-favorites-launch'* ]] && [[ "$progress" == *'data-progress-empty-patch'* ]] && [[ "$progress" == *'goEntryEmpty'* ]] && [[ "$progress" == *"canvas.style.display='none'"* ]] && [[ "$grid" == *'data-thumbnail-rotation-patch'* ]] && [[ "$grid" == *'data-page-favorites-grid'* ]] && [[ "$grid" == *'data-global-favorites-launch'* ]] && [[ "$list" == *"進捗一覧"* ]] && [ "$thumb_ok" = true ]; then echo "Smoke test passed."; exit 0; fi
             echo "Smoke test attempt ${attempt} failed thumb=$thumb_ok"; sleep 5
           done
           exit 1
