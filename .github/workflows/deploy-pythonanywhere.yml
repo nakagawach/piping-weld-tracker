@@ -34,6 +34,7 @@ on:
       - fix/progress-empty-and-rotated-thumbs
       - feature/page-favorites
       - feature/global-favorites
+      - fix/progress-nav-favorite-sync
   workflow_dispatch:
 
 permissions:
@@ -98,6 +99,9 @@ jobs:
           grep -q 'create_global_favorites_blueprint' app.py
           grep -q '@blueprint.get("/favorites")' global_favorites.py
           grep -q 'data-global-favorites-launch' global_favorites.py
+          grep -q '図面エントリーへ' global_favorites.py
+          grep -q 'お気に入り一覧' global_favorites.py
+          grep -q 'setInterval(checkPage,200)' global_favorites.py
           grep -q 'weldFavoritePages' templates/global_favorites.html
           grep -q '進捗入力' templates/global_favorites.html
           grep -q 'エントリー' templates/global_favorites.html
@@ -151,7 +155,7 @@ jobs:
             for p in 1 2 3; do
               if ! curl --fail --silent --show-error --location --max-time 30 "https://nakagawach.pythonanywhere.com/weld/projects/${project_id}/pdfium-page?page=${p}&longEdge=500&format=jpeg" --output /dev/null; then thumb_ok=false; break; fi
             done
-            if [[ "$projects_screen" == *'data-global-favorites-launch'* ]] && [[ "$favorites" == *'お気に入りページ'* ]] && [[ "$favorites" == *'weldFavoritePages'* ]] && [[ "$favorites" == *'longEdge=500'* ]] && [[ "$entry" == *'data-thumbnail-grid-launch'* ]] && [[ "$entry" == *'data-page-favorite-view'* ]] && [[ "$entry" == *'data-global-favorites-launch'* ]] && [[ "$progress" == *'data-page-favorite-view'* ]] && [[ "$progress" == *'data-global-favorites-launch'* ]] && [[ "$progress" == *'data-progress-empty-patch'* ]] && [[ "$progress" == *'goEntryEmpty'* ]] && [[ "$progress" == *"canvas.style.display='none'"* ]] && [[ "$grid" == *'data-thumbnail-rotation-patch'* ]] && [[ "$grid" == *'data-page-favorites-grid'* ]] && [[ "$grid" == *'data-global-favorites-launch'* ]] && [[ "$list" == *"進捗一覧"* ]] && [ "$thumb_ok" = true ]; then echo "Smoke test passed."; exit 0; fi
+            if [[ "$projects_screen" == *'data-global-favorites-launch'* ]] && [[ "$favorites" == *'お気に入りページ'* ]] && [[ "$favorites" == *'weldFavoritePages'* ]] && [[ "$favorites" == *'longEdge=500'* ]] && [[ "$entry" == *'data-thumbnail-grid-launch'* ]] && [[ "$entry" == *'data-page-favorite-view'* ]] && [[ "$entry" == *'data-global-favorites-launch'* ]] && [[ "$progress" == *'data-page-favorite-view'* ]] && [[ "$progress" == *'data-global-favorites-launch'* ]] && [[ "$progress" == *'図面エントリーへ'* ]] && [[ "$progress" == *'setInterval(checkPage,200)'* ]] && [[ "$progress" == *'data-progress-empty-patch'* ]] && [[ "$progress" == *'goEntryEmpty'* ]] && [[ "$progress" == *"canvas.style.display='none'"* ]] && [[ "$grid" == *'data-thumbnail-rotation-patch'* ]] && [[ "$grid" == *'data-page-favorites-grid'* ]] && [[ "$grid" == *'data-global-favorites-launch'* ]] && [[ "$list" == *"進捗一覧"* ]] && [ "$thumb_ok" = true ]; then echo "Smoke test passed."; exit 0; fi
             echo "Smoke test attempt ${attempt} failed thumb=$thumb_ok"; sleep 5
           done
           exit 1
