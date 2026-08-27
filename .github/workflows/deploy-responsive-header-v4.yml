@@ -1,0 +1,111 @@
+name: Deploy responsive header v4
+
+on:
+  push:
+    branches:
+      - fix/responsive-header-v4
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-pythonanywhere-weld
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Syntax check
+        run: python -m py_compile app.py projects.py project_render.py progress.py thumbnail_grid.py global_favorites.py responsive_header.py
+
+      - name: OCR regression tests
+        shell: bash
+        run: |
+          python - <<'PY'
+          from project_render import extract_label_candidates, normalize_label
+          expected={"①":"1","Ｆ１":"F1","S2":"S2","A-12":"A-12","F1-2":"F1-2","12A":"12A"}
+          for raw, value in expected.items(): assert normalize_label(raw)==value
+          assert normalize_label("SCALE") is None
+          words=[{"text":"F","vertices":[{"x":0,"y":0},{"x":10,"y":0},{"x":10,"y":12},{"x":0,"y":12}]},{"text":"1","vertices":[{"x":12,"y":0},{"x":18,"y":0},{"x":18,"y":12},{"x":12,"y":12}]}]
+          assert "F1" in {x["number"] for x in extract_label_candidates(words)}
+          print("OCR regression passed")
+          PY
+
+      - name: Verify responsive layout guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'data-responsive-header-v4' responsive_header.py
+          grep -q 'weld-mobile-appbar' responsive_header.py
+          grep -q 'weld-page-nav-group' responsive_header.py
+          grep -q 'weld-action-group' responsive_header.py
+          grep -q 'flex-wrap:wrap' responsive_header.py
+          grep -q 'max-width:390px' responsive_header.py
+          grep -q 'min-width:391px' responsive_header.py
+          grep -q 'orientation:landscape' responsive_header.py
+          grep -q "appBack.innerHTML='‹ <span>工事一覧</span>'" responsive_header.py
+          grep -q 'rotateCompact' responsive_header.py
+          grep -q 'aria-label="ページ一覧"' responsive_header.py
+          grep -q 'aria-label="進捗一覧"' responsive_header.py
+          grep -q 'create_responsive_header_blueprint' global_favorites.py
+          grep -q 'register_blueprint(create_responsive_header_blueprint())' global_favorites.py
+          grep -q 'data-page-favorite-view' thumbnail_grid.py
+          grep -q 'data-progress-empty-patch' thumbnail_grid.py
+          grep -q 'weldDrawingRotation' templates/project_progress.html
+          grep -q 'id="rotateCompact"' templates/project_progress.html
+          grep -q 'id="moreMenu"' templates/project_progress.html
+
+      - name: Upload weld app files
+        env:
+          PYTHONANYWHERE_API_TOKEN: ${{ secrets.PYTHONANYWHERE_API_TOKEN }}
+          GOOGLE_VISION_API_KEY: ${{ secrets.GOOGLE_VISION_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          api_base="https://www.pythonanywhere.com/api/v0/user/nakagawach/files/path/home/nakagawach/piping-weld-tracker"
+          upload_file(){ local file="$1"; echo "Uploading ${file}"; curl --fail --silent --show-error --retry 3 --retry-delay 2 -X POST -H "Authorization: Token ${PYTHONANYWHERE_API_TOKEN}" -F "content=@${file}" "${api_base}/${file}"; }
+          upload_file app.py
+          upload_file projects.py
+          upload_file project_render.py
+          upload_file progress.py
+          upload_file thumbnail_grid.py
+          upload_file global_favorites.py
+          upload_file responsive_header.py
+          upload_file requirements.txt
+          while IFS= read -r -d '' file; do upload_file "$file"; done < <(find templates -type f -print0)
+          if [ -d static ]; then while IFS= read -r -d '' file; do upload_file "$file"; done < <(find static -type f -print0); fi
+          test -n "${GOOGLE_VISION_API_KEY:-}"
+          printf 'GOOGLE_VISION_API_KEY=%s\n' "$GOOGLE_VISION_API_KEY" > .env
+          upload_file .env
+
+      - name: Reload PythonAnywhere
+        env:
+          PYTHONANYWHERE_API_TOKEN: ${{ secrets.PYTHONANYWHERE_API_TOKEN }}
+        shell: bash
+        run: |
+          curl --fail --silent --show-error --retry 3 --retry-delay 2 -X POST \
+            -H "Authorization: Token ${PYTHONANYWHERE_API_TOKEN}" \
+            "https://www.pythonanywhere.com/api/v0/user/nakagawach/webapps/nakagawach.pythonanywhere.com/reload/"
+
+      - name: Smoke test public UI
+        shell: bash
+        run: |
+          set -euo pipefail
+          fetch(){ curl --fail --silent --show-error --location --max-time 20 "$1" || true; }
+          for attempt in 1 2 3 4 5 6; do
+            progress=$(fetch "https://nakagawach.pythonanywhere.com/weld/projects/7/progress")
+            entry=$(fetch "https://nakagawach.pythonanywhere.com/weld/projects/7/entry")
+            grid=$(fetch "https://nakagawach.pythonanywhere.com/weld/projects/7/thumbnails?source=progress&page=1")
+            favorites=$(fetch "https://nakagawach.pythonanywhere.com/weld/favorites")
+            plist=$(fetch "https://nakagawach.pythonanywhere.com/weld/projects/7/progress-list")
+            if [[ "$progress" == *'data-responsive-header-v4'* ]] && [[ "$progress" == *'weld-mobile-appbar'* ]] && [[ "$progress" == *'weld-page-nav-group'* ]] && [[ "$progress" == *'weld-action-group'* ]] && [[ "$progress" == *'工事一覧'* ]] && [[ "$progress" == *'data-page-favorite-view'* ]] && [[ "$progress" == *'図面エントリーへ'* ]] && [[ "$entry" == *'data-responsive-header-v4'* ]] && [[ "$grid" == *'data-responsive-header-v4'* ]] && [[ "$favorites" == *'data-responsive-header-v4'* ]] && [[ "$plist" == *'data-responsive-header-v4'* ]]; then
+              echo "Smoke test passed"; exit 0
+            fi
+            echo "Smoke attempt $attempt failed"; sleep 5
+          done
+          exit 1
