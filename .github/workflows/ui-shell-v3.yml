@@ -34,6 +34,8 @@ jobs:
           if [ -f tests/test_ocr_candidate_filter.py ]; then python tests/test_ocr_candidate_filter.py; fi
 
       - name: Shared UI browser regression
+        env:
+          PYTHONPATH: ${{ github.workspace }}
         run: python tests/ui_shell_e2e.py
 
       - name: UI protection checks
