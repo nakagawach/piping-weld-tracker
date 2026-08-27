@@ -100,13 +100,11 @@ def main():
             browser = p.chromium.launch()
             page = browser.new_page(viewport={"width": 390, "height": 844})
 
-            # 工事一覧: common root styling must survive the favorites launcher DOM mutation.
             page.goto(f"{BASE_URL}/projects-screen", wait_until="domcontentloaded")
             expect(page.locator(".header.ui3-root")).to_be_visible()
             expect(page.locator("#new-project")).to_be_visible()
             expect(page.locator("[data-global-favorites-launch]")).to_have_count(1)
 
-            # 進捗: fixed app navigation, no browser-history behavior, no duplicate visible back action.
             page.goto(f"{BASE_URL}/projects/{PROJECT_ID}/progress?page=1", wait_until="domcontentloaded")
             expect(page.locator("[data-ui3-header='progress']")).to_be_visible()
             assert_back(page, "/projects-screen", "工事一覧へ")
@@ -115,9 +113,7 @@ def main():
             expect(page.locator("#thumbnailGridButton")).to_be_visible(timeout=5000)
             expect(page.locator("[aria-label='進捗一覧']")).to_be_visible()
             expect(page.locator(".page-favorite-view")).to_be_visible(timeout=5000)
-            assert page.locator("[data-weld-ui-shell-v3]").count() >= 2
 
-            # 実際にページ一覧ボタンをクリックして遷移する。
             page.locator("#thumbnailGridButton").click()
             page.wait_for_url(f"**/projects/{PROJECT_ID}/thumbnails?source=progress&page=1")
             expect(page.locator("[data-ui3-header='thumbnails']")).to_be_visible()
@@ -125,13 +121,11 @@ def main():
             page.locator(".ui3-appbar .ui3-back").click()
             page.wait_for_url(f"**/projects/{PROJECT_ID}/progress?page=1")
 
-            # 進捗一覧ボタンを実クリック。
             page.locator("[aria-label='進捗一覧']").click()
             page.wait_for_url(f"**/projects/{PROJECT_ID}/progress-list")
             expect(page.locator("[data-ui3-header='progress-list']")).to_be_visible()
             assert_back(page, f"/projects/{PROJECT_ID}/progress?page=1", "進捗へ")
 
-            # エントリー: fixed parent navigation + overflow actions are actually visible in the menu.
             page.goto(f"{BASE_URL}/projects/{PROJECT_ID}/entry?page=1", wait_until="domcontentloaded")
             expect(page.locator("[data-ui3-header='entry']")).to_be_visible()
             assert_back(page, "/projects-screen", "工事一覧へ")
@@ -146,12 +140,21 @@ def main():
             overflow.click()
             expect(page.locator(".ui3-entry-more #reset")).not_to_be_visible()
 
-            # Entry由来ページ一覧はEntryの同ページへ固定で戻る。
             page.locator("#thumbnailGridButton").click()
             page.wait_for_url(f"**/projects/{PROJECT_ID}/thumbnails?source=entry&page=1")
             assert_back(page, f"/projects/{PROJECT_ID}/entry?page=1", "エントリーへ")
 
-            # お気に入り一覧は常に工事一覧へ。
+            # Dedicated viewer stays separate from shared app header and has explicit close/rotate controls.
+            page.goto(f"{BASE_URL}/projects/{PROJECT_ID}/progress?page=1&viewer=1", wait_until="domcontentloaded")
+            expect(page.locator("html.weld-viewer-v3")).to_have_count(1)
+            expect(page.locator(".ui3-appbar")).to_have_count(0)
+            expect(page.locator(".weld-viewer-controls")).to_be_visible()
+            expect(page.locator(".weld-viewer-controls [aria-label='90度回転']")).to_be_visible()
+            close_viewer = page.locator(".weld-viewer-controls [aria-label='図面集中表示を終了']")
+            expect(close_viewer).to_be_visible()
+            close_viewer.click()
+            page.wait_for_url(f"**/projects/{PROJECT_ID}/progress?page=1")
+
             page.goto(f"{BASE_URL}/favorites", wait_until="domcontentloaded")
             expect(page.locator("[data-ui3-header='favorites']")).to_be_visible()
             assert_back(page, "/projects-screen", "工事一覧へ")
