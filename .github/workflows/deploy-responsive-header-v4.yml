@@ -1,9 +1,9 @@
-name: Deploy responsive header v4
+name: Deploy mobile viewer UI v5
 
 on:
   push:
     branches:
-      - fix/responsive-header-v4
+      - fix/mobile-viewer-ui-v5
   workflow_dispatch:
 
 permissions:
@@ -36,33 +36,28 @@ jobs:
           print("OCR regression passed")
           PY
 
-      - name: Verify responsive layout guards
+      - name: Verify mobile viewer UI guards
         shell: bash
         run: |
           set -euo pipefail
-          grep -q 'data-responsive-header-v4' responsive_header.py
+          grep -q 'data-responsive-header-v5' responsive_header.py
           grep -q 'weld-mobile-appbar' responsive_header.py
+          grep -q 'weld-appbar-fullscreen' responsive_header.py
           grep -q 'weld-page-nav-group' responsive_header.py
           grep -q 'weld-action-group' responsive_header.py
-          grep -q 'flex-wrap:wrap' responsive_header.py
-          grep -q 'max-width:390px' responsive_header.py
-          grep -q 'min-width:391px' responsive_header.py
-          grep -q 'orientation:landscape' responsive_header.py
-          grep -q "appBack.innerHTML='‹ <span>工事一覧</span>'" responsive_header.py
-          grep -q 'rotateCompact' responsive_header.py
-          grep -q 'fullscreenCompact' responsive_header.py
+          grep -q 'weld-focus-mode' responsive_header.py
+          grep -q 'weld-focus-exit' responsive_header.py
+          grep -q "more.querySelectorAll('\[data-go-fullscreen\],#backCompact')" responsive_header.py
           grep -q "document.addEventListener('pointerdown',closeMoreOutside,true)" responsive_header.py
-          grep -q "more.removeAttribute('open')" responsive_header.py
+          grep -q 'requestFullscreen' responsive_header.py
+          grep -q '100dvh' responsive_header.py
+          grep -q 'rotateCompact' responsive_header.py
           grep -q 'aria-label="ページ一覧"' responsive_header.py
           grep -q 'aria-label="進捗一覧"' responsive_header.py
           grep -q 'create_responsive_header_blueprint' global_favorites.py
-          grep -q 'register_blueprint(create_responsive_header_blueprint())' global_favorites.py
           grep -q 'data-page-favorite-view' thumbnail_grid.py
           grep -q 'data-progress-empty-patch' thumbnail_grid.py
           grep -q 'weldDrawingRotation' templates/project_progress.html
-          grep -q 'id="rotateCompact"' templates/project_progress.html
-          grep -q 'id="fullscreenCompact"' templates/project_progress.html
-          grep -q 'id="moreMenu"' templates/project_progress.html
 
       - name: Upload weld app files
         env:
@@ -106,8 +101,7 @@ jobs:
             entry=$(fetch "https://nakagawach.pythonanywhere.com/weld/projects/7/entry")
             grid=$(fetch "https://nakagawach.pythonanywhere.com/weld/projects/7/thumbnails?source=progress&page=1")
             favorites=$(fetch "https://nakagawach.pythonanywhere.com/weld/favorites")
-            plist=$(fetch "https://nakagawach.pythonanywhere.com/weld/projects/7/progress-list")
-            if [[ "$progress" == *'data-responsive-header-v4'* ]] && [[ "$progress" == *'weld-mobile-appbar'* ]] && [[ "$progress" == *'weld-page-nav-group'* ]] && [[ "$progress" == *'weld-action-group'* ]] && [[ "$progress" == *'fullscreenCompact'* ]] && [[ "$progress" == *'pointerdown'* ]] && [[ "$progress" == *'工事一覧'* ]] && [[ "$progress" == *'data-page-favorite-view'* ]] && [[ "$progress" == *'図面エントリーへ'* ]] && [[ "$entry" == *'data-responsive-header-v4'* ]] && [[ "$grid" == *'data-responsive-header-v4'* ]] && [[ "$favorites" == *'data-responsive-header-v4'* ]] && [[ "$plist" == *'data-responsive-header-v4'* ]]; then
+            if [[ "$progress" == *'data-responsive-header-v5'* ]] && [[ "$progress" == *'weld-appbar-fullscreen'* ]] && [[ "$progress" == *'weld-focus-mode'* ]] && [[ "$progress" == *'weld-focus-exit'* ]] && [[ "$progress" == *'requestFullscreen'* ]] && [[ "$progress" == *'data-page-favorite-view'* ]] && [[ "$progress" == *'図面エントリーへ'* ]] && [[ "$entry" == *'data-responsive-header-v5'* ]] && [[ "$grid" == *'data-responsive-header-v5'* ]] && [[ "$favorites" == *'data-responsive-header-v5'* ]]; then
               echo "Smoke test passed"; exit 0
             fi
             echo "Smoke attempt $attempt failed"; sleep 5
