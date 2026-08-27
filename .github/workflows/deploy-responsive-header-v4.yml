@@ -50,6 +50,9 @@ jobs:
           grep -q 'orientation:landscape' responsive_header.py
           grep -q "appBack.innerHTML='‹ <span>工事一覧</span>'" responsive_header.py
           grep -q 'rotateCompact' responsive_header.py
+          grep -q 'fullscreenCompact' responsive_header.py
+          grep -q "document.addEventListener('pointerdown',closeMoreOutside,true)" responsive_header.py
+          grep -q "more.removeAttribute('open')" responsive_header.py
           grep -q 'aria-label="ページ一覧"' responsive_header.py
           grep -q 'aria-label="進捗一覧"' responsive_header.py
           grep -q 'create_responsive_header_blueprint' global_favorites.py
@@ -58,6 +61,7 @@ jobs:
           grep -q 'data-progress-empty-patch' thumbnail_grid.py
           grep -q 'weldDrawingRotation' templates/project_progress.html
           grep -q 'id="rotateCompact"' templates/project_progress.html
+          grep -q 'id="fullscreenCompact"' templates/project_progress.html
           grep -q 'id="moreMenu"' templates/project_progress.html
 
       - name: Upload weld app files
@@ -103,7 +107,7 @@ jobs:
             grid=$(fetch "https://nakagawach.pythonanywhere.com/weld/projects/7/thumbnails?source=progress&page=1")
             favorites=$(fetch "https://nakagawach.pythonanywhere.com/weld/favorites")
             plist=$(fetch "https://nakagawach.pythonanywhere.com/weld/projects/7/progress-list")
-            if [[ "$progress" == *'data-responsive-header-v4'* ]] && [[ "$progress" == *'weld-mobile-appbar'* ]] && [[ "$progress" == *'weld-page-nav-group'* ]] && [[ "$progress" == *'weld-action-group'* ]] && [[ "$progress" == *'工事一覧'* ]] && [[ "$progress" == *'data-page-favorite-view'* ]] && [[ "$progress" == *'図面エントリーへ'* ]] && [[ "$entry" == *'data-responsive-header-v4'* ]] && [[ "$grid" == *'data-responsive-header-v4'* ]] && [[ "$favorites" == *'data-responsive-header-v4'* ]] && [[ "$plist" == *'data-responsive-header-v4'* ]]; then
+            if [[ "$progress" == *'data-responsive-header-v4'* ]] && [[ "$progress" == *'weld-mobile-appbar'* ]] && [[ "$progress" == *'weld-page-nav-group'* ]] && [[ "$progress" == *'weld-action-group'* ]] && [[ "$progress" == *'fullscreenCompact'* ]] && [[ "$progress" == *'pointerdown'* ]] && [[ "$progress" == *'工事一覧'* ]] && [[ "$progress" == *'data-page-favorite-view'* ]] && [[ "$progress" == *'図面エントリーへ'* ]] && [[ "$entry" == *'data-responsive-header-v4'* ]] && [[ "$grid" == *'data-responsive-header-v4'* ]] && [[ "$favorites" == *'data-responsive-header-v4'* ]] && [[ "$plist" == *'data-responsive-header-v4'* ]]; then
               echo "Smoke test passed"; exit 0
             fi
             echo "Smoke attempt $attempt failed"; sleep 5
