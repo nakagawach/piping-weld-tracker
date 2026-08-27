@@ -186,7 +186,7 @@ def create_thumbnail_grid_blueprint(db_path: Path):
         if source == "progress":
             html = patch_progress_empty_state(html)
 
-        if "data-thumbnail-grid-launch" not in html and "</body>" in html:
+        if "<script data-thumbnail-grid-launch>" not in html and "</body>" in html:
             script = f"""
 <script data-thumbnail-grid-launch>
 (() => {{
