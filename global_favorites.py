@@ -5,9 +5,12 @@ from pathlib import Path
 
 from flask import Blueprint, render_template, request
 
+from responsive_header import create_responsive_header_blueprint
+
 
 def create_global_favorites_blueprint(db_path: Path):
     blueprint = Blueprint("global_favorites", __name__)
+    blueprint.register_blueprint(create_responsive_header_blueprint())
 
     @blueprint.get("/favorites")
     def favorites():
