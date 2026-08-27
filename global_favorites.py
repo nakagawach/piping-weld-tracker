@@ -59,28 +59,57 @@ def create_global_favorites_blueprint(db_path: Path):
             response.set_data(html.replace("</body>", script + "</body>", 1))
             return response
 
-        match = re.fullmatch(r"(?:/weld)?/projects/\d+/(entry|progress|thumbnails)", path)
+        match = re.fullmatch(r"(?:/weld)?/projects/(\d+)/(entry|progress|thumbnails)", path)
         if match:
-            source = match.group(1)
+            project_id, source = match.groups()
             script = f"""
 <script data-global-favorites-launch>
 (() => {{
-  const go=()=>location.href='/weld/favorites';
+  const projectId={project_id};
   const source={source!r};
+  const goFavorites=()=>location.href='/weld/favorites';
+  const pageInput=document.getElementById('page');
+  const currentPage=()=>Math.max(1,Number(pageInput?.value)||1);
+  const goEntry=()=>location.href=`/weld/projects/${{projectId}}/entry?page=${{currentPage()}}`;
+
   const moreMenu=document.querySelector('.more-menu');
   if(moreMenu){{
-    const b=document.createElement('button');b.type='button';b.className='button';b.textContent='★ お気に入り一覧';b.title='工事横断のお気に入り一覧';b.onclick=go;
-    moreMenu.appendChild(b);return;
+    if(source==='progress'&&!moreMenu.querySelector('[data-go-entry]')){{
+      const entry=document.createElement('button');entry.type='button';entry.className='button';entry.dataset.goEntry='1';entry.textContent='✎ 図面エントリーへ';entry.title='現在ページを図面エントリーで開く';entry.onclick=goEntry;moreMenu.appendChild(entry);
+    }}
+    if(!moreMenu.querySelector('[data-go-favorites]')){{
+      const fav=document.createElement('button');fav.type='button';fav.className='button';fav.dataset.goFavorites='1';fav.textContent='★ お気に入り一覧';fav.title='工事横断のお気に入り一覧';fav.onclick=goFavorites;moreMenu.appendChild(fav);
+    }}
+  }} else {{
+    const controls=document.querySelector('.controls');
+    if(controls&&!controls.querySelector('[data-go-favorites]')){{
+      const fav=document.createElement('button');fav.type='button';fav.className='button';fav.dataset.goFavorites='1';fav.textContent='★ 一覧';fav.title='工事横断のお気に入り一覧';fav.onclick=goFavorites;controls.appendChild(fav);
+    }} else if(!controls){{
+      const top=document.querySelector('.top');
+      if(top&&!top.querySelector('[data-go-favorites]')){{
+        const fav=document.createElement('button');fav.type='button';fav.className='button';fav.dataset.goFavorites='1';fav.textContent='★ お気に入り';fav.title='工事横断のお気に入り一覧';
+        fav.style.cssText='border-color:#f9ab00;color:#8a5a00;font-weight:800;background:#fff8e1';fav.onclick=goFavorites;top.appendChild(fav);
+      }}
+    }}
   }}
-  const controls=document.querySelector('.controls');
-  if(controls){{
-    const b=document.createElement('button');b.type='button';b.className='button';b.textContent='★ 一覧';b.title='工事横断のお気に入り一覧';b.onclick=go;
-    controls.appendChild(b);return;
-  }}
-  const top=document.querySelector('.top');
-  if(top){{
-    const b=document.createElement('button');b.type='button';b.className='button';b.textContent='★ お気に入り';b.title='工事横断のお気に入り一覧';
-    b.style.cssText='border-color:#f9ab00;color:#8a5a00;font-weight:800;background:#fff8e1';b.onclick=go;top.appendChild(b);
+
+  if(source==='progress'&&pageInput){{
+    const storageKey=`weldFavoritePages:${{projectId}}`;
+    let lastPage=0;
+    const readFavorites=()=>{{try{{const raw=JSON.parse(localStorage.getItem(storageKey)||'[]');return new Set(Array.isArray(raw)?raw.map(Number).filter(Number.isFinite):[])}}catch(_e){{return new Set()}}}};
+    const syncStar=()=>{{
+      const star=document.querySelector('.page-favorite-view');if(!star)return;
+      const p=currentPage(),favorites=readFavorites(),on=favorites.has(p);
+      star.textContent=on?'★':'☆';star.classList.toggle('is-favorite',on);
+      star.setAttribute('aria-label',on?`P${{p}} お気に入り解除`:`P${{p}} お気に入り登録`);star.title=on?'お気に入り解除':'お気に入り登録';lastPage=p;
+    }};
+    const checkPage=()=>{{const p=currentPage();if(p!==lastPage)syncStar()}};
+    const timer=setInterval(checkPage,200);
+    window.addEventListener('pagehide',()=>clearInterval(timer),{{once:true}});
+    window.addEventListener('pageshow',syncStar);window.addEventListener('focus',syncStar);
+    document.addEventListener('visibilitychange',()=>{{if(!document.hidden)syncStar()}});
+    window.addEventListener('storage',e=>{{if(e.key===storageKey)syncStar()}});
+    setTimeout(syncStar,0);
   }}
 }})();
 </script>
