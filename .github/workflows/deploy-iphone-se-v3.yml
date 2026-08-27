@@ -1,0 +1,97 @@
+name: Deploy iPhone SE toolbar v3
+
+on:
+  push:
+    branches:
+      - fix/iphone-se-landscape-toolbar-v3
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-pythonanywhere-weld
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Syntax check
+        run: python -m py_compile app.py projects.py project_render.py progress.py thumbnail_grid.py global_favorites.py
+
+      - name: OCR regression tests
+        shell: bash
+        run: |
+          python - <<'PY'
+          from project_render import extract_label_candidates, normalize_label
+          expected={"①":"1","Ｆ１":"F1","S2":"S2","A-12":"A-12","F1-2":"F1-2","12A":"12A"}
+          for raw, value in expected.items(): assert normalize_label(raw)==value
+          assert normalize_label("SCALE") is None
+          words=[{"text":"F","vertices":[{"x":0,"y":0},{"x":10,"y":0},{"x":10,"y":12},{"x":0,"y":12}]},{"text":"1","vertices":[{"x":12,"y":0},{"x":18,"y":0},{"x":18,"y":12},{"x":12,"y":12}]}]
+          assert "F1" in {x["number"] for x in extract_label_candidates(words)}
+          print("OCR regression passed")
+          PY
+
+      - name: Verify mobile toolbar guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'data-iphone-se-toolbar-v3' global_favorites.py
+          grep -q 'max-width:820px' global_favorites.py
+          grep -q 'orientation:landscape' global_favorites.py
+          grep -q 'compact-rotate' global_favorites.py
+          grep -q 'more{display:block!important' global_favorites.py
+          grep -q 'data-go-fullscreen' global_favorites.py
+          grep -q '図面エントリーへ' global_favorites.py
+          grep -q 'お気に入り一覧' global_favorites.py
+          grep -q 'setInterval(checkPage,200)' global_favorites.py
+          grep -q 'data-page-favorite-view' thumbnail_grid.py
+          grep -q 'data-progress-empty-patch' thumbnail_grid.py
+          grep -q 'weldDrawingRotation' templates/project_progress.html
+
+      - name: Upload weld app files
+        env:
+          PYTHONANYWHERE_API_TOKEN: ${{ secrets.PYTHONANYWHERE_API_TOKEN }}
+          GOOGLE_VISION_API_KEY: ${{ secrets.GOOGLE_VISION_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          api_base="https://www.pythonanywhere.com/api/v0/user/nakagawach/files/path/home/nakagawach/piping-weld-tracker"
+          upload_file(){ local file="$1"; echo "Uploading ${file}"; curl --fail --silent --show-error --retry 3 --retry-delay 2 -X POST -H "Authorization: Token ${PYTHONANYWHERE_API_TOKEN}" -F "content=@${file}" "${api_base}/${file}"; }
+          upload_file app.py
+          upload_file projects.py
+          upload_file project_render.py
+          upload_file progress.py
+          upload_file thumbnail_grid.py
+          upload_file global_favorites.py
+          upload_file requirements.txt
+          while IFS= read -r -d '' file; do upload_file "$file"; done < <(find templates -type f -print0)
+          if [ -d static ]; then while IFS= read -r -d '' file; do upload_file "$file"; done < <(find static -type f -print0); fi
+          test -n "${GOOGLE_VISION_API_KEY:-}"
+          printf 'GOOGLE_VISION_API_KEY=%s\n' "$GOOGLE_VISION_API_KEY" > .env
+          upload_file .env
+
+      - name: Reload PythonAnywhere
+        env:
+          PYTHONANYWHERE_API_TOKEN: ${{ secrets.PYTHONANYWHERE_API_TOKEN }}
+        run: curl --fail --silent --show-error --retry 3 --retry-delay 2 -X POST -H "Authorization: Token ${PYTHONANYWHERE_API_TOKEN}" "https://www.pythonanywhere.com/api/v0/user/nakagawach/webapps/nakagawach.pythonanywhere.com/reload/"
+
+      - name: Smoke test public UI
+        shell: bash
+        run: |
+          set -euo pipefail
+          fetch(){ curl --fail --silent --show-error --location --max-time 20 "$1" || true; }
+          for attempt in 1 2 3 4 5 6; do
+            progress=$(fetch "https://nakagawach.pythonanywhere.com/weld/projects/7/progress")
+            entry=$(fetch "https://nakagawach.pythonanywhere.com/weld/projects/7/entry")
+            favorites=$(fetch "https://nakagawach.pythonanywhere.com/weld/favorites")
+            if [[ "$progress" == *'data-iphone-se-toolbar-v3'* ]] && [[ "$progress" == *'data-go-fullscreen'* ]] && [[ "$progress" == *'data-page-favorite-view'* ]] && [[ "$progress" == *'図面エントリーへ'* ]] && [[ "$progress" == *'お気に入り一覧'* ]] && [[ "$entry" == *'data-page-favorite-view'* ]] && [[ "$favorites" == *'お気に入りページ'* ]]; then
+              echo "Smoke test passed"; exit 0
+            fi
+            echo "Smoke attempt $attempt failed"; sleep 5
+          done
+          exit 1
