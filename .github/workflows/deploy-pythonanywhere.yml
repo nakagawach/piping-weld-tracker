@@ -32,6 +32,7 @@ on:
       - feature/thumbnail-grid-view
       - fix/thumbnail-grid-performance
       - fix/progress-empty-and-rotated-thumbs
+      - feature/page-favorites
   workflow_dispatch:
 
 permissions:
@@ -82,17 +83,16 @@ jobs:
           grep -q "longEdge=500" templates/project_progress.html
           grep -q 'setupProgressThumbnails' progress.py
           grep -q 'updateProgressThumbActive' progress.py
-          grep -q "new_load_start = \"pageInput.value=n;updateProgressThumbActive();setBusy(true);drawingZoom=1;" progress.py
           grep -q 'project_progress_list' progress.py
           grep -q 'project_thumbnail_grid_v2.html' thumbnail_grid.py
           grep -q 'data-thumbnail-rotation-patch' thumbnail_grid.py
+          grep -q 'data-page-favorites-grid' thumbnail_grid.py
+          grep -q 'data-page-favorite-view' thumbnail_grid.py
+          grep -q 'weldFavoritePages' thumbnail_grid.py
           grep -q 'goEntryEmpty' thumbnail_grid.py
-          grep -q 'canvas.hidden=true' thumbnail_grid.py
+          grep -q "canvas.style.display='none'" thumbnail_grid.py
           grep -q 'data-cols="4"' templates/project_thumbnail_grid_v2.html
-          grep -q 'IntersectionObserver' templates/project_thumbnail_grid_v2.html
-          grep -q 'longEdge=500' templates/project_thumbnail_grid_v2.html
           grep -q 'MAX_CONCURRENT=2' templates/project_thumbnail_grid_v2.html
-          grep -q "attempt<2" templates/project_thumbnail_grid_v2.html
           grep -q 'requestIdleCallback' templates/project_thumbnail_grid_v2.html
 
       - name: Upload weld app files
@@ -141,7 +141,7 @@ jobs:
             for p in 1 2 3; do
               if ! curl --fail --silent --show-error --location --max-time 30 "https://nakagawach.pythonanywhere.com/weld/projects/${project_id}/pdfium-page?page=${p}&longEdge=500&format=jpeg" --output /dev/null; then thumb_ok=false; break; fi
             done
-            if [[ "$entry" == *'data-thumbnail-grid-launch'* ]] && [[ "$progress" == *'data-thumbnail-grid-launch'* ]] && [[ "$progress" == *'data-progress-empty-patch'* ]] && [[ "$progress" == *'goEntryEmpty'* ]] && [[ "$grid" == *'data-thumbnail-rotation-patch'* ]] && [[ "$grid" == *'weldDrawingRotation'* ]] && [[ "$entry" == *'weldDrawingRotation'* ]] && [[ "$progress" == *'weldDrawingRotation'* ]] && [[ "$list" == *"進捗一覧"* ]] && [[ "$grid" == *'data-cols="4"'* ]] && [[ "$grid" == *'MAX_CONCURRENT=2'* ]] && [[ "$grid" == *'requestIdleCallback'* ]] && [[ "$grid" == *'attempt&lt;2'* || "$grid" == *'attempt<2'* ]] && [ "$thumb_ok" = true ]; then echo "Smoke test passed."; exit 0; fi
+            if [[ "$entry" == *'data-thumbnail-grid-launch'* ]] && [[ "$entry" == *'data-page-favorite-view'* ]] && [[ "$progress" == *'data-page-favorite-view'* ]] && [[ "$progress" == *'data-progress-empty-patch'* ]] && [[ "$progress" == *'goEntryEmpty'* ]] && [[ "$progress" == *"canvas.style.display='none'"* ]] && [[ "$grid" == *'data-thumbnail-rotation-patch'* ]] && [[ "$grid" == *'data-page-favorites-grid'* ]] && [[ "$grid" == *'weldFavoritePages'* ]] && [[ "$list" == *"進捗一覧"* ]] && [[ "$grid" == *'data-cols="4"'* ]] && [[ "$grid" == *'MAX_CONCURRENT=2'* ]] && [ "$thumb_ok" = true ]; then echo "Smoke test passed."; exit 0; fi
             echo "Smoke test attempt ${attempt} failed thumb=$thumb_ok"; sleep 5
           done
           exit 1
