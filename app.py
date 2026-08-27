@@ -7,6 +7,7 @@ from urllib import error, request
 
 from flask import Flask, jsonify, render_template, request as flask_request
 
+from global_favorites import create_global_favorites_blueprint
 from progress import create_progress_blueprint
 from projects import create_projects_blueprint
 from thumbnail_grid import create_thumbnail_grid_blueprint
@@ -22,6 +23,7 @@ PROGRESS_STATUSES = {"未着手", "施工中", "完了"}
 app.register_blueprint(create_projects_blueprint(DB_PATH, DATA_DIR))
 app.register_blueprint(create_progress_blueprint(DB_PATH))
 app.register_blueprint(create_thumbnail_grid_blueprint(DB_PATH))
+app.register_blueprint(create_global_favorites_blueprint(DB_PATH))
 
 
 def get_google_vision_api_key():
