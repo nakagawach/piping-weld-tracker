@@ -81,12 +81,13 @@ def create_responsive_header_blueprint():
   body.weld-progress-v5 .progress-thumb img{height:38px!important}
 }
 
-body.weld-focus-mode{overflow:hidden!important;background:#000!important}
+body.weld-focus-mode{overflow:hidden!important;background:#e9eaed!important}
 body.weld-focus-mode .weld-mobile-appbar,body.weld-focus-mode .toolbar,body.weld-focus-mode .summary,body.weld-focus-mode .progress-thumbs,body.weld-focus-mode .statusline{display:none!important}
 body.weld-focus-mode main{padding:0!important;margin:0!important;max-width:none!important}
-body.weld-focus-mode .card{position:fixed!important;inset:0!important;z-index:200!important;width:100vw!important;height:100dvh!important;border:0!important;border-radius:0!important;background:#000!important;display:flex!important;flex-direction:column!important}
-body.weld-focus-mode .viewer{flex:1 1 auto!important;min-height:0!important;max-height:none!important;height:100dvh!important;background:#111!important}
-body.weld-focus-mode .weld-focus-exit{display:inline-flex!important;position:fixed!important;top:max(8px,env(safe-area-inset-top))!important;right:max(8px,env(safe-area-inset-right))!important;z-index:260!important;width:44px!important;height:44px!important;align-items:center!important;justify-content:center!important;border:0!important;border-radius:22px!important;background:rgba(20,20,20,.72)!important;color:#fff!important;font-size:1.45rem!important;font-weight:700!important;box-shadow:0 2px 8px #0005!important}
+body.weld-focus-mode .card{position:fixed!important;inset:0!important;z-index:200!important;width:100vw!important;height:100dvh!important;border:0!important;border-radius:0!important;background:#e9eaed!important;display:flex!important;flex-direction:column!important}
+body.weld-focus-mode .viewer{flex:1 1 auto!important;min-height:0!important;max-height:none!important;height:100dvh!important;background:#e9eaed!important}
+body.weld-focus-mode #canvas{background:#fff!important}
+body.weld-focus-mode .weld-focus-exit{display:inline-flex!important;position:fixed!important;top:max(8px,env(safe-area-inset-top))!important;right:max(8px,env(safe-area-inset-right))!important;z-index:260!important;width:44px!important;height:44px!important;align-items:center!important;justify-content:center!important;border:0!important;border-radius:22px!important;background:rgba(32,33,36,.78)!important;color:#fff!important;font-size:1.45rem!important;font-weight:700!important;box-shadow:0 2px 8px #0004!important}
 
 @media(max-width:820px){
   body.weld-simple-header-v5 main{padding-top:0!important}
