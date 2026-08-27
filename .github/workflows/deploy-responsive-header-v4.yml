@@ -51,6 +51,11 @@ jobs:
           grep -q "document.addEventListener('pointerdown',closeMoreOutside,true)" responsive_header.py
           grep -q 'requestFullscreen' responsive_header.py
           grep -q '100dvh' responsive_header.py
+          grep -q '__weldSetZoom' responsive_header.py
+          grep -q '__weldGetZoom' responsive_header.py
+          grep -q 'const fitCover=' responsive_header.py
+          grep -q 'Math.max(viewer.clientWidth/rect.width,viewer.clientHeight/rect.height,1)' responsive_header.py
+          grep -q 'window.__weldSetZoom(savedZoom)' responsive_header.py
           grep -q 'rotateCompact' responsive_header.py
           grep -q 'aria-label="ページ一覧"' responsive_header.py
           grep -q 'aria-label="進捗一覧"' responsive_header.py
@@ -101,7 +106,7 @@ jobs:
             entry=$(fetch "https://nakagawach.pythonanywhere.com/weld/projects/7/entry")
             grid=$(fetch "https://nakagawach.pythonanywhere.com/weld/projects/7/thumbnails?source=progress&page=1")
             favorites=$(fetch "https://nakagawach.pythonanywhere.com/weld/favorites")
-            if [[ "$progress" == *'data-responsive-header-v5'* ]] && [[ "$progress" == *'weld-appbar-fullscreen'* ]] && [[ "$progress" == *'weld-focus-mode'* ]] && [[ "$progress" == *'weld-focus-exit'* ]] && [[ "$progress" == *'requestFullscreen'* ]] && [[ "$progress" == *'data-page-favorite-view'* ]] && [[ "$progress" == *'図面エントリーへ'* ]] && [[ "$entry" == *'data-responsive-header-v5'* ]] && [[ "$grid" == *'data-responsive-header-v5'* ]] && [[ "$favorites" == *'data-responsive-header-v5'* ]]; then
+            if [[ "$progress" == *'data-responsive-header-v5'* ]] && [[ "$progress" == *'weld-appbar-fullscreen'* ]] && [[ "$progress" == *'weld-focus-mode'* ]] && [[ "$progress" == *'weld-focus-exit'* ]] && [[ "$progress" == *'__weldSetZoom'* ]] && [[ "$progress" == *'fitCover'* ]] && [[ "$progress" == *'requestFullscreen'* ]] && [[ "$progress" == *'data-page-favorite-view'* ]] && [[ "$progress" == *'図面エントリーへ'* ]] && [[ "$entry" == *'data-responsive-header-v5'* ]] && [[ "$grid" == *'data-responsive-header-v5'* ]] && [[ "$favorites" == *'data-responsive-header-v5'* ]]; then
               echo "Smoke test passed"; exit 0
             fi
             echo "Smoke attempt $attempt failed"; sleep 5
