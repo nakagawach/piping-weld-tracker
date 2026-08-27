@@ -1,28 +1,17 @@
 import re
 
-from flask import Blueprint, request
 
+def apply_navigation_ui(html: str, path: str) -> str:
+    if "</head>" not in html or "</body>" not in html or "data-navigation-ui" in html:
+        return html
 
-def create_navigation_ui_blueprint():
-    blueprint = Blueprint("navigation_ui", __name__)
+    project_view = re.fullmatch(r"(?:/weld)?/projects/(\d+)/(entry|progress|thumbnails)", path)
+    is_favorites = bool(re.fullmatch(r"(?:/weld)?/favorites", path))
+    is_progress_list = bool(re.fullmatch(r"(?:/weld)?/projects/\d+/progress-list", path))
+    if not (project_view or is_favorites or is_progress_list):
+        return html
 
-    @blueprint.after_app_request
-    def unify_navigation(response):
-        if response.status_code != 200 or response.mimetype != "text/html":
-            return response
-
-        html = response.get_data(as_text=True)
-        if "</head>" not in html or "</body>" not in html or "data-navigation-ui" in html:
-            return response
-
-        path = request.path
-        project_view = re.fullmatch(r"(?:/weld)?/projects/(\d+)/(entry|progress|thumbnails)", path)
-        is_favorites = bool(re.fullmatch(r"(?:/weld)?/favorites", path))
-        is_progress_list = bool(re.fullmatch(r"(?:/weld)?/projects/\d+/progress-list", path))
-        if not (project_view or is_favorites or is_progress_list):
-            return response
-
-        style = """
+    style = """
 <style data-navigation-ui>
 .nav-unified{display:flex!important;align-items:center!important;justify-content:flex-start!important;gap:9px!important}
 .nav-unified>.nav-title-area{min-width:0;flex:1 1 auto}
@@ -61,78 +50,43 @@ def create_navigation_ui_blueprint():
 </style>
 """
 
-        if project_view:
-            _, source = project_view.groups()
-            if source == "progress":
-                script = """
-<script data-navigation-ui>
-(() => {
-  document.body.dataset.navPage='progress';
-  const top=document.querySelector('.top');
-  const back=document.getElementById('back');
-  if(top&&back){
-    top.classList.add('nav-unified');
-    back.classList.add('nav-back-unified');
-    back.innerHTML='<span class="nav-back-icon" aria-hidden="true">‹</span><span class="nav-back-label">工事一覧</span>';
-    const titleArea=[...top.children].find(x=>x!==back);if(titleArea)titleArea.classList.add('nav-title-area');
-    top.insertBefore(back,top.firstChild);
-  }
-  const toolbar=document.querySelector('.toolbar');
-  if(toolbar&&!toolbar.querySelector('.mobile-project-back')){
-    const mobileBack=document.createElement('button');mobileBack.type='button';mobileBack.className='button mobile-project-back';mobileBack.setAttribute('aria-label','工事一覧へ戻る');mobileBack.title='工事一覧へ戻る';mobileBack.textContent='‹';
-    mobileBack.onclick=()=>back?.click();toolbar.insertBefore(mobileBack,toolbar.firstChild);
-  }
-})();
-</script>
-"""
-            elif source == "entry":
-                script = """
-<script data-navigation-ui>
-(() => {
-  document.body.dataset.navPage='entry';
-  const top=document.querySelector('.top'),back=document.getElementById('back');if(!top||!back)return;
-  top.classList.add('nav-unified');back.classList.add('nav-back-unified');back.innerHTML='<span class="nav-back-icon" aria-hidden="true">‹</span><span class="nav-back-label">工事一覧</span>';
-  const titleArea=[...top.children].find(x=>x!==back);if(titleArea)titleArea.classList.add('nav-title-area');top.insertBefore(back,top.firstChild);
-})();
-</script>
-"""
-            else:
-                script = """
-<script data-navigation-ui>
-(() => {
-  document.body.dataset.navPage='thumbnails';
-  const top=document.querySelector('.top'),back=document.getElementById('back');if(!top||!back)return;
-  top.classList.add('nav-unified');back.classList.add('nav-back-unified');back.innerHTML='<span class="nav-back-icon" aria-hidden="true">‹</span><span class="nav-back-label">戻る</span>';
-  const titleArea=[...top.children].find(x=>x!==back);if(titleArea)titleArea.classList.add('nav-title-area');top.insertBefore(back,top.firstChild);
-})();
-</script>
-"""
-        elif is_favorites:
+    if project_view:
+        _, source = project_view.groups()
+        if source == "progress":
             script = """
 <script data-navigation-ui>
 (() => {
-  document.body.dataset.navPage='favorites';
-  const top=document.querySelector('.top'),back=document.getElementById('back');if(!top||!back)return;
-  top.classList.add('nav-unified');back.classList.add('nav-back-unified');back.innerHTML='<span class="nav-back-icon" aria-hidden="true">‹</span><span class="nav-back-label">工事一覧</span>';
-  const titleArea=[...top.children].find(x=>x!==back);if(titleArea)titleArea.classList.add('nav-title-area');top.insertBefore(back,top.firstChild);
+  document.body.dataset.navPage='progress';
+  const top=document.querySelector('.top');const back=document.getElementById('back');
+  if(top&&back){top.classList.add('nav-unified');back.classList.add('nav-back-unified');back.innerHTML='<span class="nav-back-icon" aria-hidden="true">‹</span><span class="nav-back-label">工事一覧</span>';const titleArea=[...top.children].find(x=>x!==back);if(titleArea)titleArea.classList.add('nav-title-area');top.insertBefore(back,top.firstChild)}
+  const toolbar=document.querySelector('.toolbar');
+  if(toolbar&&!toolbar.querySelector('.mobile-project-back')){const mobileBack=document.createElement('button');mobileBack.type='button';mobileBack.className='button mobile-project-back';mobileBack.setAttribute('aria-label','工事一覧へ戻る');mobileBack.title='工事一覧へ戻る';mobileBack.textContent='‹';mobileBack.onclick=()=>back?.click();toolbar.insertBefore(mobileBack,toolbar.firstChild)}
 })();
+</script>
+"""
+        elif source == "entry":
+            script = """
+<script data-navigation-ui>
+(() => {document.body.dataset.navPage='entry';const top=document.querySelector('.top'),back=document.getElementById('back');if(!top||!back)return;top.classList.add('nav-unified');back.classList.add('nav-back-unified');back.innerHTML='<span class="nav-back-icon" aria-hidden="true">‹</span><span class="nav-back-label">工事一覧</span>';const titleArea=[...top.children].find(x=>x!==back);if(titleArea)titleArea.classList.add('nav-title-area');top.insertBefore(back,top.firstChild)})();
 </script>
 """
         else:
             script = """
 <script data-navigation-ui>
-(() => {
-  document.body.dataset.navPage='progress-list';
-  const bar=document.querySelector('.topbar'),back=bar?.querySelector('.back');if(!bar||!back)return;
-  bar.classList.add('nav-unified');back.classList.add('nav-back-unified');
-  const titleArea=bar.querySelector('.titlebox');if(titleArea)titleArea.classList.add('nav-title-area');
-})();
+(() => {document.body.dataset.navPage='thumbnails';const top=document.querySelector('.top'),back=document.getElementById('back');if(!top||!back)return;top.classList.add('nav-unified');back.classList.add('nav-back-unified');back.innerHTML='<span class="nav-back-icon" aria-hidden="true">‹</span><span class="nav-back-label">戻る</span>';const titleArea=[...top.children].find(x=>x!==back);if(titleArea)titleArea.classList.add('nav-title-area');top.insertBefore(back,top.firstChild)})();
+</script>
+"""
+    elif is_favorites:
+        script = """
+<script data-navigation-ui>
+(() => {document.body.dataset.navPage='favorites';const top=document.querySelector('.top'),back=document.getElementById('back');if(!top||!back)return;top.classList.add('nav-unified');back.classList.add('nav-back-unified');back.innerHTML='<span class="nav-back-icon" aria-hidden="true">‹</span><span class="nav-back-label">工事一覧</span>';const titleArea=[...top.children].find(x=>x!==back);if(titleArea)titleArea.classList.add('nav-title-area');top.insertBefore(back,top.firstChild)})();
+</script>
+"""
+    else:
+        script = """
+<script data-navigation-ui>
+(() => {document.body.dataset.navPage='progress-list';const bar=document.querySelector('.topbar'),back=bar?.querySelector('.back');if(!bar||!back)return;bar.classList.add('nav-unified');back.classList.add('nav-back-unified');const titleArea=bar.querySelector('.titlebox');if(titleArea)titleArea.classList.add('nav-title-area')})();
 </script>
 """
 
-        html = html.replace("</head>", style + "</head>", 1)
-        html = html.replace("</body>", script + "</body>", 1)
-        response.set_data(html)
-        return response
-
-    return blueprint
+    return html.replace("</head>", style + "</head>", 1).replace("</body>", script + "</body>", 1)
