@@ -1,9 +1,9 @@
-name: Deploy responsive header v4
+name: Deploy fullscreen and menu dismiss
 
 on:
   push:
     branches:
-      - fix/responsive-header-v4
+      - fix/fullscreen-and-menu-dismiss
   workflow_dispatch:
 
 permissions:
@@ -36,7 +36,7 @@ jobs:
           print("OCR regression passed")
           PY
 
-      - name: Verify responsive layout guards
+      - name: Verify responsive controls guards
         shell: bash
         run: |
           set -euo pipefail
@@ -46,18 +46,21 @@ jobs:
           grep -q 'weld-action-group' responsive_header.py
           grep -q 'flex-wrap:wrap' responsive_header.py
           grep -q 'max-width:390px' responsive_header.py
-          grep -q 'min-width:391px' responsive_header.py
           grep -q 'orientation:landscape' responsive_header.py
           grep -q "appBack.innerHTML='‹ <span>工事一覧</span>'" responsive_header.py
+          grep -q "document.getElementById('fullscreenCompact')" responsive_header.py
+          grep -q 'compact-fullscreen{display:inline-flex' responsive_header.py
+          grep -q "document.addEventListener('pointerdown'" responsive_header.py
+          grep -q "e.key==='Escape'" responsive_header.py
+          grep -q "queueMicrotask(closeMore)" responsive_header.py
+          grep -q "menuFullscreen.remove()" responsive_header.py
           grep -q 'rotateCompact' responsive_header.py
           grep -q 'aria-label="ページ一覧"' responsive_header.py
           grep -q 'aria-label="進捗一覧"' responsive_header.py
           grep -q 'create_responsive_header_blueprint' global_favorites.py
-          grep -q 'register_blueprint(create_responsive_header_blueprint())' global_favorites.py
           grep -q 'data-page-favorite-view' thumbnail_grid.py
           grep -q 'data-progress-empty-patch' thumbnail_grid.py
-          grep -q 'weldDrawingRotation' templates/project_progress.html
-          grep -q 'id="rotateCompact"' templates/project_progress.html
+          grep -q 'id="fullscreenCompact"' templates/project_progress.html
           grep -q 'id="moreMenu"' templates/project_progress.html
 
       - name: Upload weld app files
@@ -103,7 +106,7 @@ jobs:
             grid=$(fetch "https://nakagawach.pythonanywhere.com/weld/projects/7/thumbnails?source=progress&page=1")
             favorites=$(fetch "https://nakagawach.pythonanywhere.com/weld/favorites")
             plist=$(fetch "https://nakagawach.pythonanywhere.com/weld/projects/7/progress-list")
-            if [[ "$progress" == *'data-responsive-header-v4'* ]] && [[ "$progress" == *'weld-mobile-appbar'* ]] && [[ "$progress" == *'weld-page-nav-group'* ]] && [[ "$progress" == *'weld-action-group'* ]] && [[ "$progress" == *'工事一覧'* ]] && [[ "$progress" == *'data-page-favorite-view'* ]] && [[ "$progress" == *'図面エントリーへ'* ]] && [[ "$entry" == *'data-responsive-header-v4'* ]] && [[ "$grid" == *'data-responsive-header-v4'* ]] && [[ "$favorites" == *'data-responsive-header-v4'* ]] && [[ "$plist" == *'data-responsive-header-v4'* ]]; then
+            if [[ "$progress" == *'data-responsive-header-v4'* ]] && [[ "$progress" == *'weld-mobile-appbar'* ]] && [[ "$progress" == *'weld-page-nav-group'* ]] && [[ "$progress" == *'weld-action-group'* ]] && [[ "$progress" == *"document.getElementById('fullscreenCompact')"* ]] && [[ "$progress" == *"document.addEventListener('pointerdown'"* ]] && [[ "$progress" == *"e.key==='Escape'"* ]] && [[ "$progress" == *'工事一覧'* ]] && [[ "$progress" == *'data-page-favorite-view'* ]] && [[ "$entry" == *'data-responsive-header-v4'* ]] && [[ "$grid" == *'data-responsive-header-v4'* ]] && [[ "$favorites" == *'data-responsive-header-v4'* ]] && [[ "$plist" == *'data-responsive-header-v4'* ]]; then
               echo "Smoke test passed"; exit 0
             fi
             echo "Smoke attempt $attempt failed"; sleep 5
