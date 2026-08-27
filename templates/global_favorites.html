@@ -8,23 +8,25 @@
     *{box-sizing:border-box}:root{color-scheme:light;--blue:#1967d2;--yellow:#f9ab00;--border:#dadce0;--bg:#f5f6f8;--text:#202124;--muted:#5f6368}
     body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--text)}button,input{font:inherit}
     main{max-width:1280px;margin:auto;padding:12px}.top{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-bottom:10px}.title{margin:0;font-size:1.35rem}.sub{margin-top:3px;color:var(--muted);font-size:.82rem}.button{min-height:42px;padding:0 12px;border:1px solid #bdc1c6;border-radius:9px;background:#fff;color:var(--text);font-weight:700;cursor:pointer}
-    .toolbar{position:sticky;top:0;z-index:5;display:flex;gap:8px;align-items:center;padding:8px;background:#fff;border:1px solid var(--border);border-radius:11px;margin-bottom:10px}.search{flex:1;min-width:0;height:40px;padding:0 11px;border:1px solid #bdc1c6;border-radius:9px;background:#fff}.count{white-space:nowrap;color:var(--muted);font-size:.82rem;font-weight:700}
-    .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.card{position:relative;min-width:0;border:1px solid var(--border);border-radius:12px;background:#fff;overflow:hidden;box-shadow:0 1px 2px #0001}.thumb-wrap{aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;background:#f1f3f4;overflow:hidden;cursor:pointer}.thumb{display:none;max-width:100%;max-height:100%;object-fit:contain}.placeholder{color:#80868b;font-weight:800}.info{padding:9px}.project{font-weight:800;line-height:1.35}.page{margin-top:3px;font-size:.86rem;font-weight:800;color:#174ea6}.pdf{margin-top:3px;color:var(--muted);font-size:.74rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.actions{display:flex;gap:6px;margin-top:9px}.actions .button{flex:1;min-height:38px;padding:0 8px;font-size:.82rem}.progress{border-color:var(--blue);background:var(--blue);color:#fff}.star{position:absolute;top:8px;right:8px;z-index:3;width:36px;height:36px;border:1px solid var(--yellow);border-radius:50%;background:#fff8e1;color:var(--yellow);font-size:1.35rem;line-height:1;cursor:pointer;box-shadow:0 1px 3px #0002}.empty{grid-column:1/-1;padding:42px 16px;text-align:center;color:var(--muted);background:#fff;border:1px solid var(--border);border-radius:12px;line-height:1.7}.loading{font-size:.72rem;color:var(--muted);margin-top:4px}
-    @media(max-width:800px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-    @media(max-width:480px){main{padding:8px}.title{font-size:1.15rem}.toolbar{padding:6px}.grid{gap:7px}.info{padding:7px}.project{font-size:.9rem}.actions{flex-direction:column}.actions .button{width:100%}}
+    .toolbar{position:sticky;top:0;z-index:5;display:flex;gap:8px;align-items:center;padding:8px;background:#fff;border:1px solid var(--border);border-radius:11px;margin-bottom:10px}.search{flex:1;min-width:120px;height:40px;padding:0 11px;border:1px solid #bdc1c6;border-radius:9px;background:#fff}.count{white-space:nowrap;color:var(--muted);font-size:.82rem;font-weight:700}.columns{display:flex;gap:5px}.columns button{min-width:42px;height:38px;border:1px solid #bdc1c6;border-radius:8px;background:#fff;font-weight:800;cursor:pointer}.columns button.active{border-color:var(--blue);background:#e8f0fe;color:#174ea6}
+    .grid{display:grid;grid-template-columns:repeat(var(--cols,3),minmax(0,1fr));gap:10px}.card{position:relative;min-width:0;border:1px solid var(--border);border-radius:12px;background:#fff;overflow:hidden;box-shadow:0 1px 2px #0001}.thumb-wrap{aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;background:#f1f3f4;overflow:hidden;cursor:pointer}.thumb{display:none;max-width:100%;max-height:100%;object-fit:contain}.placeholder{color:#80868b;font-weight:800}.info{padding:9px}.project{font-weight:800;line-height:1.35}.page{margin-top:3px;font-size:.86rem;font-weight:800;color:#174ea6}.pdf{margin-top:3px;color:var(--muted);font-size:.74rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.actions{display:flex;gap:6px;margin-top:9px}.actions .button{flex:1;min-height:38px;padding:0 8px;font-size:.82rem}.progress{border-color:var(--blue);background:var(--blue);color:#fff}.star{position:absolute;top:8px;right:8px;z-index:3;width:36px;height:36px;border:1px solid var(--yellow);border-radius:50%;background:#fff8e1;color:var(--yellow);font-size:1.35rem;line-height:1;cursor:pointer;box-shadow:0 1px 3px #0002}.empty{grid-column:1/-1;padding:42px 16px;text-align:center;color:var(--muted);background:#fff;border:1px solid var(--border);border-radius:12px;line-height:1.7}.loading{font-size:.72rem;color:var(--muted);margin-top:4px}
+    @media(max-width:640px){main{padding:8px}.title{font-size:1.15rem}.toolbar{padding:6px;gap:5px}.columns{margin-left:auto}.columns button{min-width:38px;height:36px}.grid{gap:7px}.info{padding:7px}.project{font-size:.9rem}.actions{flex-direction:column}.actions .button{width:100%}}
   </style>
 </head>
 <body>
 <main>
   <div class="top"><div><h1 class="title">★ お気に入りページ</h1><div class="sub">工事を横断して登録ページを一覧表示</div></div><button class="button" id="back" type="button">← 工事一覧</button></div>
-  <div class="toolbar"><input class="search" id="search" type="search" placeholder="工事名・PDF名・P番号で検索"><span class="count" id="count">0件</span></div>
+  <div class="toolbar"><input class="search" id="search" type="search" placeholder="工事名・PDF名・P番号で検索"><span class="count" id="count">0件</span><strong>表示</strong><div class="columns" aria-label="表示列数"><button type="button" data-cols="1">1</button><button type="button" data-cols="2">2</button><button type="button" data-cols="3">3</button><button type="button" data-cols="4">4</button></div></div>
   <div class="grid" id="grid"><div class="empty">お気に入りを読み込んでいます…</div></div>
 </main>
 <script>
 (() => {
   const projects={{ projects_json | safe }};
   const grid=document.getElementById('grid'),search=document.getElementById('search'),count=document.getElementById('count');
-  const MAX_CONCURRENT=2;let active=0;const queue=[];const records=[];
+  const key='weldFavoriteGridCols';const MAX_CONCURRENT=2;let active=0,cols=matchMedia('(max-width:640px)').matches?2:3;const queue=[];const records=[];
+  try{const n=Number(localStorage.getItem(key));if([1,2,3,4].includes(n))cols=n}catch(_e){}
+  function applyCols(n){cols=n;grid.style.setProperty('--cols',n);document.querySelectorAll('[data-cols]').forEach(b=>b.classList.toggle('active',Number(b.dataset.cols)===n));try{localStorage.setItem(key,n)}catch(_e){}}
+  document.querySelector('.columns').onclick=e=>{const b=e.target.closest('[data-cols]');if(b)applyCols(Number(b.dataset.cols))};
   document.getElementById('back').onclick=()=>location.href='/weld/projects-screen';
   function readPages(id){try{const v=JSON.parse(localStorage.getItem(`weldFavoritePages:${id}`)||'[]');return Array.isArray(v)?v.map(Number).filter(n=>Number.isInteger(n)&&n>0):[]}catch(_e){return[]}}
   function rotation(id){try{const v=Number(localStorage.getItem(`weldDrawingRotation:${id}`)||0);return [0,90,180,270].includes(v)?v:0}catch(_e){return 0}}
@@ -42,11 +44,12 @@
       card.querySelector('.star').onclick=e=>{e.stopPropagation();const pages=new Set(readPages(r.projectId));pages.delete(r.page);savePages(r.projectId,pages);const idx=records.indexOf(r);if(idx>=0)records.splice(idx,1);render(search.value)};
       grid.appendChild(card);enqueue(card.querySelector('img'),r.rotation);
     }
-    count.textContent=`${shown}件`;
+    count.textContent=`${shown}件`;applyCols(cols);
     if(!shown)grid.innerHTML='<div class="empty">お気に入りページはありません。<br>エントリー画面・進捗画面・ページ一覧の ☆ を押すと追加できます。</div>';
   }
   for(const p of projects){for(const page of readPages(p.id)){records.push({projectId:p.id,projectName:p.projectName,pdfName:p.pdfName,page,rotation:rotation(p.id)})}}
-  records.sort((a,b)=>a.projectName.localeCompare(b.projectName,'ja')||a.page-b.page);render();search.addEventListener('input',()=>render(search.value));
+  records.sort((a,b)=>a.projectName.localeCompare(b.projectName,'ja')||a.page-b.page);applyCols(cols);render();search.addEventListener('input',()=>render(search.value));
+  window.addEventListener('resize',()=>grid.querySelectorAll('.thumb').forEach(img=>fit(img,rotation(Number(img.closest('.card')?.dataset.project)))));
   window.addEventListener('storage',()=>{location.reload()});
 })();
 </script>
