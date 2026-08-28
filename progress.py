@@ -1,3 +1,4 @@
+import json
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -8,6 +9,57 @@ from project_render import normalize_label
 
 
 PROGRESS_STATUSES = {"未着手", "施工中", "完了"}
+DRAWING_MEMO_COLORS = {"#d93025", "#1967d2", "#188038", "#f9ab00", "#202124"}
+DRAWING_MEMO_WIDTHS = {12, 24, 48}
+MAX_MEMO_STROKES = 500
+MAX_MEMO_POINTS = 50000
+
+
+def normalize_drawing_memo(body):
+    page_number = body.get("pageNumber")
+    strokes = body.get("strokes")
+    if not isinstance(page_number, int) or page_number < 1:
+        raise ValueError("ページ番号が不正です。")
+    if not isinstance(strokes, list):
+        raise ValueError("手書きメモの形式が不正です。")
+    if len(strokes) > MAX_MEMO_STROKES:
+        raise ValueError("手書きメモの線が多すぎます。")
+
+    normalized = []
+    total_points = 0
+    for raw in strokes:
+        if not isinstance(raw, dict):
+            raise ValueError("手書きメモの線データが不正です。")
+        color = str(raw.get("color", "")).lower()
+        if color not in DRAWING_MEMO_COLORS:
+            raise ValueError("手書きメモの色が不正です。")
+        try:
+            width = int(raw.get("width"))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("手書きメモの太さが不正です。") from exc
+        if width not in DRAWING_MEMO_WIDTHS:
+            raise ValueError("手書きメモの太さが不正です。")
+        points = raw.get("points")
+        if not isinstance(points, list) or not points:
+            raise ValueError("手書きメモの座標が不正です。")
+        total_points += len(points)
+        if total_points > MAX_MEMO_POINTS:
+            raise ValueError("手書きメモの点が多すぎます。")
+        normalized_points = []
+        for point in points:
+            if not isinstance(point, list) or len(point) != 2:
+                raise ValueError("手書きメモの座標が不正です。")
+            try:
+                x = float(point[0])
+                y = float(point[1])
+            except (TypeError, ValueError) as exc:
+                raise ValueError("手書きメモの座標が不正です。") from exc
+            if not (0 <= x <= 10000 and 0 <= y <= 10000):
+                raise ValueError("手書きメモの座標が範囲外です。")
+            normalized_points.append([round(x, 2), round(y, 2)])
+        normalized.append({"color": color, "width": width, "points": normalized_points})
+
+    return {"pageNumber": page_number, "strokes": normalized}
 
 
 def create_progress_blueprint(db_path: Path):
@@ -20,6 +72,19 @@ def create_progress_blueprint(db_path: Path):
 
     def drawing_key(project_id):
         return f"project:{project_id}"
+
+    def ensure_drawing_memo_table(connection):
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS drawing_memo (
+                drawing_key TEXT NOT NULL,
+                page_number INTEGER NOT NULL,
+                strokes_json TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY (drawing_key, page_number)
+            )
+            """
+        )
 
     def get_project(connection, project_id):
         return connection.execute(
@@ -90,6 +155,30 @@ def create_progress_blueprint(db_path: Path):
         )
         html = html.replace('<div class="spacer"></div>', f'<div class="spacer"></div>{list_button}', 1)
 
+        memo_css = """
+.drawing-memo-launch.active{border-color:#1967d2;background:#e8f0fe;color:#174ea6}
+.drawing-memo-tools{display:none;gap:6px;align-items:center;padding:6px;border-bottom:1px solid #eee;background:#fff;overflow-x:auto;white-space:nowrap}
+.drawing-memo-tools.open{display:flex}.memo-color{width:34px;height:34px;min-width:34px;border:2px solid #fff;border-radius:50%;box-shadow:0 0 0 1px #bdc1c6;cursor:pointer}.memo-color.active{box-shadow:0 0 0 3px #1967d2}.memo-width.active,.memo-eraser.active{border-color:#1967d2;background:#e8f0fe;color:#174ea6}.memo-spacer{flex:1}.memo-save{border-color:#1967d2;background:#1967d2;color:#fff}.memo-dirty{color:#b06000;font-size:.78rem;font-weight:800}
+body.progress-fullscreen .drawing-memo-tools.open{display:flex}
+@media(max-width:640px){.drawing-memo-tools{padding:4px;gap:4px}.drawing-memo-tools .button{min-height:38px;padding:0 9px}.memo-color{width:30px;height:30px;min-width:30px}.viewer.memo-mode canvas{cursor:crosshair}}
+"""
+        html = html.replace('</style>', f'{memo_css}</style>', 1)
+        memo_url = url_for("progress.get_drawing_memo", project_id=project_id)
+        memo_button = f'<button class="button icon-button drawing-memo-launch" id="drawingMemoLaunch" type="button" data-memo-url="{memo_url}" aria-label="手書きメモ" title="手書きメモ">✎</button>'
+        html = html.replace('<div class="spacer"></div>', f'<div class="spacer"></div>{memo_button}', 1)
+        memo_tools = """<div class="drawing-memo-tools" id="drawingMemoTools" aria-label="手書きメモツール">
+<button class="memo-color active" type="button" data-memo-color="#d93025" style="background:#d93025" aria-label="赤"></button>
+<button class="memo-color" type="button" data-memo-color="#1967d2" style="background:#1967d2" aria-label="青"></button>
+<button class="memo-color" type="button" data-memo-color="#188038" style="background:#188038" aria-label="緑"></button>
+<button class="memo-color" type="button" data-memo-color="#f9ab00" style="background:#f9ab00" aria-label="黄"></button>
+<button class="memo-color" type="button" data-memo-color="#202124" style="background:#202124" aria-label="黒"></button>
+<button class="button memo-width" type="button" data-memo-width="12">細</button><button class="button memo-width active" type="button" data-memo-width="24">中</button><button class="button memo-width" type="button" data-memo-width="48">太</button>
+<button class="button memo-eraser" id="memoEraser" type="button">消しゴム</button><button class="button" id="memoUndo" type="button" disabled>↶</button><button class="button" id="memoRedo" type="button" disabled>↷</button><button class="button" id="memoClear" type="button">全消去</button><span class="memo-dirty" id="memoDirty"></span><span class="memo-spacer"></span><button class="button memo-save" id="memoSave" type="button">メモ保存</button>
+</div>"""
+        html = html.replace('<div class="statusline" id="status">図面を読み込んでいます…</div>', memo_tools + '<div class="statusline" id="status">図面を読み込んでいます…</div>', 1)
+        memo_script_url = url_for("static", filename="progress_drawing_memo.js")
+        html = html.replace('</body>', f'<script src="{memo_script_url}"></script></body>', 1)
+
         thumb_css = """
 .progress-thumbs{display:flex;gap:6px;overflow-x:auto;padding:5px 6px;border-bottom:1px solid #eee;background:#fff;scrollbar-width:thin}
 .progress-thumb{flex:0 0 74px;border:2px solid transparent;border-radius:8px;background:#fff;padding:3px;cursor:pointer}
@@ -122,6 +211,11 @@ body.progress-fullscreen .progress-thumbs{display:none}
         old_load_start = "pageInput.value=n;setBusy(true);drawingZoom=1;rotation=0;zoomReset.textContent='100%';rotateButton.textContent='↻ 0°';canvas.style.width='100%';resetPosition();"
         new_load_start = "pageInput.value=n;updateProgressThumbActive();setBusy(true);drawingZoom=1;zoomReset.textContent='100%';canvas.style.width='100%';resetPosition();"
         html = html.replace(old_load_start, new_load_start, 1)
+        html = html.replace(
+            "async function loadPage(n){if(busy||!pageCount)return;",
+            "async function loadPage(n){if(busy||!pageCount)return;if(window.__drawingMemoBeforePageChange&&!await window.__drawingMemoBeforePageChange())return;",
+            1,
+        )
         html = html.replace(
             "pageCount=data.pageCount;pageTotal.textContent=`/ ${pageCount}`;setBusy(false);await loadPage(1)",
             "pageCount=data.pageCount;pageTotal.textContent=`/ ${pageCount}`;setupProgressThumbnails();setBusy(false);await loadPage(1)",
@@ -335,5 +429,47 @@ body.progress-fullscreen .progress-thumbs{display:none}
             )
 
         return jsonify({**item, "updatedAt": updated_at})
+
+    @blueprint.get("/projects/<int:project_id>/drawing-memo")
+    def get_drawing_memo(project_id):
+        page_number = request.args.get("page", type=int)
+        if page_number is None or page_number < 1:
+            return jsonify({"error": "ページ番号が不正です。"}), 400
+        key = drawing_key(project_id)
+        with connect() as connection:
+            if get_project(connection, project_id) is None:
+                return jsonify({"error": "工事が見つかりません。"}), 404
+            ensure_drawing_memo_table(connection)
+            row = connection.execute(
+                "SELECT strokes_json, updated_at FROM drawing_memo WHERE drawing_key = ? AND page_number = ?",
+                (key, page_number),
+            ).fetchone()
+        strokes = json.loads(row["strokes_json"]) if row else []
+        return jsonify({"drawingKey": key, "pageNumber": page_number, "strokes": strokes, "updatedAt": row["updated_at"] if row else None})
+
+    @blueprint.post("/projects/<int:project_id>/drawing-memo")
+    def save_drawing_memo(project_id):
+        body = request.get_json(silent=True) or {}
+        try:
+            memo = normalize_drawing_memo(body)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        key = drawing_key(project_id)
+        updated_at = datetime.now(timezone.utc).isoformat()
+        encoded = json.dumps(memo["strokes"], ensure_ascii=False, separators=(",", ":"))
+        with connect() as connection:
+            if get_project(connection, project_id) is None:
+                return jsonify({"error": "工事が見つかりません。"}), 404
+            ensure_drawing_memo_table(connection)
+            connection.execute(
+                """
+                INSERT INTO drawing_memo (drawing_key, page_number, strokes_json, updated_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(drawing_key, page_number)
+                DO UPDATE SET strokes_json = excluded.strokes_json, updated_at = excluded.updated_at
+                """,
+                (key, memo["pageNumber"], encoded, updated_at),
+            )
+        return jsonify({"drawingKey": key, "pageNumber": memo["pageNumber"], "count": len(memo["strokes"]), "updatedAt": updated_at})
 
     return blueprint
