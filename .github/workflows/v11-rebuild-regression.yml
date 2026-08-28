@@ -45,10 +45,10 @@ jobs:
 
       - name: Existing V1.1 OCR regression
         run: |
-          if [ -f tests/test_ocr_candidate_filter.py ]; then python tests/test_ocr_candidate_filter.py; fi
+          if [ -f tests/test_ocr_candidate_filter.py ]; then PYTHONPATH="${GITHUB_WORKSPACE}" python tests/test_ocr_candidate_filter.py; fi
 
       - name: Drawing memo tests
-        run: python tests/test_drawing_memo.py
+        run: PYTHONPATH="${GITHUB_WORKSPACE}" python tests/test_drawing_memo.py
 
       - name: Existing V1.1 browser regression
         env:
@@ -60,7 +60,6 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}
         run: |
           python - <<'PY'
-          import re
           import threading
           import time
           from werkzeug.serving import make_server
