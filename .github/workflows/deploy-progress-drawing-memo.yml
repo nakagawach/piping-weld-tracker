@@ -65,7 +65,7 @@ jobs:
             if [ -z "$project_id" ]; then sleep 5; continue; fi
             progress=$(curl --fail --silent --show-error --location "$base/projects/$project_id/progress" || true)
             memo=$(curl --fail --silent --show-error --location "$base/projects/$project_id/drawing-memo?page=1" || true)
-            js_code=$(curl --silent --show-error --location --output /dev/null --write-out '%{http_code}' "https://nakagawach.pythonanywhere.com/static/progress_drawing_memo.js")
+            js_code=$(curl --silent --show-error --location --output /dev/null --write-out '%{http_code}' "$base/static/progress_drawing_memo.js")
             if [[ "$progress" == *'drawingMemoLaunch'* ]] && [[ "$progress" == *'drawingMemoTools'* ]] && [[ "$progress" == *'progress_drawing_memo.js'* ]] && [[ "$memo" == *'"strokes"'* ]] && [ "$js_code" = '200' ]; then
               echo "Progress drawing memo preview smoke: PASS"
               exit 0
