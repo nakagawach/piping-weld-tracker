@@ -23,7 +23,7 @@ jobs:
       - name: Static protection checks
         run: |
           python -m py_compile app.py progress.py ui_shell.py desktop_ui_shell.py projects.py project_render.py thumbnail_grid.py global_favorites.py
-          python tests/test_drawing_memo.py
+          PYTHONPATH=. python tests/test_drawing_memo.py
           grep -q 'cursor:not-allowed' templates/project_entry.html
           grep -q 'bboxEdit' templates/project_entry.html
           grep -q 'drawingMemoLaunch' progress.py
@@ -61,7 +61,7 @@ jobs:
           PY
       - name: Remove temporary verification files
         run: |
-          rm .github/workflows/verify-unified-progress-entry.yml .verify-trigger
+          rm .github/workflows/verify-unified-progress-entry.yml .verify-trigger .verify-trigger2
           git config user.name github-actions
           git config user.email github-actions@github.com
           git add -A
