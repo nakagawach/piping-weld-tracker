@@ -1,0 +1,10 @@
+from pathlib import Path
+
+path = Path('ui_shell.py')
+text = path.read_text(encoding='utf-8')
+old = "  .ui3-toolbar{top:56px!important;min-height:52px!important;padding:4px 5px!important;gap:4px!important;scrollbar-width:none}.ui3-toolbar::-webkit-scrollbar{display:none}.ui3-group{gap:2px}.ui3-group+.ui3-group{padding-left:4px}.ui3-page-group button,.ui3-view-group button,.ui3-page-tools button,.ui3-page-tools a{min-width:44px!important;width:44px!important;height:44px!important;min-height:44px!important;padding:0!important;border:0!important;background:transparent!important}.ui3-page-group .page-field input{width:40px!important;border:0!important;background:#f3f4f6!important}.ui3-page-total,.ui3-page-group .page-total{font-size:.75rem!important}.ui3-view-group #viewReset,.ui3-view-group .ui3-reset-view{display:none!important}"
+new = "  .ui3-toolbar{top:56px!important;min-height:52px!important;padding:4px 5px!important;gap:4px!important;scrollbar-width:none}.ui3-toolbar::-webkit-scrollbar{display:none}.ui3-group{gap:2px}.ui3-group+.ui3-group{padding-left:4px}.ui3-page-group button,.ui3-view-group button,.ui3-page-tools button,.ui3-page-tools a{min-width:44px!important;width:44px!important;height:44px!important;min-height:44px!important;padding:0!important;border:0!important;background:transparent!important}.ui3-page-group .page-field input{width:40px!important;border:0!important;background:#f3f4f6!important}.ui3-page-total,.ui3-page-group .page-total{font-size:.75rem!important}.ui3-view-group #viewReset,.ui3-view-group .ui3-reset-view{display:none!important}body.ui3-entry .ui3-view-group #zoomOut,body.ui3-entry .ui3-view-group #zoomReset,body.ui3-entry .ui3-view-group #zoomIn,body.ui3-entry .ui3-view-group #rotate,body.ui3-entry .ui3-view-group #fullscreen{display:inline-flex!important}"
+assert text.count(old) == 1, text.count(old)
+text = text.replace(old, new, 1)
+path.write_text(text, encoding='utf-8')
+print('Restored agreed common display controls on Entry mobile only')
