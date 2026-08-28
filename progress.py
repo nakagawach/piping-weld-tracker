@@ -84,7 +84,7 @@ def create_progress_blueprint(db_path: Path):
 
         progress_list_url = url_for("progress.project_progress_list", project_id=project_id)
         list_button = (
-            f'<a class="button icon-button" href="{progress_list_url}" '
+            f'<a class="button icon-button" id="progressListButton" data-base-href="{progress_list_url}" href="{progress_list_url}?page=1" '
             'aria-label="進捗一覧" title="進捗一覧" '
             'style="display:inline-flex;align-items:center;justify-content:center;text-decoration:none">☷</a>'
         )
@@ -108,14 +108,14 @@ body.progress-fullscreen .progress-thumbs{display:none}
 
         html = html.replace(
             "const goBack=()=>location.href=projectsScreenUrl;",
-            "const progressThumbs=document.getElementById('progressThumbs');let progressThumbObserver=null;"
+            "const progressThumbs=document.getElementById('progressThumbs'),progressListButton=document.getElementById('progressListButton');let progressThumbObserver=null;"
             "const goBack=()=>location.href=projectsScreenUrl;",
             1,
         )
         thumb_js = (
             "function ensureProgressThumbLoaded(p){const img=progressThumbs.querySelector(`.progress-thumb[data-page=\"${p}\"] img`);if(img&&img.dataset.src&&!img.src)img.src=img.dataset.src;}"
-            "function updateProgressThumbActive(){progressThumbs.querySelectorAll('.progress-thumb').forEach(b=>b.classList.toggle('active',Number(b.dataset.page)===Number(pageInput.value)));const n=Number(pageInput.value);ensureProgressThumbLoaded(n);if(n>1)ensureProgressThumbLoaded(n-1);if(n<pageCount)ensureProgressThumbLoaded(n+1);const activeThumb=progressThumbs.querySelector('.progress-thumb.active');if(activeThumb)activeThumb.scrollIntoView({block:'nearest',inline:'nearest'});}"
-            "function setupProgressThumbnails(){progressThumbs.innerHTML='';if(progressThumbObserver)progressThumbObserver.disconnect();progressThumbObserver='IntersectionObserver' in window?new IntersectionObserver(entries=>{for(const entry of entries){if(entry.isIntersecting){const img=entry.target.querySelector('img');if(img&&img.dataset.src&&!img.src)img.src=img.dataset.src;}}},{root:progressThumbs,rootMargin:'0px 100px'}):null;for(let p=1;p<=pageCount;p++){const b=document.createElement('button');b.type='button';b.className='progress-thumb';b.dataset.page=String(p);b.innerHTML=`<img alt=\"P${p} サムネイル\" data-src=\"${pdfiumPageUrl}?page=${p}&longEdge=320&format=jpeg\"><span>P${p}</span>`;b.onclick=()=>loadPage(p);progressThumbs.appendChild(b);if(progressThumbObserver)progressThumbObserver.observe(b);}if(!progressThumbObserver){ensureProgressThumbLoaded(1);if(pageCount>1)ensureProgressThumbLoaded(2);}updateProgressThumbActive();}"
+            "function updateProgressThumbActive(){progressThumbs.querySelectorAll('.progress-thumb').forEach(b=>b.classList.toggle('active',Number(b.dataset.page)===Number(pageInput.value)));const n=Number(pageInput.value);if(progressListButton){progressListButton.href=`${progressListButton.dataset.baseHref}?page=${n}`;}ensureProgressThumbLoaded(n);if(n>1)ensureProgressThumbLoaded(n-1);if(n<pageCount)ensureProgressThumbLoaded(n+1);const activeThumb=progressThumbs.querySelector('.progress-thumb.active');if(activeThumb)activeThumb.scrollIntoView({block:'nearest',inline:'nearest'});}"
+            "function setupProgressThumbnails(){progressThumbs.innerHTML='';if(progressThumbObserver)progressThumbObserver.disconnect();progressThumbObserver='IntersectionObserver' in window?new IntersectionObserver(entries=>{for(const entry of entries){if(entry.isIntersecting){const img=entry.target.querySelector('img');if(img&&img.dataset.src&&!img.src)img.src=img.dataset.src;}}},{root:progressThumbs,rootMargin:'0px 100px'}):null;for(let p=1;p<=pageCount;p++){const b=document.createElement('button');b.type='button';b.className='progress-thumb';b.dataset.page=String(p);b.innerHTML=`<img alt=\"P${p} サムネイル\" data-src=\"${pdfiumPageUrl}?page=${p}&longEdge=320&format=jpeg\"><span>P${p}</span>`;b.onclick=()=>navigatePage(p);progressThumbs.appendChild(b);if(progressThumbObserver)progressThumbObserver.observe(b);}if(!progressThumbObserver){ensureProgressThumbLoaded(1);if(pageCount>1)ensureProgressThumbLoaded(2);}updateProgressThumbActive();}"
         )
         html = html.replace("function setBusy(v){", thumb_js + "function setBusy(v){", 1)
 
@@ -143,6 +143,7 @@ body.progress-fullscreen .progress-thumbs{display:none}
 
     @blueprint.get("/projects/<int:project_id>/progress-list")
     def project_progress_list(project_id):
+        current_page = max(1, request.args.get("page", default=1, type=int) or 1)
         with connect() as connection:
             project = get_project(connection, project_id)
         if project is None:
@@ -153,6 +154,7 @@ body.progress-fullscreen .progress-thumbs{display:none}
             project_id=project_id,
             project_name=project["project_name"],
             pdf_name=project["original_pdf_name"],
+            current_page=current_page,
         )
 
     @blueprint.get("/projects/<int:project_id>/progress-list-data")
