@@ -1,0 +1,42 @@
+name: V1.1 final bounded regression
+on:
+  push:
+    branches: [feature/v11-unified-header-final]
+    paths: [.github/workflows/v11-final-bounded-regression.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: |
+          pip install -r requirements.txt
+          pip install playwright
+          playwright install --with-deps chromium
+      - name: Protected syntax and feature checks
+        run: |
+          set -euo pipefail
+          python -m py_compile app.py progress.py ui_shell.py projects.py project_render.py thumbnail_grid.py global_favorites.py viewer_mode.py
+          node --check static/progress_drawing_memo.js
+          grep -q 'drawingMemoLaunch' progress.py
+          grep -q 'drawingMemoEdit' static/progress_drawing_memo.js
+          grep -q 'bboxActionAt' templates/project_entry.html
+          grep -q 'OCR実行' templates/project_entry.html
+          grep -q '番号配置を確定保存' templates/project_entry.html
+          grep -q "pageTools=document.querySelector('.ui3-page-tools')" thumbnail_grid.py
+          ! grep -q 'desktop_ui_shell' app.py
+          git diff --check
+      - name: Drawing memo validation
+        run: PYTHONPATH="$GITHUB_WORKSPACE" python tests/test_drawing_memo.py
+      - name: Bounded browser regression
+        timeout-minutes: 5
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          timeout 240s python tests/ui_shell_e2e.py
