@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - fix/header-page-navigation-v2
+      - fix/ui-shell-v3
 
 permissions:
   contents: read
