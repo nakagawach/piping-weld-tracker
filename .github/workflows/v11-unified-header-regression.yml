@@ -1,0 +1,175 @@
+name: V1.1 unified header regression
+
+on:
+  push:
+    branches:
+      - feature/v11-unified-header-final
+  pull_request:
+    branches:
+      - rebuild/v1.1-features-header
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install playwright
+          playwright install --with-deps chromium
+
+      - name: Syntax and protected feature checks
+        run: |
+          set -euo pipefail
+          python -m py_compile app.py ui_shell.py progress.py projects.py project_render.py thumbnail_grid.py global_favorites.py viewer_mode.py
+          node --check static/progress_drawing_memo.js
+          grep -q 'drawingMemoLaunch' progress.py
+          grep -q 'drawingMemoEdit' static/progress_drawing_memo.js
+          grep -q 'bboxActionAt' templates/project_entry.html
+          grep -q 'progress-thumb.active:disabled' progress.py
+          grep -q 'thumb.active:disabled' templates/project_entry.html
+          grep -q '図面エントリーへ' ui_shell.py
+          grep -q 'ui3-page-group' ui_shell.py
+          grep -q 'ui3-view-group' ui_shell.py
+          grep -q 'ui3-page-tools' ui_shell.py
+          grep -q 'ui3-screen-actions' ui_shell.py
+          ! grep -q 'desktop_ui_shell' app.py
+
+      - name: Existing V1.1 OCR regression
+        run: |
+          if [ -f tests/test_ocr_candidate_filter.py ]; then PYTHONPATH="$GITHUB_WORKSPACE" python tests/test_ocr_candidate_filter.py; fi
+
+      - name: Drawing memo regression
+        run: PYTHONPATH="$GITHUB_WORKSPACE" python tests/test_drawing_memo.py
+
+      - name: Existing shared UI regression
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python tests/ui_shell_e2e.py
+
+      - name: Final unified header browser regression
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          python - <<'PY'
+          import threading
+          import time
+          from werkzeug.serving import make_server
+          from playwright.sync_api import sync_playwright
+          import app as weld_app
+
+          server = make_server('127.0.0.1', 5062, weld_app.app)
+          threading.Thread(target=server.serve_forever, daemon=True).start()
+          time.sleep(0.6)
+
+          def no_page_overflow(page, width):
+              sw = page.evaluate('document.documentElement.scrollWidth')
+              iw = page.evaluate('window.innerWidth')
+              assert sw <= iw + 2, (width, sw, iw)
+
+          try:
+              with sync_playwright() as p:
+                  browser = p.chromium.launch()
+                  request_page = browser.new_page()
+                  projects = request_page.request.get('http://127.0.0.1:5062/projects').json().get('projects', [])
+                  assert projects, 'No project for regression'
+                  pid = projects[0]['id']
+                  request_page.close()
+
+                  for width, height in [(390, 844), (768, 900), (1024, 800), (1440, 900)]:
+                      page = browser.new_page(viewport={'width': width, 'height': height})
+
+                      # Progress
+                      page.goto(f'http://127.0.0.1:5062/projects/{pid}/progress?page=1', wait_until='domcontentloaded')
+                      page.wait_for_timeout(1000)
+                      assert page.locator('.ui3-appbar[data-ui3-header="progress"]').is_visible()
+                      assert page.locator('.ui3-toolbar').is_visible()
+                      assert page.locator('.ui3-page-group').count() == 1
+                      assert page.locator('.ui3-view-group').count() == 1
+                      assert page.locator('.ui3-page-tools').count() == 1
+                      assert page.locator('[data-ui3-screen-actions="progress"]').count() == 1
+                      assert page.locator('#drawingMemoLaunch').is_visible()
+                      assert page.locator('#drawingMemoEdit').is_visible()
+                      assert page.get_by_text('図面エントリーへ', exact=True).count() == 1
+                      assert page.locator('a[aria-label="進捗一覧"]').count() == 1
+                      assert page.locator('#prev').is_disabled(), (width, 'progress P1 prev')
+                      progress_thumbs = page.locator('.progress-thumb')
+                      if progress_thumbs.count():
+                          first = progress_thumbs.nth(0)
+                          assert first.is_disabled(), (width, 'progress current thumb')
+                          assert first.get_attribute('aria-current') == 'page'
+                          if progress_thumbs.count() > 1:
+                              second = progress_thumbs.nth(1)
+                              assert second.is_enabled()
+                              second.click()
+                              page.wait_for_timeout(650)
+                              assert second.is_disabled(), (width, 'progress P2 current')
+                              assert first.is_enabled(), (width, 'progress P1 re-enabled')
+                              last = progress_thumbs.nth(progress_thumbs.count()-1)
+                              if last != second:
+                                  last.click(); page.wait_for_timeout(650)
+                              assert page.locator('#next').is_disabled(), (width, 'progress last next')
+                      # Memo mode is UI-local; do not save.
+                      edit = page.locator('#drawingMemoEdit')
+                      edit.click(); page.wait_for_timeout(100)
+                      assert page.locator('#drawingMemoTools').evaluate("e=>e.classList.contains('open')")
+                      edit.click(); page.wait_for_timeout(100)
+                      no_page_overflow(page, width)
+
+                      # Entry
+                      page.goto(f'http://127.0.0.1:5062/projects/{pid}/entry?page=1', wait_until='domcontentloaded')
+                      page.wait_for_timeout(900)
+                      assert page.locator('.ui3-appbar[data-ui3-header="entry"]').is_visible()
+                      assert page.locator('.ui3-toolbar').is_visible()
+                      assert page.locator('.ui3-page-group').count() == 1
+                      assert page.locator('.ui3-view-group').count() == 1
+                      assert page.locator('.ui3-page-tools').count() == 1
+                      assert page.locator('[data-ui3-screen-actions="entry"]').count() == 1
+                      assert page.locator('#ocr').is_visible()
+                      assert page.locator('#save').is_visible()
+                      if width <= 820:
+                          assert not page.locator('#bboxEdit').is_visible(), (width, 'bbox must stay PC-only')
+                          assert page.locator('.ui3-appbar .ui3-more').count() == 1
+                      else:
+                          assert page.locator('#bboxEdit').is_visible(), (width, 'bbox PC')
+                          assert page.locator('.ui3-toolbar .ui3-more').count() == 1
+                      assert page.locator('#prev').is_disabled(), (width, 'entry P1 prev')
+                      entry_thumbs = page.locator('#thumbs .thumb')
+                      if entry_thumbs.count():
+                          first = entry_thumbs.nth(0)
+                          assert first.is_disabled(), (width, 'entry current thumb')
+                          assert first.get_attribute('aria-current') == 'page'
+                          if entry_thumbs.count() > 1:
+                              last = entry_thumbs.nth(entry_thumbs.count()-1)
+                              last.click(); page.wait_for_timeout(650)
+                              assert last.is_disabled(), (width, 'entry last thumb')
+                              assert page.locator('#next').is_disabled(), (width, 'entry last next')
+                      no_page_overflow(page, width)
+                      page.close()
+                  browser.close()
+          finally:
+              server.shutdown()
+          print('Final unified header browser regression: PASS')
+          PY
+
+      - name: Protection and diff hygiene
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          shell=Path('ui_shell.py').read_text(encoding='utf-8')
+          assert 'history.back' not in shell
+          assert 'document.referrer' not in shell
+          assert 'DB_VERSION' not in shell
+          assert 'GOOGLE_VISION_API_KEY' not in shell
+          print('Protection checks: PASS')
+          PY
+          git diff --check
