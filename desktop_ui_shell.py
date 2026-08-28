@@ -12,7 +12,7 @@ def create_desktop_ui_shell_blueprint():
             return response
 
         html = response.get_data(as_text=True)
-        if "data-weld-ui-shell-v3" not in html or "data-weld-desktop-shell-v1" in html:
+        if "data-weld-desktop-shell-v1" in html:
             return response
 
         path = request.path
@@ -30,7 +30,7 @@ def create_desktop_ui_shell_blueprint():
         css = r"""
 <style data-weld-desktop-shell-v1>
 @media(min-width:821px){
-  .ui3-appbar{display:flex;position:sticky;top:0;z-index:120;min-height:56px;align-items:center;gap:6px;padding:4px 12px;background:#fff;border-bottom:1px solid #e5e7eb}
+  html body .ui3-appbar{display:flex!important;position:sticky;top:0;z-index:120;min-height:56px;align-items:center;gap:6px;padding:4px 12px;background:#fff;border-bottom:1px solid #e5e7eb}
   .ui3-back,.ui3-icon{min-width:48px;height:48px;padding:0 10px;border:0;border-radius:10px;background:transparent;color:#1967d2;display:inline-flex;align-items:center;justify-content:center;text-decoration:none;font:inherit;font-weight:800;cursor:pointer;white-space:nowrap}
   .ui3-back{gap:3px}.ui3-back::before{content:'‹';font-size:1.7rem;font-weight:500;line-height:1}.ui3-icon{width:48px;padding:0;color:#202124;font-size:1.2rem}.ui3-back:hover,.ui3-icon:hover{background:#f1f3f4}
   .ui3-title{min-width:0;flex:1;padding:0 4px}.ui3-title strong{display:block;font-size:1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ui3-title small{display:block;margin-top:1px;color:#6b7280;font-size:.72rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
