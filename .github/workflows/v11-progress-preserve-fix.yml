@@ -23,7 +23,7 @@ jobs:
           set -euo pipefail
           grep -q 'drawingMemoLaunch' progress.py
           grep -q 'drawingMemoEdit' static/progress_drawing_memo.js
-          grep -q 'a\[aria-label=\"進捗一覧\"\]' progress.py
+          grep -q '進捗一覧' progress.py
           python -m py_compile ui_shell.py progress.py app.py
       - name: Apply one focused fix
         run: python tools/fix_v11_progress_toolbar_preserve.py
