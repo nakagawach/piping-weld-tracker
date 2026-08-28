@@ -1,0 +1,61 @@
+name: Entry viewer public check
+
+on:
+  push:
+    branches:
+      - feature/entry-viewer-box-edit
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  public-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Jinja template compile
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from jinja2 import Environment
+          text=Path('templates/project_entry.html').read_text(encoding='utf-8')
+          Environment().parse(text)
+          for token in ['id="bboxEdit"','id="zoomIn"','id="fullscreen"','bboxActionAt','clampBox','entry-fullscreen']:
+              assert token in text, token
+          print('Entry template parse/static guards: PASS')
+          PY
+
+      - name: Public endpoint diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://nakagawach.pythonanywhere.com/weld'
+          projects=$(curl --fail --silent --show-error --location "$base/projects")
+          project_id=$(printf '%s' "$projects" | python -c 'import json,sys; d=json.load(sys.stdin); p=d.get("projects",[]); print(7 if any(x.get("id")==7 for x in p) else (p[0]["id"] if p else ""))')
+          test -n "$project_id"
+          for path in \
+            '/projects-screen' \
+            '/favorites' \
+            "/projects/$project_id/entry" \
+            "/projects/$project_id/progress" \
+            "/projects/$project_id/progress-list" \
+            "/projects/$project_id/thumbnails?source=progress&page=1"; do
+            code=$(curl --silent --show-error --location --output /tmp/body --write-out '%{http_code}' "$base$path")
+            echo "$path -> $code"
+            if [ "$code" != '200' ]; then head -c 1000 /tmp/body || true; echo; exit 1; fi
+          done
+
+      - name: Verify deployed Entry markers
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://nakagawach.pythonanywhere.com/weld'
+          projects=$(curl --fail --silent --show-error --location "$base/projects")
+          project_id=$(printf '%s' "$projects" | python -c 'import json,sys; d=json.load(sys.stdin); p=d.get("projects",[]); print(7 if any(x.get("id")==7 for x in p) else (p[0]["id"] if p else ""))')
+          entry=$(curl --fail --silent --show-error --location "$base/projects/$project_id/entry")
+          for marker in 'id="bboxEdit"' 'id="zoomIn"' 'id="fullscreen"' 'bboxActionAt' 'entry-fullscreen' 'data-weld-ui-shell-v3'; do
+            printf '%s' "$entry" | grep -q "$marker"
+          done
+          echo 'Deployed Entry markers: PASS'
