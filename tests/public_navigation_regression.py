@@ -1,4 +1,5 @@
 import os
+from urllib.parse import urlparse
 from playwright.sync_api import sync_playwright
 
 BASE_URL=os.environ.get('PUBLIC_BASE_URL','https://nakagawach.pythonanywhere.com/weld').rstrip('/')
@@ -15,6 +16,10 @@ def activate(locator, touch=False, force=False):
         locator.tap(force=force)
     else:
         locator.click(force=force)
+
+def path_and_query(url):
+    p=urlparse(url)
+    return p.path + (('?' + p.query) if p.query else '')
 
 def check_progress(page, failures, label, touch=False):
     requests=[]
@@ -49,6 +54,27 @@ def check_progress(page, failures, label, touch=False):
         if requests: failures.append(f'{label}: last-page next caused requests: {requests}')
         if '読み込み中' in after or after!=before: failures.append(f'{label}: last-page next changed status: before={before!r} after={after!r}')
 
+def check_mobile_header_back(page, failures, route, header, expected):
+    page.goto(BASE_URL+route,wait_until='networkidle',timeout=30000)
+    page.wait_for_timeout(250)
+    root=page.locator(f'[data-ui3-header="{header}"]')
+    if root.count()!=1:
+        failures.append(f'android-touch: {route} header missing')
+        return
+    back=root.locator('.ui3-back')
+    if back.count()!=1:
+        failures.append(f'android-touch: {route} back missing')
+        return
+    href=back.get_attribute('href') or ''
+    if '/weld/' not in href and not href.endswith('/weld'):
+        failures.append(f'android-touch: {route} back href missing /weld prefix: {href!r}')
+    back.tap()
+    page.wait_for_load_state('domcontentloaded',timeout=30000)
+    page.wait_for_timeout(150)
+    actual=path_and_query(page.url)
+    if actual!=expected:
+        failures.append(f'android-touch: {route} back target {actual!r} expected {expected!r}')
+
 def main():
     with sync_playwright() as p:
         browser=p.chromium.launch(); failures=[]
@@ -57,12 +83,32 @@ def main():
 
         mobile=browser.new_context(viewport={'width':390,'height':844},screen={'width':390,'height':844},device_scale_factor=2.75,is_mobile=True,has_touch=True,user_agent='Mozilla/5.0 (Linux; Android 16; Pixel 7 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Mobile Safari/537.36')
         page=mobile.new_page(); check_progress(page,failures,'android-touch',True)
-        for route,header in [(f'/projects/{PROJECT_ID}/entry?page=1','entry'),(f'/projects/{PROJECT_ID}/progress-list','progress-list'),(f'/projects/{PROJECT_ID}/thumbnails?source=progress&page=1','thumbnails'),(f'/projects/{PROJECT_ID}/thumbnails?source=entry&page=1','thumbnails'),('/favorites','favorites'),('/projects-screen','projects')]:
-            page.goto(BASE_URL+route,wait_until='domcontentloaded',timeout=30000); page.wait_for_timeout(300)
-            if header=='projects':
-                if page.locator('.header.ui3-root').count()!=1: failures.append('android-touch: projects header missing')
-            elif page.locator(f'[data-ui3-header="{header}"]').count()!=1:
-                failures.append(f'android-touch: {route} header missing')
+
+        check_mobile_header_back(page,failures,f'/projects/{PROJECT_ID}/progress?page=1','progress','/weld/projects-screen')
+        check_mobile_header_back(page,failures,f'/projects/{PROJECT_ID}/entry?page=1','entry','/weld/projects-screen')
+        check_mobile_header_back(page,failures,f'/projects/{PROJECT_ID}/progress-list','progress-list',f'/weld/projects/{PROJECT_ID}/progress')
+        check_mobile_header_back(page,failures,f'/projects/{PROJECT_ID}/thumbnails?source=progress&page=1','thumbnails',f'/weld/projects/{PROJECT_ID}/progress?page=1')
+        check_mobile_header_back(page,failures,f'/projects/{PROJECT_ID}/thumbnails?source=entry&page=1','thumbnails',f'/weld/projects/{PROJECT_ID}/entry?page=1')
+        check_mobile_header_back(page,failures,'/favorites','favorites','/weld/projects-screen')
+
+        page.goto(BASE_URL+'/projects-screen',wait_until='networkidle',timeout=30000); page.wait_for_timeout(200)
+        if page.locator('.header.ui3-root').count()!=1:
+            failures.append('android-touch: projects header missing')
+        fav=page.locator('[data-ui3-favorites]')
+        if fav.count()!=1:
+            failures.append('android-touch: projects favorites button missing')
+        else:
+            fav.tap(); page.wait_for_load_state('domcontentloaded',timeout=30000); page.wait_for_timeout(100)
+            if path_and_query(page.url)!='/weld/favorites': failures.append(f'android-touch: projects favorites target={path_and_query(page.url)!r}')
+
+        page.goto(BASE_URL+'/projects-screen',wait_until='networkidle',timeout=30000); page.wait_for_timeout(150)
+        plus=page.locator('#new-project')
+        if plus.count()!=1:
+            failures.append('android-touch: projects new button missing')
+        else:
+            plus.tap(); page.wait_for_timeout(100)
+            if not page.locator('#dialog[open]').count(): failures.append('android-touch: projects new button did not open dialog')
+
         mobile.close(); browser.close()
         if failures: raise AssertionError('\n'.join(failures))
         print('Public navigation regression: PASS')
