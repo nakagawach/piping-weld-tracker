@@ -7,7 +7,6 @@ from urllib import error, request
 
 from flask import Flask, jsonify, render_template, request as flask_request
 
-from desktop_ui_shell import create_desktop_ui_shell_blueprint
 from global_favorites import create_global_favorites_blueprint
 from progress import create_progress_blueprint
 from projects import create_projects_blueprint
@@ -28,7 +27,6 @@ app.register_blueprint(create_progress_blueprint(DB_PATH))
 app.register_blueprint(create_thumbnail_grid_blueprint(DB_PATH))
 app.register_blueprint(create_global_favorites_blueprint(DB_PATH))
 app.register_blueprint(create_ui_shell_blueprint())
-app.register_blueprint(create_desktop_ui_shell_blueprint())
 app.register_blueprint(create_viewer_mode_blueprint())
 
 
