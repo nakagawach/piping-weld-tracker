@@ -4,7 +4,7 @@ on:
     branches: [rebuild/unified-progress-entry-ui]
 jobs:
   verify:
-    if: github.event.head_commit.message == 'Add unified verification workflow'
+    if: github.event.head_commit.message == 'Run unified verification'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -59,9 +59,9 @@ jobs:
             server.shutdown(); thread.join(timeout=2)
           print('WebKit smoke: PASS')
           PY
-      - name: Remove temporary verification workflow
+      - name: Remove temporary verification files
         run: |
-          rm .github/workflows/verify-unified-progress-entry.yml
+          rm .github/workflows/verify-unified-progress-entry.yml .verify-trigger
           git config user.name github-actions
           git config user.email github-actions@github.com
           git add -A
