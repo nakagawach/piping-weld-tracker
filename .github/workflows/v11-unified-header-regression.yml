@@ -1,5 +1,6 @@
 name: V1.1 unified header regression
 
+# Full regression for the V1.1-based unified header branch.
 on:
   push:
     branches:
@@ -42,6 +43,7 @@ jobs:
           grep -q 'ui3-view-group' ui_shell.py
           grep -q 'ui3-page-tools' ui_shell.py
           grep -q 'ui3-screen-actions' ui_shell.py
+          grep -q 'preservedProgressActions' ui_shell.py
           ! grep -q 'desktop_ui_shell' app.py
 
       - name: Existing V1.1 OCR regression
@@ -88,7 +90,6 @@ jobs:
                   for width, height in [(390, 844), (768, 900), (1024, 800), (1440, 900)]:
                       page = browser.new_page(viewport={'width': width, 'height': height})
 
-                      # Progress
                       page.goto(f'http://127.0.0.1:5062/projects/{pid}/progress?page=1', wait_until='domcontentloaded')
                       page.wait_for_timeout(1000)
                       assert page.locator('.ui3-appbar[data-ui3-header="progress"]').is_visible()
@@ -115,17 +116,15 @@ jobs:
                               assert second.is_disabled(), (width, 'progress P2 current')
                               assert first.is_enabled(), (width, 'progress P1 re-enabled')
                               last = progress_thumbs.nth(progress_thumbs.count()-1)
-                              if last != second:
+                              if progress_thumbs.count() > 2:
                                   last.click(); page.wait_for_timeout(650)
                               assert page.locator('#next').is_disabled(), (width, 'progress last next')
-                      # Memo mode is UI-local; do not save.
                       edit = page.locator('#drawingMemoEdit')
                       edit.click(); page.wait_for_timeout(100)
                       assert page.locator('#drawingMemoTools').evaluate("e=>e.classList.contains('open')")
                       edit.click(); page.wait_for_timeout(100)
                       no_page_overflow(page, width)
 
-                      # Entry
                       page.goto(f'http://127.0.0.1:5062/projects/{pid}/entry?page=1', wait_until='domcontentloaded')
                       page.wait_for_timeout(900)
                       assert page.locator('.ui3-appbar[data-ui3-header="entry"]').is_visible()
