@@ -1,0 +1,95 @@
+name: Deploy V1.1 rebuild test
+
+on:
+  push:
+    branches:
+      - rebuild/v1.1-features-header
+    paths:
+      - .github/workflows/deploy-v11-rebuild-test.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-pythonanywhere-weld
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pre-deploy protection checks
+        run: |
+          set -euo pipefail
+          python -m py_compile app.py projects.py project_render.py progress.py thumbnail_grid.py global_favorites.py ui_shell.py viewer_mode.py
+          node --check static/progress_drawing_memo.js
+          grep -q 'id="bboxEdit"' templates/project_entry.html
+          grep -q 'drawingMemoLaunch' progress.py
+          grep -q 'drawingMemoEdit' static/progress_drawing_memo.js
+          grep -q 'navigateProgressPage' progress.py
+          grep -q 'progress-thumb.active:disabled' progress.py
+          grep -q '図面エントリーへ' global_favorites.py
+          grep -q '@media(min-width:821px)' ui_shell.py
+          ! grep -q 'desktop_ui_shell' app.py
+          test -f data/weld_tracker.sqlite3 || true
+
+      - name: Upload coherent branch app without data
+        env:
+          PYTHONANYWHERE_API_TOKEN: ${{ secrets.PYTHONANYWHERE_API_TOKEN }}
+          GOOGLE_VISION_API_KEY: ${{ secrets.GOOGLE_VISION_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          api_base="https://www.pythonanywhere.com/api/v0/user/nakagawach/files/path/home/nakagawach/piping-weld-tracker"
+          upload_file(){ local file="$1"; echo "Uploading ${file}"; curl --fail --silent --show-error --retry 3 --retry-delay 2 -X POST -H "Authorization: Token ${PYTHONANYWHERE_API_TOKEN}" -F "content=@${file}" "${api_base}/${file}"; }
+          for file in app.py projects.py project_render.py progress.py thumbnail_grid.py global_favorites.py ui_shell.py viewer_mode.py requirements.txt; do upload_file "$file"; done
+          while IFS= read -r -d '' file; do upload_file "$file"; done < <(find templates -type f -print0 | sort -z)
+          if [ -d static ]; then while IFS= read -r -d '' file; do upload_file "$file"; done < <(find static -type f -print0 | sort -z); fi
+          if [ -z "${GOOGLE_VISION_API_KEY:-}" ]; then echo 'GOOGLE_VISION_API_KEY secret missing'; exit 1; fi
+          printf 'GOOGLE_VISION_API_KEY=%s\n' "$GOOGLE_VISION_API_KEY" > .env
+          upload_file .env
+          echo 'Data directory intentionally not uploaded.'
+
+      - name: Reload PythonAnywhere
+        env:
+          PYTHONANYWHERE_API_TOKEN: ${{ secrets.PYTHONANYWHERE_API_TOKEN }}
+        run: |
+          curl --fail --silent --show-error --retry 3 --retry-delay 2 -X POST -H "Authorization: Token ${PYTHONANYWHERE_API_TOKEN}" "https://www.pythonanywhere.com/api/v0/user/nakagawach/webapps/nakagawach.pythonanywhere.com/reload/"
+
+      - name: Public coherent-state smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://nakagawach.pythonanywhere.com/weld'
+          fetch(){ curl --fail --silent --show-error --location --max-time 30 "$1"; }
+          for attempt in 1 2 3 4 5 6; do
+            projects=$(fetch "$base/projects" || true)
+            pid=$(printf '%s' "$projects" | python -c 'import json,sys; d=json.load(sys.stdin); p=d.get("projects",[]); print(7 if any(x.get("id")==7 for x in p) else (p[0]["id"] if p else ""))' 2>/dev/null || true)
+            if [ -z "$pid" ]; then sleep 5; continue; fi
+            screen=$(fetch "$base/projects-screen" || true)
+            progress=$(fetch "$base/projects/$pid/progress" || true)
+            entry=$(fetch "$base/projects/$pid/entry" || true)
+            grid=$(fetch "$base/projects/$pid/thumbnails?source=progress&page=1" || true)
+            list=$(fetch "$base/projects/$pid/progress-list" || true)
+            favorites=$(fetch "$base/favorites" || true)
+            memo_js=$(fetch "$base/static/progress_drawing_memo.js" || true)
+            if [[ "$screen" == *'data-weld-ui-shell-v3'* ]] && \
+               [[ "$progress" == *'drawingMemoLaunch'* ]] && \
+               [[ "$progress" == *'navigateProgressPage'* ]] && \
+               [[ "$progress" == *'progress-thumb.active:disabled'* ]] && \
+               [[ "$progress" == *"aria-current','page"* ]] && \
+               [[ "$progress" == *'図面エントリーへ'* ]] && \
+               [[ "$entry" == *'id="bboxEdit"'* ]] && \
+               [[ "$entry" == *'bboxActionAt'* ]] && \
+               [[ "$memo_js" == *'drawingMemoEdit'* ]] && \
+               [[ "$grid" == *'ページ一覧'* ]] && \
+               [[ "$list" == *'進捗一覧'* ]] && \
+               [[ "$favorites" == *'お気に入りページ'* ]]; then
+              echo "Public coherent-state smoke: PASS project=$pid"
+              exit 0
+            fi
+            echo "Smoke attempt $attempt failed"; sleep 5
+          done
+          exit 1
