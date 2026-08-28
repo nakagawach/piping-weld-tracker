@@ -79,6 +79,7 @@ body.ui3-projects main{padding-top:0!important}.ui3-root{position:sticky;top:0;z
   const prev=document.getElementById('prev'),next=document.getElementById('next'),pageField=toolbar?.querySelector('.page-field');
   const zoomOut=document.getElementById('zoomOut'),zoomReset=document.getElementById('zoomReset'),zoomIn=document.getElementById('zoomIn'),rotate=document.getElementById('rotate'),viewReset=document.getElementById('viewReset'),fullscreen=document.getElementById('fullscreen'),reload=document.getElementById('reload');
   const more=document.getElementById('moreMenu');
+  const preservedProgressActions=[document.getElementById('drawingMemoLaunch'),document.getElementById('drawingMemoEdit'),document.querySelector('a[aria-label=\"進捗一覧\"]')].filter(Boolean);
   if(!toolbar||!top||!prev||!next||!pageField||!more)return;
 
   const app=document.createElement('div');app.className='ui3-appbar';app.dataset.ui3Header='progress';
@@ -99,6 +100,7 @@ body.ui3-projects main{padding-top:0!important}.ui3-root{position:sticky;top:0;z
   document.getElementById('backCompact')?.remove();
   if(reload){{reload.textContent='再読込';moreMenu?.append(reload)}}
   toolbar.replaceChildren(pageGroup,viewGroup,pageTools,screenActions,more);
+  for(const el of preservedProgressActions)screenActions.append(el);
 
   const collect=()=>{{
     const grid=document.querySelector('[data-thumbnail-grid-launch]')||toolbar.querySelector('[aria-label="ページ一覧"]');if(grid&&grid.parentNode!==pageTools){{grid.title='ページ一覧';pageTools.append(grid)}}
