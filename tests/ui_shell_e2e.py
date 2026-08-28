@@ -136,7 +136,7 @@ def main():
 
             # 進捗一覧ボタンを実クリック。
             page.locator("[aria-label='進捗一覧']").click()
-            page.wait_for_url(f"**/projects/{PROJECT_ID}/progress-list")
+            page.wait_for_url(f"**/projects/{PROJECT_ID}/progress-list?page=1")
             expect(page.locator("[data-ui3-header='progress-list']")).to_be_visible()
             assert_back(page, f"/projects/{PROJECT_ID}/progress?page=1", "進捗へ")
 
