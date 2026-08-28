@@ -35,6 +35,7 @@ on:
       - feature/page-favorites
       - feature/global-favorites
       - fix/progress-nav-favorite-sync
+      - feature/entry-viewer-box-edit
   workflow_dispatch:
 
 permissions:
