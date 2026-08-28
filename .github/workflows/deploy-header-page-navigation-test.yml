@@ -1,0 +1,80 @@
+name: Deploy header page navigation test
+
+on:
+  push:
+    branches:
+      - fix/header-page-navigation-v2
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-pythonanywhere-weld
+  cancel-in-progress: false
+
+jobs:
+  deploy-test-shell:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Syntax check shell only
+        run: python -m py_compile desktop_ui_shell.py
+
+      - name: Verify protected scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check HEAD^ HEAD
+          changed=$(git diff --name-only HEAD^ HEAD)
+          echo "$changed"
+          test "$changed" = ".github/workflows/deploy-header-page-navigation-test.yml"
+          grep -q 'data-weld-desktop-shell-v2' desktop_ui_shell.py
+          grep -q 'data-weld-page-state-v1' desktop_ui_shell.py
+
+      - name: Upload test shell only
+        env:
+          PYTHONANYWHERE_API_TOKEN: ${{ secrets.PYTHONANYWHERE_API_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${PYTHONANYWHERE_API_TOKEN:-}"
+          api_url="https://www.pythonanywhere.com/api/v0/user/nakagawach/files/path/home/nakagawach/piping-weld-tracker/desktop_ui_shell.py"
+          curl --fail --silent --show-error --retry 3 --retry-delay 2 \
+            -X POST \
+            -H "Authorization: Token ${PYTHONANYWHERE_API_TOKEN}" \
+            -F "content=@desktop_ui_shell.py" \
+            "$api_url"
+
+      - name: Reload weld webapp
+        env:
+          PYTHONANYWHERE_API_TOKEN: ${{ secrets.PYTHONANYWHERE_API_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 3 --retry-delay 2 \
+            -X POST \
+            -H "Authorization: Token ${PYTHONANYWHERE_API_TOKEN}" \
+            "https://www.pythonanywhere.com/api/v0/user/nakagawach/webapps/nakagawach.pythonanywhere.com/reload/"
+
+      - name: Verify public shell marker and core pages
+        shell: bash
+        run: |
+          set -euo pipefail
+          fetch(){ curl --fail --silent --show-error --location --max-time 30 "$1"; }
+          for attempt in 1 2 3 4 5 6; do
+            projects=$(fetch "https://nakagawach.pythonanywhere.com/weld/projects-screen" || true)
+            progress=$(fetch "https://nakagawach.pythonanywhere.com/weld/projects/7/progress?page=1" || true)
+            entry=$(fetch "https://nakagawach.pythonanywhere.com/weld/projects/7/entry?page=1" || true)
+            if [[ "$projects" == *'data-weld-desktop-shell-v2'* ]] && \
+               [[ "$progress" == *'data-weld-desktop-shell-v2'* ]] && \
+               [[ "$progress" == *'data-weld-page-state-v1'* ]] && \
+               [[ "$entry" == *'data-weld-desktop-shell-v2'* ]]; then
+              echo "Public test shell confirmed"
+              exit 0
+            fi
+            echo "Verification attempt $attempt failed"
+            sleep 5
+          done
+          exit 1
