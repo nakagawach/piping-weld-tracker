@@ -1,0 +1,42 @@
+name: Apply Entry mobile display controls fix
+
+on:
+  push:
+    branches:
+      - feature/v11-unified-header-final
+    paths:
+      - tools/fix_v11_entry_mobile_display_controls.py
+      - .github/workflows/v11-entry-mobile-display-controls.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Confirm scope before change
+        run: |
+          set -euo pipefail
+          grep -q '@media(max-width:820px)' templates/project_entry.html
+          grep -q '#zoomOut,#zoomReset,#zoomIn,#viewReset,#fullscreen,#bboxEdit' templates/project_entry.html
+          grep -q 'ui3-view-group' ui_shell.py
+          python -m py_compile ui_shell.py app.py
+      - name: Apply one CSS override
+        run: python tools/fix_v11_entry_mobile_display_controls.py
+      - name: Verify only shell changed
+        run: |
+          set -euo pipefail
+          python -m py_compile ui_shell.py app.py
+          grep -q 'body.ui3-entry .ui3-view-group #zoomOut' ui_shell.py
+          grep -q 'ui3-view-group #viewReset' ui_shell.py
+          git diff --check
+          test "$(git diff --name-only)" = 'ui_shell.py'
+      - name: Commit focused fix
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add ui_shell.py
+          git commit -m 'Show common display controls on Entry mobile'
+          git push origin HEAD:feature/v11-unified-header-final
