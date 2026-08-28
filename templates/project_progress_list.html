@@ -17,7 +17,7 @@
 <body>
 <main>
   <div class="topbar">
-    <a class="back" href="{{ url_for('progress.project_progress', project_id=project_id) }}">‹ 図面へ</a>
+    <a class="back" href="{{ url_for('progress.project_progress', project_id=project_id) }}?page={{ current_page }}">‹ 図面へ</a>
     <div class="titlebox"><h1 class="title">進捗一覧</h1><div class="meta">{{ project_name }} / {{ pdf_name }}</div></div>
   </div>
 
