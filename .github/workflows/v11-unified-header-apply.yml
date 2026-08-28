@@ -1,0 +1,67 @@
+name: Apply V1.1 unified header final
+
+on:
+  push:
+    branches:
+      - feature/v11-unified-header-final
+    paths:
+      - tools/apply_v11_unified_header_final.py
+      - .github/workflows/v11-unified-header-apply.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Protection gate before change
+        run: |
+          set -euo pipefail
+          test "$(git merge-base 16c1cadc20b01213cb76782099f0889e6b376976 HEAD)" = "16c1cadc20b01213cb76782099f0889e6b376976"
+          grep -q 'id="bboxEdit"' templates/project_entry.html
+          grep -q 'bboxActionAt' templates/project_entry.html
+          grep -q 'drawingMemoLaunch' progress.py
+          grep -q 'drawingMemoEdit' static/progress_drawing_memo.js
+          grep -q 'navigateProgressPage' progress.py
+          grep -q 'progress-thumb.active:disabled' progress.py
+          grep -q 'data-weld-ui-shell-v3' ui_shell.py
+          ! grep -q 'desktop_ui_shell' app.py
+          python -m py_compile app.py progress.py ui_shell.py projects.py project_render.py thumbnail_grid.py global_favorites.py viewer_mode.py
+          node --check static/progress_drawing_memo.js
+
+      - name: Apply header patch
+        run: python tools/apply_v11_unified_header_final.py
+
+      - name: Verify protection after change
+        run: |
+          set -euo pipefail
+          python -m py_compile ui_shell.py progress.py app.py
+          node --check static/progress_drawing_memo.js
+          grep -q 'drawingMemoLaunch' progress.py
+          grep -q 'drawingMemoEdit' static/progress_drawing_memo.js
+          grep -q 'bboxActionAt' templates/project_entry.html
+          grep -q 'aria-current.*page' templates/project_entry.html
+          grep -q 'ui3-screen-actions' ui_shell.py
+          grep -q '図面エントリーへ' ui_shell.py
+          grep -q 'メモ表示' ui_shell.py
+          grep -q 'メモ編集' ui_shell.py
+          grep -q 'OCR実行' templates/project_entry.html
+          grep -q '番号配置を確定保存' templates/project_entry.html
+          git diff --check
+          changed=$(git diff --name-only)
+          printf '%s\n' "$changed"
+          test "$changed" = $'templates/project_entry.html\nui_shell.py'
+
+      - name: Commit intended app files only
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add ui_shell.py templates/project_entry.html
+          git commit -m 'Unify V1.1 progress and entry header layout'
+          git push origin HEAD:feature/v11-unified-header-final
