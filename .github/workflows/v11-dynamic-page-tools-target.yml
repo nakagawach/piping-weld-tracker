@@ -1,0 +1,44 @@
+name: Apply dynamic page-tool target fix
+
+on:
+  push:
+    branches:
+      - feature/v11-unified-header-final
+    paths:
+      - tools/fix_v11_dynamic_page_tools_target.py
+      - .github/workflows/v11-dynamic-page-tools-target.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Confirm protected page-tool behavior
+        run: |
+          set -euo pipefail
+          grep -q 'thumbnailGridButton' thumbnail_grid.py
+          grep -q 'openGrid' thumbnail_grid.py
+          grep -q 'weldFavoritePages' thumbnail_grid.py
+          grep -q 'page-favorite-view' thumbnail_grid.py
+          python -m py_compile thumbnail_grid.py ui_shell.py app.py
+      - name: Apply one target fix
+        run: python tools/fix_v11_dynamic_page_tools_target.py
+      - name: Verify only injector changed
+        run: |
+          set -euo pipefail
+          python -m py_compile thumbnail_grid.py ui_shell.py app.py
+          grep -q "pageTools=document.querySelector('.ui3-page-tools')" thumbnail_grid.py
+          grep -q 'openGrid' thumbnail_grid.py
+          grep -q 'weldFavoritePages' thumbnail_grid.py
+          git diff --check
+          test "$(git diff --name-only)" = 'thumbnail_grid.py'
+      - name: Commit focused fix
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add thumbnail_grid.py
+          git commit -m 'Target dynamic page tools at unified toolbar group'
+          git push origin HEAD:feature/v11-unified-header-final
