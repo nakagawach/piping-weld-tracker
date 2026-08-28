@@ -4,6 +4,10 @@
   const launch = document.getElementById('drawingMemoLaunch');
   const tools = document.getElementById('drawingMemoTools');
   const pageInput = document.getElementById('page');
+  const pageTotal = document.getElementById('pageTotal');
+  const prevButton = document.getElementById('prev');
+  const nextButton = document.getElementById('next');
+  const statusLine = document.getElementById('status');
   if (!baseCanvas || !viewer || !launch || !tools || !pageInput) return;
 
   const SCALE = 1600 / 6000;
@@ -18,13 +22,26 @@
   viewer.style.position = 'relative';
   viewer.insertBefore(overlay, baseCanvas.nextSibling);
 
+  launch.textContent = '👁';
+  launch.setAttribute('aria-label', '手書きメモ表示切替');
+  launch.title = '手書きメモ表示切替';
+  const editButton = document.createElement('button');
+  editButton.type = 'button';
+  editButton.id = 'drawingMemoEdit';
+  editButton.className = 'button icon-button drawing-memo-edit';
+  editButton.textContent = '✎';
+  editButton.setAttribute('aria-label', '手書きメモ編集');
+  editButton.title = '手書きメモ編集';
+  launch.insertAdjacentElement('afterend', editButton);
+
   const dirtyLabel = document.getElementById('memoDirty');
   const saveButton = document.getElementById('memoSave');
   const undoButton = document.getElementById('memoUndo');
   const redoButton = document.getElementById('memoRedo');
   const clearButton = document.getElementById('memoClear');
   const eraserButton = document.getElementById('memoEraser');
-  let memoMode = false;
+  let displayOn = true;
+  let editMode = false;
   let eraserMode = false;
   let color = '#d93025';
   let width = 24;
@@ -38,6 +55,10 @@
   let activeStroke = null;
   let eraseSnapshotTaken = false;
   let multiTouch = false;
+  let pendingTargetPage = null;
+  let transitionToken = 0;
+  let transitionPage = null;
+  let transitionPromise = null;
 
   const clone = value => JSON.parse(JSON.stringify(value));
   const rotation = () => {
@@ -49,6 +70,10 @@
     return r === 90 || r === 270
       ? { width: baseCanvas.height, height: baseCanvas.width }
       : { width: baseCanvas.width, height: baseCanvas.height };
+  };
+  const getPageCount = () => {
+    const match = pageTotal?.textContent?.match(/(\d+)/);
+    return match ? Number(match[1]) : 0;
   };
 
   function syncOverlaySize() {
@@ -106,10 +131,12 @@
   }
 
   function updateUi() {
-    launch.classList.toggle('active', memoMode);
-    tools.classList.toggle('open', memoMode);
-    overlay.style.pointerEvents = memoMode ? 'auto' : 'none';
-    viewer.classList.toggle('memo-mode', memoMode);
+    launch.classList.toggle('active', displayOn);
+    editButton.classList.toggle('active', editMode);
+    tools.classList.toggle('open', editMode);
+    overlay.style.visibility = displayOn && transitionPage === null ? 'visible' : 'hidden';
+    overlay.style.pointerEvents = editMode && displayOn && transitionPage === null ? 'auto' : 'none';
+    viewer.classList.toggle('memo-mode', editMode);
     eraserButton.classList.toggle('active', eraserMode);
     undoButton.disabled = !undoStack.length || saving;
     redoButton.disabled = !redoStack.length || saving;
@@ -164,7 +191,7 @@
   }
 
   overlay.addEventListener('touchstart', e => {
-    if (!memoMode) return;
+    if (!editMode) return;
     if (e.touches.length >= 2) {
       multiTouch = true;
       cancelActiveStroke();
@@ -174,17 +201,17 @@
     e.stopPropagation();
   }, { passive: false });
   overlay.addEventListener('touchmove', e => {
-    if (!memoMode || e.touches.length >= 2 || multiTouch) return;
+    if (!editMode || e.touches.length >= 2 || multiTouch) return;
     e.preventDefault(); e.stopPropagation();
   }, { passive: false });
   overlay.addEventListener('touchend', e => {
-    if (!memoMode) return;
+    if (!editMode) return;
     if (e.touches.length === 0) multiTouch = false;
     if (!multiTouch) { e.preventDefault(); e.stopPropagation(); }
   }, { passive: false });
 
   overlay.addEventListener('pointerdown', e => {
-    if (!memoMode || saving || multiTouch || activePointerId !== null || e.button > 0) return;
+    if (!editMode || saving || multiTouch || activePointerId !== null || e.button > 0) return;
     e.preventDefault(); e.stopPropagation();
     activePointerId = e.pointerId;
     overlay.setPointerCapture(e.pointerId);
@@ -198,7 +225,7 @@
     render();
   });
   overlay.addEventListener('pointermove', e => {
-    if (!memoMode || e.pointerId !== activePointerId || multiTouch) return;
+    if (!editMode || e.pointerId !== activePointerId || multiTouch) return;
     e.preventDefault(); e.stopPropagation();
     const p = eventPoint(e);
     if (eraserMode) { eraseAt(p); return; }
@@ -220,8 +247,33 @@
   overlay.addEventListener('pointerup', finishPointer);
   overlay.addEventListener('pointercancel', finishPointer);
 
-  launch.addEventListener('click', () => {
-    memoMode = !memoMode;
+  async function requestEditOff() {
+    if (!editMode) return true;
+    if (dirty) {
+      if (!confirm('手書きメモに未保存の変更があります。保存して編集を終了しますか？')) return false;
+      if (!await saveMemo()) return false;
+    }
+    editMode = false;
+    updateUi();
+    return true;
+  }
+
+  launch.addEventListener('click', async () => {
+    if (displayOn) {
+      if (!await requestEditOff()) return;
+      displayOn = false;
+    } else {
+      displayOn = true;
+    }
+    updateUi();
+  });
+  editButton.addEventListener('click', async () => {
+    if (editMode) {
+      await requestEditOff();
+      return;
+    }
+    displayOn = true;
+    editMode = true;
     updateUi();
   });
   tools.querySelectorAll('[data-memo-color]').forEach(button => button.addEventListener('click', () => {
@@ -250,18 +302,34 @@
     pushUndo(); strokes = []; setDirty(); render();
   });
 
-  async function loadMemo(page) {
-    if (!memoUrl || !page) return;
+  async function fetchMemo(page) {
+    if (!memoUrl || !page) return { pageNumber: page, strokes: [] };
     const response = await fetch(`${memoUrl}?page=${page}`, { cache: 'no-store' });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || '手書きメモを取得できませんでした。');
+    return data;
+  }
+
+  function applyMemoData(page, data) {
     strokes = Array.isArray(data.strokes) ? data.strokes : [];
-    undoStack = []; redoStack = []; dirty = false; loadedPage = page;
-    updateUi(); render();
+    undoStack = [];
+    redoStack = [];
+    dirty = false;
+    loadedPage = page;
+    render();
+    updateUi();
+  }
+
+  async function loadMemo(page) {
+    const data = await fetchMemo(page);
+    applyMemoData(page, data);
   }
 
   async function saveMemo() {
-    if (!dirty || saving) return true;
+    if (!dirty || saving) {
+      if (!saving) { editMode = false; displayOn = true; updateUi(); }
+      return !saving;
+    }
     saving = true; updateUi();
     try {
       const response = await fetch(memoUrl, {
@@ -270,43 +338,149 @@
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || '手書きメモを保存できませんでした。');
-      dirty = false; updateUi();
-      const status = document.getElementById('status');
-      if (status) status.textContent = `P${data.pageNumber} 手書きメモを保存しました（${data.count}本）`;
+      dirty = false;
+      editMode = false;
+      displayOn = true;
+      if (statusLine) statusLine.textContent = `P${data.pageNumber} 手書きメモを保存しました（${data.count}本）`;
       return true;
     } catch (error) {
       alert(error.message);
       return false;
     } finally {
-      saving = false; updateUi();
+      saving = false;
+      updateUi();
     }
   }
   saveButton.addEventListener('click', saveMemo);
 
+  function showMemoLoadError(error) {
+    if (statusLine) {
+      statusLine.classList.add('error');
+      statusLine.textContent = error.message;
+    }
+  }
+
+  function beginPageTransition(page) {
+    if (!page || page === loadedPage) return;
+    transitionToken += 1;
+    const token = transitionToken;
+    transitionPage = page;
+    editMode = false;
+    activeStroke = null;
+    activePointerId = null;
+    updateUi();
+    transitionPromise = fetchMemo(page)
+      .then(data => ({ token, page, data }))
+      .catch(error => ({ token, page, error }));
+  }
+
+  async function finishPageTransitionIfReady() {
+    if (transitionPage === null || pageInput.disabled) return;
+    const page = Number(pageInput.value) || 1;
+    if (page !== transitionPage || !transitionPromise) return;
+    const result = await transitionPromise;
+    if (result.token !== transitionToken || result.page !== transitionPage) return;
+    if (result.error) {
+      transitionPage = null;
+      transitionPromise = null;
+      strokes = [];
+      loadedPage = page;
+      render();
+      updateUi();
+      showMemoLoadError(result.error);
+      return;
+    }
+    applyMemoData(page, result.data);
+    transitionPage = null;
+    transitionPromise = null;
+    updateUi();
+  }
+
   window.__drawingMemoBeforePageChange = async () => {
-    if (!dirty) return true;
-    if (!confirm('手書きメモに未保存の変更があります。保存してページを移動しますか？')) return false;
-    return saveMemo();
+    if (dirty) {
+      if (!confirm('手書きメモに未保存の変更があります。保存してページを移動しますか？')) return false;
+      if (!await saveMemo()) return false;
+    }
+    if (pendingTargetPage && pendingTargetPage !== Number(pageInput.value)) beginPageTransition(pendingTargetPage);
+    return true;
   };
+
+  function prepareTargetFromClick(target) {
+    const current = Number(pageInput.value) || 1;
+    const count = getPageCount();
+    if (!target || target === current || target < 1 || (count && target > count)) return false;
+    pendingTargetPage = target;
+    return true;
+  }
+
+  prevButton?.addEventListener('click', e => {
+    const current = Number(pageInput.value) || 1;
+    if (current <= 1) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      pendingTargetPage = null;
+      return;
+    }
+    prepareTargetFromClick(current - 1);
+  }, true);
+  nextButton?.addEventListener('click', e => {
+    const current = Number(pageInput.value) || 1;
+    const count = getPageCount();
+    if (count && current >= count) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      pendingTargetPage = null;
+      return;
+    }
+    prepareTargetFromClick(current + 1);
+  }, true);
+  document.addEventListener('click', e => {
+    const thumb = e.target.closest?.('.progress-thumb[data-page]');
+    if (!thumb) return;
+    const target = Number(thumb.dataset.page);
+    const current = Number(pageInput.value) || 1;
+    if (target === current) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      return;
+    }
+    prepareTargetFromClick(target);
+  }, true);
+  pageInput.addEventListener('change', e => {
+    const target = Math.max(1, Math.min(getPageCount() || Number(e.target.value) || 1, Number(e.target.value) || 1));
+    const currentLoaded = loadedPage || Number(pageInput.value) || 1;
+    if (target === currentLoaded) return;
+    pendingTargetPage = target;
+  }, true);
+
   window.addEventListener('beforeunload', e => {
     if (!dirty) return;
     e.preventDefault(); e.returnValue = '';
   });
 
-  const canvasObserver = new MutationObserver(syncOverlaySize);
+  const canvasObserver = new MutationObserver(() => {
+    syncOverlaySize();
+    finishPageTransitionIfReady();
+  });
   canvasObserver.observe(baseCanvas, { attributes: true, attributeFilter: ['width', 'height', 'style'] });
   new MutationObserver(syncOverlaySize).observe(document.getElementById('rotate'), { childList: true, characterData: true, subtree: true });
-  let lastPage = null;
+
+  let lastObservedPage = Number(pageInput.value) || 1;
+  loadMemo(lastObservedPage).catch(showMemoLoadError);
   setInterval(() => {
     const page = Number(pageInput.value) || 1;
     syncOverlaySize();
-    if (page === lastPage) return;
-    lastPage = page;
-    loadMemo(page).catch(error => {
-      const status = document.getElementById('status');
-      if (status) { status.classList.add('error'); status.textContent = error.message; }
-    });
-  }, 200);
+    finishPageTransitionIfReady();
+    if (page === lastObservedPage) return;
+    lastObservedPage = page;
+    pendingTargetPage = null;
+    if (transitionPage === page) return;
+    transitionPage = page;
+    updateUi();
+    loadMemo(page)
+      .then(() => { if (Number(pageInput.value) === page) { transitionPage = null; updateUi(); } })
+      .catch(error => { transitionPage = null; updateUi(); showMemoLoadError(error); });
+  }, 100);
   syncOverlaySize();
   updateUi();
 })();
