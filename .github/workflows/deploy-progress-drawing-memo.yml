@@ -74,3 +74,9 @@ jobs:
             sleep 5
           done
           exit 1
+
+      - name: Public browser navigation diagnostics
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+          python tests/public_navigation_regression.py
