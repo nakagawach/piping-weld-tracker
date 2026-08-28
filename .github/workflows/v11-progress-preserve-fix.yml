@@ -1,0 +1,45 @@
+name: Apply progress toolbar preservation fix
+
+on:
+  push:
+    branches:
+      - feature/v11-unified-header-final
+    paths:
+      - tools/fix_v11_progress_toolbar_preserve.py
+      - .github/workflows/v11-progress-preserve-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Confirm regression scope
+        run: |
+          set -euo pipefail
+          grep -q 'drawingMemoLaunch' progress.py
+          grep -q 'drawingMemoEdit' static/progress_drawing_memo.js
+          grep -q 'a\[aria-label=\"進捗一覧\"\]' progress.py
+          python -m py_compile ui_shell.py progress.py app.py
+      - name: Apply one focused fix
+        run: python tools/fix_v11_progress_toolbar_preserve.py
+      - name: Verify only shell changed
+        run: |
+          set -euo pipefail
+          python -m py_compile ui_shell.py progress.py app.py
+          grep -q 'preservedProgressActions' ui_shell.py
+          grep -q 'drawingMemoLaunch' progress.py
+          grep -q 'drawingMemoEdit' static/progress_drawing_memo.js
+          git diff --check
+          test "$(git diff --name-only)" = 'ui_shell.py'
+      - name: Commit fix
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add ui_shell.py
+          git commit -m 'Preserve progress actions during toolbar regrouping'
+          git push origin HEAD:feature/v11-unified-header-final
