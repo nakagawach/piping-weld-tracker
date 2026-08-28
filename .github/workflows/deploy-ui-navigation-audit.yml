@@ -1,0 +1,75 @@
+name: Deploy UI Navigation Audit Preview
+
+on:
+  push:
+    branches:
+      - fix/ui-navigation-audit
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-pythonanywhere-weld
+  cancel-in-progress: false
+
+jobs:
+  deploy-preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pre-deploy checks
+        shell: bash
+        run: |
+          python -m py_compile app.py projects.py project_render.py progress.py thumbnail_grid.py global_favorites.py ui_shell.py
+          grep -q 'navigatePage' templates/project_progress.html
+          grep -q 'navigatePage' templates/project_entry.html
+          grep -q 'progressListButton' progress.py
+          grep -q 'current_page=current_page' progress.py
+          git diff --check
+
+      - name: Upload weld app files
+        env:
+          PYTHONANYWHERE_API_TOKEN: ${{ secrets.PYTHONANYWHERE_API_TOKEN }}
+          GOOGLE_VISION_API_KEY: ${{ secrets.GOOGLE_VISION_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          api_base="https://www.pythonanywhere.com/api/v0/user/nakagawach/files/path/home/nakagawach/piping-weld-tracker"
+          upload_file(){ local file="$1"; echo "Uploading ${file}"; curl --fail --silent --show-error --retry 3 --retry-delay 2 -X POST -H "Authorization: Token ${PYTHONANYWHERE_API_TOKEN}" -F "content=@${file}" "${api_base}/${file}"; }
+          for file in app.py projects.py project_render.py progress.py thumbnail_grid.py global_favorites.py ui_shell.py viewer_mode.py requirements.txt; do upload_file "$file"; done
+          while IFS= read -r -d '' file; do upload_file "$file"; done < <(find templates -type f -print0)
+          if [ -d static ]; then while IFS= read -r -d '' file; do upload_file "$file"; done < <(find static -type f -print0); fi
+          printf 'GOOGLE_VISION_API_KEY=%s\n' "$GOOGLE_VISION_API_KEY" > .env
+          upload_file ".env"
+
+      - name: Reload PythonAnywhere web app
+        env:
+          PYTHONANYWHERE_API_TOKEN: ${{ secrets.PYTHONANYWHERE_API_TOKEN }}
+        shell: bash
+        run: |
+          curl --fail --silent --show-error --retry 3 --retry-delay 2 -X POST -H "Authorization: Token ${PYTHONANYWHERE_API_TOKEN}" "https://www.pythonanywhere.com/api/v0/user/nakagawach/webapps/nakagawach.pythonanywhere.com/reload/"
+
+      - name: Public smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://nakagawach.pythonanywhere.com/weld"
+          for attempt in 1 2 3 4 5 6; do
+            progress=$(curl --fail --silent --show-error --location "$base/projects/7/progress?page=2" || true)
+            entry=$(curl --fail --silent --show-error --location "$base/projects/7/entry?page=2" || true)
+            list=$(curl --fail --silent --show-error --location "$base/projects/7/progress-list?page=2" || true)
+            if [[ "$progress" == *'progressListButton'* ]] && [[ "$progress" == *'navigatePage'* ]] && [[ "$entry" == *'navigatePage'* ]] && [[ "$list" == *'?page=2'* ]]; then
+              echo "Navigation preview smoke: PASS"
+              exit 0
+            fi
+            sleep 5
+          done
+          exit 1
+
+      - name: Public Android touch navigation regression
+        shell: bash
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+          python tests/public_ui_navigation_regression.py
