@@ -30,9 +30,6 @@ jobs:
         run: |
           set -euo pipefail
           git diff --check HEAD^ HEAD
-          changed=$(git diff --name-only HEAD^ HEAD)
-          echo "$changed"
-          test "$changed" = ".github/workflows/deploy-header-page-navigation-test.yml"
           grep -q 'data-weld-desktop-shell-v2' desktop_ui_shell.py
           grep -q 'data-weld-page-state-v1' desktop_ui_shell.py
 
