@@ -1,0 +1,53 @@
+name: Progress Drawing Memo Checks
+
+on:
+  push:
+    branches:
+      - feature/progress-drawing-memo
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  drawing-memo-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install app dependencies
+        run: pip install -r requirements.txt
+
+      - name: Python syntax check
+        run: python -m py_compile app.py progress.py projects.py project_render.py thumbnail_grid.py global_favorites.py ui_shell.py
+
+      - name: JavaScript syntax check
+        run: node --check static/progress_drawing_memo.js
+
+      - name: Drawing memo validation tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python tests/test_drawing_memo.py
+
+      - name: Existing OCR regression tests
+        run: |
+          if [ -f tests/test_ocr_candidate_filter.py ]; then python tests/test_ocr_candidate_filter.py; fi
+
+      - name: Protection guards
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          progress = Path('progress.py').read_text(encoding='utf-8')
+          js = Path('static/progress_drawing_memo.js').read_text(encoding='utf-8')
+          assert 'CREATE TABLE IF NOT EXISTS drawing_memo' in progress
+          assert 'CREATE TABLE IF NOT EXISTS weld_progress' not in progress
+          assert 'drawingMemoLaunch' in progress
+          assert '__drawingMemoBeforePageChange' in progress
+          assert 'pointerEvents' in js
+          assert 'touchstart' in js and 'touchmove' in js
+          assert 'DB_VERSION' not in progress + js
+          print('drawing memo protection guards: PASS')
+          PY

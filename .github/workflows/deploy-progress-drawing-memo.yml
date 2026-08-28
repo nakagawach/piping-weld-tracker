@@ -1,0 +1,82 @@
+name: Deploy Progress Drawing Memo Preview
+
+on:
+  push:
+    branches:
+      - feature/progress-drawing-memo
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-pythonanywhere-weld
+  cancel-in-progress: false
+
+jobs:
+  deploy-preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pre-deploy checks
+        run: |
+          pip install -r requirements.txt
+          python -m py_compile app.py projects.py project_render.py progress.py thumbnail_grid.py global_favorites.py ui_shell.py
+          node --check static/progress_drawing_memo.js
+          PYTHONPATH="$GITHUB_WORKSPACE" python tests/test_drawing_memo.py
+
+      - name: Upload weld app files
+        env:
+          PYTHONANYWHERE_API_TOKEN: ${{ secrets.PYTHONANYWHERE_API_TOKEN }}
+          GOOGLE_VISION_API_KEY: ${{ secrets.GOOGLE_VISION_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          api_base="https://www.pythonanywhere.com/api/v0/user/nakagawach/files/path/home/nakagawach/piping-weld-tracker"
+          upload_file(){ local file="$1"; echo "Uploading ${file}"; curl --fail --silent --show-error --retry 3 --retry-delay 2 -X POST -H "Authorization: Token ${PYTHONANYWHERE_API_TOKEN}" -F "content=@${file}" "${api_base}/${file}"; }
+          upload_file "app.py"
+          upload_file "projects.py"
+          upload_file "project_render.py"
+          upload_file "progress.py"
+          upload_file "thumbnail_grid.py"
+          upload_file "global_favorites.py"
+          upload_file "ui_shell.py"
+          upload_file "viewer_mode.py"
+          upload_file "requirements.txt"
+          while IFS= read -r -d '' file; do upload_file "$file"; done < <(find templates -type f -print0)
+          if [ -d static ]; then while IFS= read -r -d '' file; do upload_file "$file"; done < <(find static -type f -print0); fi
+          printf 'GOOGLE_VISION_API_KEY=%s\n' "$GOOGLE_VISION_API_KEY" > .env
+          upload_file ".env"
+
+      - name: Reload PythonAnywhere web app
+        env:
+          PYTHONANYWHERE_API_TOKEN: ${{ secrets.PYTHONANYWHERE_API_TOKEN }}
+        run: |
+          curl --fail --silent --show-error --retry 3 --retry-delay 2 -X POST -H "Authorization: Token ${PYTHONANYWHERE_API_TOKEN}" "https://www.pythonanywhere.com/api/v0/user/nakagawach/webapps/nakagawach.pythonanywhere.com/reload/"
+
+      - name: Public smoke and memo API check
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://nakagawach.pythonanywhere.com/weld"
+          for attempt in 1 2 3 4 5 6; do
+            projects=$(curl --fail --silent --show-error --location "$base/projects" || true)
+            project_id=$(printf '%s' "$projects" | python -c 'import json,sys; d=json.load(sys.stdin); p=d.get("projects",[]); print(7 if any(x.get("id")==7 for x in p) else (p[0]["id"] if p else ""))' 2>/dev/null || true)
+            if [ -z "$project_id" ]; then sleep 5; continue; fi
+            progress=$(curl --fail --silent --show-error --location "$base/projects/$project_id/progress" || true)
+            memo=$(curl --fail --silent --show-error --location "$base/projects/$project_id/drawing-memo?page=1" || true)
+            js_code=$(curl --silent --show-error --location --output /dev/null --write-out '%{http_code}' "$base/static/progress_drawing_memo.js")
+            if [[ "$progress" == *'drawingMemoLaunch'* ]] && [[ "$progress" == *'drawingMemoTools'* ]] && [[ "$progress" == *'progress_drawing_memo.js'* ]] && [[ "$memo" == *'"strokes"'* ]] && [ "$js_code" = '200' ]; then
+              echo "Progress drawing memo preview smoke: PASS"
+              exit 0
+            fi
+            echo "attempt $attempt failed js=$js_code"
+            sleep 5
+          done
+          exit 1
+
+      - name: Public browser navigation diagnostics
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+          python tests/public_navigation_regression.py
