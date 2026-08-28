@@ -9,10 +9,11 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from PIL import Image
 from playwright.sync_api import expect, sync_playwright
 from werkzeug.serving import make_server
 
-from app import DB_PATH, app
+from app import DATA_DIR, DB_PATH, app
 
 
 PROJECT_ID = 999
@@ -21,6 +22,14 @@ BASE_URL = "http://127.0.0.1:8765"
 
 def seed_database():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    pdf_dir = DATA_DIR / "pdfs"
+    pdf_dir.mkdir(parents=True, exist_ok=True)
+    pdf_path = pdf_dir / "ui-test.pdf"
+    pages = [Image.new("RGB", (320, 240), "white") for _ in range(3)]
+    pages[0].save(pdf_path, "PDF", save_all=True, append_images=pages[1:])
+    for image in pages:
+        image.close()
+
     with sqlite3.connect(DB_PATH) as connection:
         connection.execute(
             """
