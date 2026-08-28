@@ -1,0 +1,73 @@
+name: V1.1 final isolated gate
+on:
+  pull_request:
+    branches: [test/v11-final-gate-base]
+permissions:
+  contents: read
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install
+        run: |
+          pip install -r requirements.txt
+          pip install playwright
+          playwright install --with-deps chromium
+      - name: Static protection
+        run: |
+          set -euo pipefail
+          python -m py_compile app.py projects.py project_render.py progress.py thumbnail_grid.py global_favorites.py ui_shell.py viewer_mode.py
+          node --check static/progress_drawing_memo.js
+          grep -q 'drawingMemoLaunch' progress.py
+          grep -q 'drawingMemoEdit' static/progress_drawing_memo.js
+          grep -q 'bboxActionAt' templates/project_entry.html
+          grep -q 'OCR実行' templates/project_entry.html
+          grep -q '番号配置を確定保存' templates/project_entry.html
+          grep -q 'ui3-page-group' ui_shell.py
+          grep -q 'ui3-view-group' ui_shell.py
+          grep -q 'ui3-page-tools' ui_shell.py
+          grep -q 'ui3-screen-actions' ui_shell.py
+          ! grep -q 'desktop_ui_shell' app.py
+          git diff --check
+      - name: Memo validation
+        run: PYTHONPATH="$GITHUB_WORKSPACE" python tests/test_drawing_memo.py
+      - name: Browser regression bounded
+        timeout-minutes: 4
+        run: timeout 210s env PYTHONPATH="$GITHUB_WORKSPACE" python tests/ui_shell_e2e.py
+      - name: Upload coherent app without data
+        env:
+          PYTHONANYWHERE_API_TOKEN: ${{ secrets.PYTHONANYWHERE_API_TOKEN }}
+          GOOGLE_VISION_API_KEY: ${{ secrets.GOOGLE_VISION_API_KEY }}
+        run: |
+          set -euo pipefail
+          api_base="https://www.pythonanywhere.com/api/v0/user/nakagawach/files/path/home/nakagawach/piping-weld-tracker"
+          upload(){ curl --fail --silent --show-error --retry 3 -X POST -H "Authorization: Token ${PYTHONANYWHERE_API_TOKEN}" -F "content=@$1" "${api_base}/$1"; }
+          for f in app.py projects.py project_render.py progress.py thumbnail_grid.py global_favorites.py ui_shell.py viewer_mode.py requirements.txt; do upload "$f"; done
+          while IFS= read -r -d '' f; do upload "$f"; done < <(find templates -type f -print0 | sort -z)
+          while IFS= read -r -d '' f; do upload "$f"; done < <(find static -type f -print0 | sort -z)
+          [ -n "${GOOGLE_VISION_API_KEY:-}" ]
+          printf 'GOOGLE_VISION_API_KEY=%s\n' "$GOOGLE_VISION_API_KEY" > .env
+          upload .env
+      - name: Reload
+        env:
+          PYTHONANYWHERE_API_TOKEN: ${{ secrets.PYTHONANYWHERE_API_TOKEN }}
+        run: curl --fail --silent --show-error --retry 3 -X POST -H "Authorization: Token ${PYTHONANYWHERE_API_TOKEN}" "https://www.pythonanywhere.com/api/v0/user/nakagawach/webapps/nakagawach.pythonanywhere.com/reload/"
+      - name: Public smoke
+        run: |
+          set -euo pipefail
+          b='https://nakagawach.pythonanywhere.com/weld'
+          for i in 1 2 3 4 5 6; do
+            p=$(curl -fsSL --max-time 20 "$b/projects" || true)
+            id=$(printf '%s' "$p" | python -c 'import json,sys; p=json.load(sys.stdin).get("projects",[]); print(7 if any(x.get("id")==7 for x in p) else (p[0]["id"] if p else ""))' 2>/dev/null || true)
+            [ -n "$id" ] || { sleep 5; continue; }
+            pr=$(curl -fsSL --max-time 30 "$b/projects/$id/progress?page=1" || true)
+            en=$(curl -fsSL --max-time 30 "$b/projects/$id/entry?page=1" || true)
+            if [[ "$pr" == *'ui3-page-group'* ]] && [[ "$pr" == *'drawingMemoLaunch'* ]] && [[ "$pr" == *'図面エントリーへ'* ]] && [[ "$en" == *'ui3-page-group'* ]] && [[ "$en" == *'bboxActionAt'* ]]; then echo "PUBLIC PASS $id"; exit 0; fi
+            sleep 5
+          done
+          exit 1
