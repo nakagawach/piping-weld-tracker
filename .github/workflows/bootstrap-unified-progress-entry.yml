@@ -1,0 +1,143 @@
+name: Bootstrap unified Progress and Entry rebuild
+on:
+  push:
+    branches: [rebuild/unified-progress-entry-ui]
+jobs:
+  build-unified:
+    if: github.event.head_commit.message == 'Bootstrap unified Progress and Entry rebuild'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Restore approved feature sources only
+        run: |
+          git fetch origin bb32f2c1a77d4a5b6e90d038b15a2e41bc2a7243 26e523f65f17f58203a61ad1a6a053ac8c4b8642
+          git show bb32f2c1a77d4a5b6e90d038b15a2e41bc2a7243:templates/project_entry.html > templates/project_entry.html
+          git show 26e523f65f17f58203a61ad1a6a053ac8c4b8642:progress.py > progress.py
+          mkdir -p static tests
+          git show 26e523f65f17f58203a61ad1a6a053ac8c4b8642:static/progress_drawing_memo.js > static/progress_drawing_memo.js
+          git show 26e523f65f17f58203a61ad1a6a053ac8c4b8642:tests/test_drawing_memo.py > tests/test_drawing_memo.py
+      - name: Integrate current baseline protections and shared navigation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          entry = Path('templates/project_entry.html')
+          s = entry.read_text()
+          s = s.replace('button:disabled{opacity:.5;cursor:wait}', 'button:disabled{opacity:.5;cursor:not-allowed}')
+          s = s.replace("  let bboxDrag = null;", "  let bboxDrag = null;\n  let loadedPage = 0;")
+          old = "async function loadPage(pageNumber){if(!pageCount||busy)return;if(!confirmLeave())return;const n=Math.max(1,Math.min(pageCount,Number(pageNumber)||1));pageInput.value=n;clearSelection();clearBboxEditSelection();resetZoom();updateThumbActive();setBusy(true);"
+          new = "async function loadPage(pageNumber){if(!pageCount||busy)return;const n=Math.max(1,Math.min(pageCount,Number(pageNumber)||1));if(n===loadedPage){pageInput.value=String(loadedPage||n);updateThumbActive();setBusy(false);return;}if(!confirmLeave())return;pageInput.value=n;clearSelection();clearBboxEditSelection();resetZoom();updateThumbActive();setBusy(true);"
+          if old not in s:
+              raise SystemExit('Entry loadPage anchor missing')
+          s = s.replace(old, new, 1)
+          old2 = "savedPage=Boolean(data.saved);dirty=false;draw();ocrButton.textContent=data.saved?'再OCR':'OCR実行';"
+          new2 = "savedPage=Boolean(data.saved);dirty=false;loadedPage=n;draw();ocrButton.textContent=data.saved?'再OCR':'OCR実行';"
+          if old2 not in s:
+              raise SystemExit('Entry loadedPage success anchor missing')
+          s = s.replace(old2, new2, 1)
+          old3 = "return loadPage(1);}).catch(e=>{status.className='status error';"
+          new3 = "const initialPage=Math.max(1,Math.min(pageCount,Number(new URLSearchParams(location.search).get('page'))||1));return loadPage(initialPage);}).catch(e=>{status.className='status error';"
+          if old3 not in s:
+              raise SystemExit('Entry initial page anchor missing')
+          s = s.replace(old3, new3, 1)
+          entry.write_text(s)
+
+          ui = Path('ui_shell.py')
+          s = ui.read_text()
+          s = s.replace("  .ui3-back,.ui3-icon{min-width:var(--ui3-touch);height:var(--ui3-touch);", "  .ui3-back,.ui3-icon{min-width:var(--ui3-touch);height:var(--ui3-touch);")
+          css_anchor = "  .ui3-title{min-width:0;flex:1;padding:0 3px}.ui3-title strong{display:block;font-size:.98rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ui3-title small{display:block;margin-top:1px;color:var(--ui3-muted);font-size:.7rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\n"
+          css_add = css_anchor + "  .ui3-switch{min-height:42px;padding:0 9px;border:1px solid var(--ui3-line);border-radius:10px;background:#fff;color:var(--ui3-blue);display:inline-flex;align-items:center;justify-content:center;text-decoration:none;font-size:.78rem;font-weight:800;white-space:nowrap;touch-action:manipulation}\n"
+          if css_anchor not in s:
+              raise SystemExit('ui_shell mobile css anchor missing')
+          s = s.replace(css_anchor, css_add, 1)
+          progress_anchor = "  app.append(b,title);\n  if(full)"
+          progress_replace = "  const switchView=document.createElement('a');switchView.className='ui3-switch';switchView.href='{prefix}/projects/{project_id}/entry?page='+encodeURIComponent(document.getElementById('page')?.value||'1');switchView.textContent='エントリー';switchView.setAttribute('aria-label','図面エントリーへ');\n  switchView.addEventListener('click',()=>{{switchView.href='{prefix}/projects/{project_id}/entry?page='+encodeURIComponent(document.getElementById('page')?.value||'1')}});\n  app.append(b,title,switchView);\n  if(full)"
+          if progress_anchor not in s:
+              raise SystemExit('progress header anchor missing')
+          s = s.replace(progress_anchor, progress_replace, 1)
+          entry_anchor = "  const more=document.createElement('details');more.className='more ui3-entry-more';more.innerHTML='<summary aria-label=\"その他の操作\">⋯</summary><div class=\"more-menu\"></div>';const menu=more.querySelector('.more-menu');app.append(b,title,more);controls.parentNode.insertBefore(app,controls);"
+          entry_replace = "  const more=document.createElement('details');more.className='more ui3-entry-more';more.innerHTML='<summary aria-label=\"その他の操作\">⋯</summary><div class=\"more-menu\"></div>';const menu=more.querySelector('.more-menu');const switchView=document.createElement('a');switchView.className='ui3-switch';switchView.href='{prefix}/projects/{project_id}/progress?page='+encodeURIComponent(document.getElementById('page')?.value||'1');switchView.textContent='進捗';switchView.setAttribute('aria-label','進捗入力へ');switchView.addEventListener('click',()=>{{switchView.href='{prefix}/projects/{project_id}/progress?page='+encodeURIComponent(document.getElementById('page')?.value||'1')}});app.append(b,title,switchView,more);controls.parentNode.insertBefore(app,controls);"
+          if entry_anchor not in s:
+              raise SystemExit('entry header anchor missing')
+          s = s.replace(entry_anchor, entry_replace, 1)
+          ui.write_text(s)
+
+          desktop = Path('desktop_ui_shell.py')
+          s = desktop.read_text()
+          anchor = "  .ui3-title{min-width:0;flex:1;padding:0 4px}.ui3-title strong{display:block;font-size:1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ui3-title small{display:block;margin-top:1px;color:#6b7280;font-size:.72rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\n"
+          add = anchor + "  .ui3-switch{min-height:42px;padding:0 12px;border:1px solid #e5e7eb;border-radius:10px;background:#fff;color:#1967d2;display:inline-flex;align-items:center;justify-content:center;text-decoration:none;font-size:.86rem;font-weight:800;white-space:nowrap}.ui3-switch:hover{background:#f1f3f4}\n"
+          if anchor not in s:
+              raise SystemExit('desktop css anchor missing')
+          desktop.write_text(s.replace(anchor, add, 1))
+          PY
+      - name: Add unified regression test
+        run: |
+          cat > tests/unified_progress_entry_e2e.py <<'PY'
+          import time
+          from playwright.sync_api import expect, sync_playwright
+          from ui_shell_e2e import BASE_URL, PROJECT_ID, run_server, seed_database
+
+          def run_context(browser, width, height, mobile=False, touch=False):
+              context = browser.new_context(viewport={'width':width,'height':height}, is_mobile=mobile, has_touch=touch)
+              page = context.new_page()
+              page.goto(f'{BASE_URL}/projects/{PROJECT_ID}/progress?page=1', wait_until='networkidle')
+              expect(page.locator('[data-ui3-header="progress"]')).to_be_visible()
+              expect(page.locator('[data-ui3-header="progress"] .ui3-switch')).to_have_attribute('href', f'/projects/{PROJECT_ID}/entry?page=1')
+              expect(page.locator('#prev')).to_be_disabled()
+              before = page.locator('#status').inner_text()
+              req=[]
+              page.on('request', lambda r: req.append(r.url) if ('progress-data?page=' in r.url or ('pdfium-page?' in r.url and 'format=png' in r.url)) else None)
+              page.locator('#prev').click(force=True)
+              page.wait_for_timeout(250)
+              assert not req, f'P1 prev caused reload: {req}'
+              assert page.locator('#status').inner_text() == before
+              expect(page.locator('#drawingMemoLaunch')).to_have_count(1)
+
+              page.goto(f'{BASE_URL}/projects/{PROJECT_ID}/entry?page=1', wait_until='networkidle')
+              expect(page.locator('[data-ui3-header="entry"]')).to_be_visible()
+              expect(page.locator('[data-ui3-header="entry"] .ui3-switch')).to_have_attribute('href', f'/projects/{PROJECT_ID}/progress?page=1')
+              expect(page.locator('#bboxEdit')).to_have_count(1)
+              expect(page.locator('#zoomOut')).to_have_count(1)
+              expect(page.locator('#zoomReset')).to_have_count(1)
+              expect(page.locator('#zoomIn')).to_have_count(1)
+              expect(page.locator('#viewReset')).to_have_count(1)
+              expect(page.locator('#fullscreen')).to_have_count(1)
+              expect(page.locator('#ocr')).to_be_visible()
+              expect(page.locator('#save')).to_be_visible()
+              context.close()
+
+          def main():
+              seed_database(); server, thread = run_server(); time.sleep(.2)
+              try:
+                  with sync_playwright() as p:
+                      browser = p.chromium.launch()
+                      run_context(browser, 1440, 900)
+                      run_context(browser, 390, 844, True, True)
+                      browser.close()
+              finally:
+                  server.shutdown(); thread.join(timeout=2)
+              print('Unified Progress/Entry regression: PASS')
+          if __name__ == '__main__': main()
+          PY
+      - name: Remove bootstrap workflow and verify scope
+        run: |
+          rm .github/workflows/bootstrap-unified-progress-entry.yml
+          python -m py_compile app.py progress.py ui_shell.py desktop_ui_shell.py
+          grep -q 'cursor:not-allowed' templates/project_entry.html
+          grep -q 'bboxEdit' templates/project_entry.html
+          grep -q 'drawingMemoLaunch' progress.py
+          grep -q '__drawingMemoBeforePageChange' static/progress_drawing_memo.js
+          grep -q 'ui3-switch' ui_shell.py
+          git diff --check
+          git status --short
+      - name: Commit unified source
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add templates/project_entry.html progress.py static/progress_drawing_memo.js tests/test_drawing_memo.py tests/unified_progress_entry_e2e.py ui_shell.py desktop_ui_shell.py .github/workflows/bootstrap-unified-progress-entry.yml
+          git commit -m 'Rebuild unified Progress and Entry experience'
+          git push origin HEAD:rebuild/unified-progress-entry-ui
