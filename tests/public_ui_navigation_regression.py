@@ -67,7 +67,7 @@ def check_progress(page, failures):
         if page.locator('#page').input_value() != '2':
             failures.append(f'progress: next did not move to P2, page={page.locator("#page").input_value()!r}')
 
-        list_button = page.locator('[aria-label="進捗一覧"]')
+        list_button = page.locator('#progressListButton')
         if list_button.count() != 1:
             failures.append(f'progress: progress-list button count={list_button.count()}')
         else:
@@ -84,7 +84,7 @@ def check_progress(page, failures):
 
         page.goto(f'{BASE_URL}/projects/{PROJECT_ID}/progress?page=2', wait_until='networkidle', timeout=30000)
         page.wait_for_timeout(300)
-        grid_button = page.locator('[aria-label="ページ一覧"]')
+        grid_button = page.locator('#thumbnailGridButton')
         if grid_button.count() != 1:
             failures.append(f'progress: page-list button count={grid_button.count()}')
         else:
@@ -123,7 +123,7 @@ def check_entry(page, failures):
         tap_and_wait(page, page.locator('#next'), 900)
         if page.locator('#page').input_value() != '2':
             failures.append(f'entry: next did not move to P2, page={page.locator("#page").input_value()!r}')
-        grid_button = page.locator('[data-thumbnail-grid-launch]')
+        grid_button = page.locator('#thumbnailGridButton')
         if grid_button.count() != 1:
             failures.append(f'entry: page-list button count={grid_button.count()}')
         else:
