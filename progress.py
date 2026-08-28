@@ -182,7 +182,7 @@ body.progress-fullscreen .drawing-memo-tools.open{display:flex}
         thumb_css = """
 .progress-thumbs{display:flex;gap:6px;overflow-x:auto;padding:5px 6px;border-bottom:1px solid #eee;background:#fff;scrollbar-width:thin}
 .progress-thumb{flex:0 0 74px;border:2px solid transparent;border-radius:8px;background:#fff;padding:3px;cursor:pointer}
-.progress-thumb.active{border-color:#1967d2;background:#e8f0fe}
+.progress-thumb.active{border-color:#1967d2;background:#e8f0fe}.progress-thumb.active:disabled{opacity:1;border-color:#1967d2;background:#e8f0fe;color:#174ea6;cursor:default;box-shadow:inset 0 0 0 1px #1967d2}.progress-thumb.active:disabled img{opacity:.86}
 .progress-thumb img{display:block;width:100%;height:46px;object-fit:contain;background:#f1f3f4;border-radius:4px}
 .progress-thumb span{display:block;margin-top:2px;font-size:.7rem;font-weight:800;text-align:center}
 body.progress-fullscreen .progress-thumbs{display:none}
@@ -203,7 +203,7 @@ body.progress-fullscreen .progress-thumbs{display:none}
         )
         thumb_js = (
             "function ensureProgressThumbLoaded(p){const img=progressThumbs.querySelector(`.progress-thumb[data-page=\"${p}\"] img`);if(img&&img.dataset.src&&!img.src)img.src=img.dataset.src;}"
-            "function updateProgressThumbActive(){progressThumbs.querySelectorAll('.progress-thumb').forEach(b=>b.classList.toggle('active',Number(b.dataset.page)===Number(pageInput.value)));const n=Number(pageInput.value);ensureProgressThumbLoaded(n);if(n>1)ensureProgressThumbLoaded(n-1);if(n<pageCount)ensureProgressThumbLoaded(n+1);const activeThumb=progressThumbs.querySelector('.progress-thumb.active');if(activeThumb)activeThumb.scrollIntoView({block:'nearest',inline:'nearest'});}"
+            "function updateProgressThumbActive(){const n=Number(pageInput.value);progressThumbs.querySelectorAll('.progress-thumb').forEach(b=>{const active=Number(b.dataset.page)===n;b.classList.toggle('active',active);b.disabled=active;if(active){b.setAttribute('aria-current','page');b.title=`P${b.dataset.page}（表示中）`}else{b.removeAttribute('aria-current');b.title=`P${b.dataset.page}へ移動`}});ensureProgressThumbLoaded(n);if(n>1)ensureProgressThumbLoaded(n-1);if(n<pageCount)ensureProgressThumbLoaded(n+1);const activeThumb=progressThumbs.querySelector('.progress-thumb.active');if(activeThumb)activeThumb.scrollIntoView({block:'nearest',inline:'nearest'});}"
             "function navigateProgressPage(n){n=Number(n);const current=Number(pageInput.value)||1;if(busy||!pageCount||!Number.isFinite(n)||n<1||n>pageCount||n===current)return;loadPage(n);}"
             "function setupProgressThumbnails(){progressThumbs.innerHTML='';if(progressThumbObserver)progressThumbObserver.disconnect();progressThumbObserver='IntersectionObserver' in window?new IntersectionObserver(entries=>{for(const entry of entries){if(entry.isIntersecting){const img=entry.target.querySelector('img');if(img&&img.dataset.src&&!img.src)img.src=img.dataset.src;}}},{root:progressThumbs,rootMargin:'0px 100px'}):null;for(let p=1;p<=pageCount;p++){const b=document.createElement('button');b.type='button';b.className='progress-thumb';b.dataset.page=String(p);b.innerHTML=`<img alt=\"P${p} サムネイル\" data-src=\"${pdfiumPageUrl}?page=${p}&longEdge=320&format=jpeg\"><span>P${p}</span>`;b.onclick=()=>navigateProgressPage(p);progressThumbs.appendChild(b);if(progressThumbObserver)progressThumbObserver.observe(b);}if(!progressThumbObserver){ensureProgressThumbLoaded(1);if(pageCount>1)ensureProgressThumbLoaded(2);}updateProgressThumbActive();}"
         )
