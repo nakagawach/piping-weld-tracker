@@ -1,0 +1,127 @@
+name: V1.1 rebuild regression
+
+on:
+  push:
+    branches:
+      - rebuild/v1.1-features-header
+    paths:
+      - .github/workflows/v11-rebuild-regression.yml
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install playwright
+          playwright install --with-deps chromium
+
+      - name: Syntax and feature protection
+        run: |
+          set -euo pipefail
+          python -m py_compile app.py ui_shell.py progress.py projects.py project_render.py thumbnail_grid.py global_favorites.py viewer_mode.py
+          node --check static/progress_drawing_memo.js
+          grep -q 'id="bboxEdit"' templates/project_entry.html
+          grep -q 'bboxActionAt' templates/project_entry.html
+          grep -q 'drawingMemoLaunch' progress.py
+          grep -q 'drawingMemoEdit' static/progress_drawing_memo.js
+          grep -q 'navigateProgressPage' progress.py
+          grep -q 'progress-thumb.active:disabled' progress.py
+          grep -q "aria-current','page" progress.py
+          grep -q '図面エントリーへ' global_favorites.py
+          grep -q '@media(min-width:821px)' ui_shell.py
+          grep -q 'data-weld-ui-shell-v3' ui_shell.py
+          ! grep -q 'desktop_ui_shell' app.py
+
+      - name: Existing V1.1 OCR regression
+        run: |
+          if [ -f tests/test_ocr_candidate_filter.py ]; then python tests/test_ocr_candidate_filter.py; fi
+
+      - name: Drawing memo tests
+        run: python tests/test_drawing_memo.py
+
+      - name: Existing V1.1 browser regression
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python tests/ui_shell_e2e.py
+
+      - name: Responsive page-state browser regression
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          python - <<'PY'
+          import re
+          import threading
+          import time
+          from werkzeug.serving import make_server
+          from playwright.sync_api import sync_playwright
+          import app as weld_app
+
+          server = make_server('127.0.0.1', 5059, weld_app.app)
+          thread = threading.Thread(target=server.serve_forever, daemon=True)
+          thread.start(); time.sleep(0.5)
+          try:
+              with sync_playwright() as p:
+                  browser = p.chromium.launch()
+                  for width, height in [(390, 844), (1024, 800), (1440, 900)]:
+                      page = browser.new_page(viewport={"width": width, "height": height})
+                      projects = page.request.get('http://127.0.0.1:5059/projects').json().get('projects', [])
+                      assert projects, 'No project for browser regression'
+                      pid = projects[0]['id']
+                      page.goto(f'http://127.0.0.1:5059/projects/{pid}/progress', wait_until='domcontentloaded')
+                      page.wait_for_timeout(800)
+                      appbar = page.locator('.ui3-appbar')
+                      assert appbar.count() == 1
+                      assert appbar.is_visible(), (width, 'shared header hidden')
+                      prev = page.locator('#prev')
+                      assert prev.is_disabled(), (width, 'P1 previous must be disabled')
+                      thumbs = page.locator('.progress-thumb')
+                      if thumbs.count() > 0:
+                          first = thumbs.nth(0)
+                          assert first.is_disabled(), (width, 'current P1 thumb must be disabled')
+                          assert first.get_attribute('aria-current') == 'page'
+                          if thumbs.count() > 1:
+                              second = thumbs.nth(1)
+                              assert not second.is_disabled()
+                              second.click()
+                              page.wait_for_timeout(500)
+                              assert second.is_disabled(), (width, 'P2 thumb must become disabled')
+                              assert first.is_enabled(), (width, 'P1 thumb must re-enable')
+                      assert page.locator('#drawingMemoLaunch').count() == 1
+                      assert page.locator('#drawingMemoEdit').count() == 1
+                      if width >= 821:
+                          assert page.locator('.desktop-tools').is_visible(), (width, 'desktop tools hidden')
+                      page.goto(f'http://127.0.0.1:5059/projects/{pid}/entry', wait_until='domcontentloaded')
+                      page.wait_for_timeout(500)
+                      assert page.locator('.ui3-appbar').is_visible(), (width, 'Entry shared header hidden')
+                      if width >= 821:
+                          assert page.locator('#bboxEdit').is_visible(), (width, 'bbox edit hidden on PC')
+                      page.close()
+                  browser.close()
+          finally:
+              server.shutdown()
+          print('Responsive page-state regression: PASS')
+          PY
+
+      - name: UI protection checks
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          text=Path('ui_shell.py').read_text(encoding='utf-8')
+          assert 'history.back' not in text
+          assert 'document.referrer' not in text
+          assert 'DB_VERSION' not in text
+          assert 'GOOGLE_VISION_API_KEY' not in text
+          print('UI protection checks: PASS')
+          PY
+          git diff --check
