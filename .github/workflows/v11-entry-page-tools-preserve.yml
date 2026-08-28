@@ -1,0 +1,43 @@
+name: Apply Entry page-tool preservation fix
+
+on:
+  push:
+    branches:
+      - feature/v11-unified-header-final
+    paths:
+      - tools/fix_v11_entry_page_tools_preserve.py
+      - .github/workflows/v11-entry-page-tools-preserve.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Confirm protected Entry features
+        run: |
+          set -euo pipefail
+          grep -q 'bboxActionAt' templates/project_entry.html
+          grep -q 'OCR実行' templates/project_entry.html
+          grep -q '番号配置を確定保存' templates/project_entry.html
+          grep -q 'data-thumbnail-grid-launch' ui_shell.py
+          grep -q 'page-favorite-view' ui_shell.py
+          python -m py_compile ui_shell.py app.py
+      - name: Apply one focused fix
+        run: python tools/fix_v11_entry_page_tools_preserve.py
+      - name: Verify only shared shell changed
+        run: |
+          set -euo pipefail
+          python -m py_compile ui_shell.py app.py
+          grep -q 'preservedEntryPageTools' ui_shell.py
+          git diff --check
+          test "$(git diff --name-only)" = 'ui_shell.py'
+      - name: Commit focused fix
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add ui_shell.py
+          git commit -m 'Preserve Entry page tools during toolbar regrouping'
+          git push origin HEAD:feature/v11-unified-header-final
