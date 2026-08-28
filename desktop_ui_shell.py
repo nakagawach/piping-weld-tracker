@@ -34,6 +34,7 @@ def create_desktop_ui_shell_blueprint():
   .ui3-back,.ui3-icon{min-width:48px;height:48px;padding:0 10px;border:0;border-radius:10px;background:transparent;color:#1967d2;display:inline-flex;align-items:center;justify-content:center;text-decoration:none;font:inherit;font-weight:800;cursor:pointer;white-space:nowrap}
   .ui3-back{gap:3px}.ui3-back::before{content:'‹';font-size:1.7rem;font-weight:500;line-height:1}.ui3-icon{width:48px;padding:0;color:#202124;font-size:1.2rem}.ui3-back:hover,.ui3-icon:hover{background:#f1f3f4}
   .ui3-title{min-width:0;flex:1;padding:0 4px}.ui3-title strong{display:block;font-size:1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ui3-title small{display:block;margin-top:1px;color:#6b7280;font-size:.72rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ui3-switch{min-height:42px;padding:0 12px;border:1px solid #e5e7eb;border-radius:10px;background:#fff;color:#1967d2;display:inline-flex;align-items:center;justify-content:center;text-decoration:none;font-size:.86rem;font-weight:800;white-space:nowrap}.ui3-switch:hover{background:#f1f3f4}
   body.ui3-progress main,body.ui3-entry main{padding-top:0!important}body.ui3-progress main>.top,body.ui3-entry main>.top{display:none!important}
   body.ui3-progress .toolbar,body.ui3-entry .controls{top:56px!important}
   .ui3-pages,.ui3-drawing{display:flex;align-items:center;gap:6px}.ui3-drawing{margin-left:6px}
