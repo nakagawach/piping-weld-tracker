@@ -44,6 +44,7 @@ jobs:
           grep -q 'ui3-page-tools' ui_shell.py
           grep -q 'ui3-screen-actions' ui_shell.py
           grep -q 'preservedProgressActions' ui_shell.py
+          grep -q "pageTools=document.querySelector('.ui3-page-tools')" thumbnail_grid.py
           ! grep -q 'desktop_ui_shell' app.py
 
       - name: Existing V1.1 OCR regression
@@ -78,6 +79,11 @@ jobs:
               iw = page.evaluate('window.innerWidth')
               assert sw <= iw + 2, (width, sw, iw)
 
+          def assert_mobile_display_controls(page, width, screen):
+              if width <= 820:
+                  for selector in ['#zoomOut', '#zoomReset', '#zoomIn', '#rotate', '#fullscreen']:
+                      assert page.locator(selector).is_visible(), (width, screen, selector, 'must be directly visible')
+
           try:
               with sync_playwright() as p:
                   browser = p.chromium.launch()
@@ -102,6 +108,9 @@ jobs:
                       assert page.locator('#drawingMemoEdit').is_visible()
                       assert page.get_by_text('図面エントリーへ', exact=True).count() == 1
                       assert page.locator('a[aria-label="進捗一覧"]').count() == 1
+                      assert page.locator('#thumbnailGridButton').is_visible()
+                      assert page.locator('.page-favorite-view').is_visible()
+                      assert_mobile_display_controls(page, width, 'progress')
                       assert page.locator('#prev').is_disabled(), (width, 'progress P1 prev')
                       progress_thumbs = page.locator('.progress-thumb')
                       if progress_thumbs.count():
@@ -133,8 +142,11 @@ jobs:
                       assert page.locator('.ui3-view-group').count() == 1
                       assert page.locator('.ui3-page-tools').count() == 1
                       assert page.locator('[data-ui3-screen-actions="entry"]').count() == 1
+                      assert page.locator('#thumbnailGridButton').is_visible()
+                      assert page.locator('.page-favorite-view').is_visible()
                       assert page.locator('#ocr').is_visible()
                       assert page.locator('#save').is_visible()
+                      assert_mobile_display_controls(page, width, 'entry')
                       if width <= 820:
                           assert not page.locator('#bboxEdit').is_visible(), (width, 'bbox must stay PC-only')
                           assert page.locator('.ui3-appbar .ui3-more').count() == 1
