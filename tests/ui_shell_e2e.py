@@ -109,7 +109,7 @@ def main():
             expect(page.get_by_text("サンプル工事（既存テストデータ）")).to_have_count(0)
             expect(page.locator("#open-current")).to_have_count(0)
 
-            # 進捗: fixed app navigation, no browser-history behavior, no duplicate visible back action.
+            # 進捗: fixed app navigation and unified functional groups.
             page.goto(f"{BASE_URL}/projects/{PROJECT_ID}/progress?page=1", wait_until="domcontentloaded")
             expect(page.locator("[data-ui3-header='progress']")).to_be_visible()
             assert_back(page, "/projects-screen", "工事一覧へ")
@@ -118,13 +118,14 @@ def main():
             expect(page.locator("#thumbnailGridButton")).to_be_visible(timeout=5000)
             expect(page.locator("[aria-label='進捗一覧']")).to_be_visible()
             expect(page.locator(".page-favorite-view")).to_be_visible(timeout=5000)
+            expect(page.locator(".ui3-page-group")).to_be_visible()
+            expect(page.locator(".ui3-view-group")).to_be_visible()
+            expect(page.locator(".ui3-page-tools")).to_be_visible()
+            expect(page.locator("[data-ui3-screen-actions='progress']")).to_be_visible()
+            expect(page.locator("#drawingMemoLaunch")).to_be_visible()
+            expect(page.locator("#drawingMemoEdit")).to_be_visible()
+            expect(page.get_by_text("図面エントリーへ", exact=True)).to_be_visible()
             assert page.locator("[data-weld-ui-shell-v3]").count() >= 2
-            pages_box = page.locator(".ui3-pages").bounding_box()
-            drawing_box = page.locator(".ui3-drawing").bounding_box()
-            toolbar_box = page.locator(".toolbar").bounding_box()
-            assert pages_box and drawing_box and toolbar_box
-            assert pages_box["x"] < drawing_box["x"], (pages_box, drawing_box)
-            assert drawing_box["x"] + drawing_box["width"] >= toolbar_box["x"] + toolbar_box["width"] - 12, (drawing_box, toolbar_box)
 
             # 実際にページ一覧ボタンをクリックして遷移する。
             page.locator("#thumbnailGridButton").click()
@@ -140,20 +141,23 @@ def main():
             expect(page.locator("[data-ui3-header='progress-list']")).to_be_visible()
             assert_back(page, f"/projects/{PROJECT_ID}/progress?page=1", "進捗へ")
 
-            # エントリー: fixed parent navigation + overflow actions are actually visible in the menu.
+            # エントリー: common page tools are direct; reset/delete are overflow actions.
             page.goto(f"{BASE_URL}/projects/{PROJECT_ID}/entry?page=1", wait_until="domcontentloaded")
             expect(page.locator("[data-ui3-header='entry']")).to_be_visible()
             assert_back(page, "/projects-screen", "工事一覧へ")
             expect(page.locator("main > .top")).not_to_be_visible()
             expect(page.locator("#thumbnailGridButton")).to_be_visible(timeout=5000)
             expect(page.locator(".page-favorite-view")).to_be_visible(timeout=5000)
-            overflow = page.locator(".ui3-entry-more > summary")
+            expect(page.locator(".ui3-page-group")).to_be_visible()
+            expect(page.locator(".ui3-view-group")).to_be_visible()
+            expect(page.locator(".ui3-page-tools")).to_be_visible()
+            expect(page.locator("[data-ui3-screen-actions='entry']")).to_be_visible()
+            overflow = page.locator(".ui3-more > summary")
             overflow.click()
-            expect(page.locator(".ui3-entry-more #reset")).to_be_visible()
-            expect(page.locator(".ui3-entry-more #bulkDelete")).to_be_visible()
-            expect(page.locator(".ui3-entry-more [data-go-favorites]")).to_be_visible(timeout=5000)
+            expect(page.locator(".ui3-more #reset")).to_be_visible()
+            expect(page.locator(".ui3-more #bulkDelete")).to_be_visible()
             overflow.click()
-            expect(page.locator(".ui3-entry-more #reset")).not_to_be_visible()
+            expect(page.locator(".ui3-more #reset")).not_to_be_visible()
 
             # Entry由来ページ一覧はEntryの同ページへ固定で戻る。
             page.locator("#thumbnailGridButton").click()
