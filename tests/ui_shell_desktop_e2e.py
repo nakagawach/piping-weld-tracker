@@ -2,7 +2,7 @@ import time
 
 from playwright.sync_api import expect, sync_playwright
 
-from tests.ui_shell_e2e import BASE_URL, PROJECT_ID, run_server, seed_database
+from ui_shell_e2e import BASE_URL, PROJECT_ID, run_server, seed_database
 
 
 def main():
