@@ -1,0 +1,41 @@
+name: Fix navigation progress init integration
+
+on:
+  push:
+    branches:
+      - fix/navigation-context-current
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: ${{ !contains(github.event.head_commit.message, '[progress-init-fixed]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore progress template injection anchor only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('templates/project_progress.html')
+          s=p.read_text(encoding='utf-8')
+          old="pageCount=data.pageCount;pageTotal.textContent=`/ ${pageCount}`;setBusy(false);const initialPage=Math.max(1,Math.min(pageCount,Number(new URLSearchParams(location.search).get('page'))||1));await loadPage(initialPage)"
+          new="pageCount=data.pageCount;pageTotal.textContent=`/ ${pageCount}`;setBusy(false);await loadPage(1)"
+          if s.count(old) != 1:
+              raise SystemExit(f'expected one progress initial-page override, found {s.count(old)}')
+          p.write_text(s.replace(old,new,1),encoding='utf-8')
+          PY
+          rm .github/workflows/fix-navigation-progress-init.yml
+          git diff --check
+          changed="$(git diff --name-only | sort | grep -v '^\.github/workflows/fix-navigation-progress-init.yml$' | tr '\n' ' ')"
+          test "$changed" = "templates/project_progress.html "
+      - name: Commit integration fix
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Preserve progress thumbnail initialization [progress-init-fixed]'
+          git push origin HEAD:fix/navigation-context-current
