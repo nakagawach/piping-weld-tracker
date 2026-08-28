@@ -86,7 +86,10 @@ def seed_database():
 
 
 def run_server():
-    server = make_server("127.0.0.1", 8765, app)
+    # Viewer pages request PDF info/thumbnails in parallel. Use a threaded test server so
+    # the regression reflects PythonAnywhere/browser behavior instead of deadlocking on
+    # a single-request local server.
+    server = make_server("127.0.0.1", 8765, app, threaded=True)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     return server, thread
@@ -110,16 +113,14 @@ def main():
             browser = p.chromium.launch()
             page = browser.new_page(viewport={"width": 390, "height": 844})
 
-            # 工事一覧: root actions are visible, legacy test card is gone.
             page.goto(f"{BASE_URL}/projects-screen", wait_until="domcontentloaded")
             expect(page.locator(".header.ui3-root")).to_be_visible()
             expect(page.locator("#new-project")).to_be_visible()
             expect(page.locator("[data-global-favorites-launch]")).to_have_count(1)
-            expect(page.locator("[data-ui3-favorites]" )).to_be_visible()
+            expect(page.locator("[data-ui3-favorites]")).to_be_visible()
             expect(page.get_by_text("サンプル工事（既存テストデータ）")).to_have_count(0)
             expect(page.locator("#open-current")).to_have_count(0)
 
-            # 進捗: fixed app navigation and unified functional groups.
             page.goto(f"{BASE_URL}/projects/{PROJECT_ID}/progress?page=1", wait_until="domcontentloaded")
             expect(page.locator("[data-ui3-header='progress']")).to_be_visible()
             assert_back(page, "/projects-screen", "工事一覧へ")
@@ -137,7 +138,6 @@ def main():
             expect(page.get_by_text("図面エントリーへ", exact=True)).to_be_visible()
             assert page.locator("[data-weld-ui-shell-v3]").count() >= 2
 
-            # 実際にページ一覧ボタンをクリックして遷移する。
             page.locator("#thumbnailGridButton").click()
             page.wait_for_url(f"**/projects/{PROJECT_ID}/thumbnails?source=progress&page=1")
             expect(page.locator("[data-ui3-header='thumbnails']")).to_be_visible()
@@ -145,13 +145,11 @@ def main():
             page.locator(".ui3-appbar .ui3-back").click()
             page.wait_for_url(f"**/projects/{PROJECT_ID}/progress?page=1")
 
-            # 進捗一覧ボタンを実クリック。
             page.locator("[aria-label='進捗一覧']").click()
             page.wait_for_url(f"**/projects/{PROJECT_ID}/progress-list")
             expect(page.locator("[data-ui3-header='progress-list']")).to_be_visible()
             assert_back(page, f"/projects/{PROJECT_ID}/progress?page=1", "進捗へ")
 
-            # エントリー: common page tools are direct; reset/delete are overflow actions.
             page.goto(f"{BASE_URL}/projects/{PROJECT_ID}/entry?page=1", wait_until="domcontentloaded")
             expect(page.locator("[data-ui3-header='entry']")).to_be_visible()
             assert_back(page, "/projects-screen", "工事一覧へ")
@@ -169,12 +167,10 @@ def main():
             overflow.click()
             expect(page.locator(".ui3-more #reset")).not_to_be_visible()
 
-            # Entry由来ページ一覧はEntryの同ページへ固定で戻る。
             page.locator("#thumbnailGridButton").click()
             page.wait_for_url(f"**/projects/{PROJECT_ID}/thumbnails?source=entry&page=1")
             assert_back(page, f"/projects/{PROJECT_ID}/entry?page=1", "エントリーへ")
 
-            # お気に入り一覧: page gridと同じ1〜4列切替を持つ。
             page.goto(f"{BASE_URL}/favorites", wait_until="domcontentloaded")
             expect(page.locator("[data-ui3-header='favorites']")).to_be_visible()
             assert_back(page, "/projects-screen", "工事一覧へ")
