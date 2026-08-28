@@ -117,5 +117,20 @@
   if(rotateButton)readyObserver.observe(rotateButton,{attributes:true,attributeFilter:['disabled']});
 })();
 </script>
+<script>
+(() => {
+  const pageInput=document.getElementById('page');
+  const pageTotal=document.getElementById('pageTotal');
+  document.addEventListener('click',e=>{
+    const thumb=e.target.closest?.('.progress-thumb');
+    if(thumb&&Number(thumb.dataset.page)===Number(pageInput.value)){
+      e.preventDefault();e.stopImmediatePropagation();return;
+    }
+    const total=Number((pageTotal.textContent||'').replace(/\D/g,''))||0;
+    if(e.target.closest?.('#prev')&&Number(pageInput.value)<=1){e.preventDefault();e.stopImmediatePropagation();return;}
+    if(e.target.closest?.('#next')&&total&&Number(pageInput.value)>=total){e.preventDefault();e.stopImmediatePropagation();}
+  },true);
+})();
+</script>
 </body>
 </html>
