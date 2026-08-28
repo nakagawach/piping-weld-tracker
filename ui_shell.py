@@ -132,6 +132,7 @@ body.ui3-projects main{padding-top:0!important}.ui3-root{position:sticky;top:0;z
   const prev=document.getElementById('prev'),next=document.getElementById('next'),pageInput=document.getElementById('page');
   const zoomOut=document.getElementById('zoomOut'),zoomReset=document.getElementById('zoomReset'),zoomIn=document.getElementById('zoomIn'),rotate=document.getElementById('rotate'),viewReset=document.getElementById('viewReset'),fullscreen=document.getElementById('fullscreen');
   const ocr=document.getElementById('ocr'),bbox=document.getElementById('bboxEdit'),save=document.getElementById('save'),reset=document.getElementById('reset'),bulkDelete=document.getElementById('bulkDelete'),pageState=document.getElementById('pageState');
+  const preservedEntryPageTools=[document.querySelector('[data-thumbnail-grid-launch]'),document.querySelector('.page-favorite-view')].filter(Boolean);
   if(!top||!controls||!prev||!next||!pageInput||!ocr||!save)return;
 
   const app=document.createElement('div');app.className='ui3-appbar';app.dataset.ui3Header='entry';
@@ -148,6 +149,7 @@ body.ui3-projects main{padding-top:0!important}.ui3-root{position:sticky;top:0;z
   const screenActions=document.createElement('div');screenActions.className='ui3-screen-actions';screenActions.dataset.ui3ScreenActions='entry';for(const el of [ocr,bbox,save])if(el)screenActions.append(el);if(pageState){{pageState.classList.add('ui3-page-state');screenActions.append(pageState)}}
   const more=document.createElement('details');more.className='ui3-more';more.innerHTML='<summary aria-label="その他の操作">⋯</summary><div class="more-menu"></div>';const menu=more.querySelector('.more-menu');for(const el of [reset,bulkDelete])if(el){{el.classList.add('button');menu.append(el)}}
   controls.replaceChildren(pageGroup,viewGroup,pageTools,screenActions,more);
+  for(const el of preservedEntryPageTools)pageTools.append(el);
 
   const updateTotal=()=>{{const count=document.querySelectorAll('#thumbs .thumb').length;if(count)total.textContent=`/ ${{count}}`;}};
   const collect=()=>{{
