@@ -1,0 +1,41 @@
+from pathlib import Path
+
+
+ui_path = Path("ui_shell.py")
+ui = ui_path.read_text(encoding="utf-8")
+anchor = ".ui3-appbar{display:none}\n@media(max-width:820px){"
+if ui.count(anchor) != 1:
+    raise SystemExit(f"ui_shell anchor mismatch: {ui.count(anchor)}")
+
+desktop = r""".ui3-appbar{display:none}
+.ui3-pages .nav-button:disabled,body.ui3-entry #prev:disabled,body.ui3-entry #next:disabled{opacity:1!important;color:#9aa0a6!important;background:#f1f3f4!important;border-color:#e5e7eb!important;cursor:default!important;pointer-events:none!important;box-shadow:none!important}
+@media(min-width:821px){
+  .ui3-appbar{display:flex;position:sticky;top:0;z-index:120;min-height:60px;align-items:center;gap:8px;padding:6px 14px;background:#fff;border-bottom:1px solid var(--ui3-line);box-shadow:0 1px 2px #0000000d}
+  .ui3-back,.ui3-icon{min-width:44px;height:44px;padding:0 10px;border:0;border-radius:10px;background:transparent;color:var(--ui3-blue);display:inline-flex;align-items:center;justify-content:center;text-decoration:none;font:inherit;font-weight:800;cursor:pointer;white-space:nowrap}
+  .ui3-back{gap:3px}.ui3-back::before{content:'‹';font-size:1.7rem;font-weight:500;line-height:1}.ui3-icon{width:44px;padding:0;color:var(--ui3-text);font-size:1.15rem}.ui3-back:hover,.ui3-icon:hover{background:#f1f3f4}
+  .ui3-title{min-width:0;flex:1;padding:0 4px}.ui3-title strong{display:block;font-size:1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ui3-title small{display:block;margin-top:1px;color:var(--ui3-muted);font-size:.72rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ui3-appbar details.more,.ui3-entry-more{display:block!important;position:relative!important;flex:0 0 auto!important}.ui3-appbar details.more>summary,.ui3-entry-more>summary{list-style:none;min-width:78px!important;height:44px!important;min-height:44px!important;padding:0 10px!important;border:0!important;border-radius:10px!important;background:transparent!important;display:flex!important;align-items:center!important;justify-content:center!important;font-size:1.15rem!important;cursor:pointer}.ui3-appbar details.more>summary::after,.ui3-entry-more>summary::after{content:'その他';margin-left:5px;font-size:.8rem;font-weight:700}.ui3-appbar details.more>summary::-webkit-details-marker,.ui3-entry-more>summary::-webkit-details-marker{display:none}.ui3-appbar .more-menu,.ui3-entry-more .more-menu{right:0!important;top:46px!important;width:240px!important;z-index:180!important;border-radius:12px!important;padding:6px!important;box-shadow:0 10px 32px #0003!important}.ui3-appbar .more-menu .button,.ui3-entry-more .more-menu .button{display:block!important;width:100%!important;min-height:44px!important;margin:1px 0!important;padding:0 12px!important;border:0!important;border-radius:8px!important;background:#fff!important;text-align:left!important;font-size:.9rem!important}
+  body.ui3-progress main>.top,body.ui3-entry main>.top{display:none!important}
+  body.ui3-progress .toolbar{position:sticky!important;top:60px!important;z-index:90!important;display:flex!important;flex-wrap:nowrap!important;align-items:center!important;gap:6px!important;min-height:54px!important;padding:6px 10px!important;background:#fff!important;border-bottom:1px solid var(--ui3-line)!important;white-space:nowrap!important;overflow-x:auto!important;scrollbar-width:thin}
+  body.ui3-progress .ui3-pages{display:flex;align-items:center;gap:4px;flex:0 0 auto;order:0;padding-right:10px;border-right:1px solid var(--ui3-line)}body.ui3-progress .ui3-pages .nav-button{width:42px;min-width:42px;min-height:42px;padding:0;font-size:1.35rem}body.ui3-progress .ui3-pages .page-field{gap:4px}body.ui3-progress .ui3-pages .page-field input{width:48px;min-height:40px;text-align:center}
+  body.ui3-progress .drawing-memo-launch,body.ui3-progress .drawing-memo-edit{order:10;flex:0 0 auto}body.ui3-progress .toolbar>.spacer{display:block!important;order:20;flex:1 0 18px}body.ui3-progress .desktop-tools{display:flex!important;order:30;gap:4px;align-items:center;padding-left:8px;border-left:1px solid var(--ui3-line)}body.ui3-progress .desktop-tools .button{min-height:40px;padding:0 9px}body.ui3-progress .ui3-drawing{display:flex;order:40;align-items:center;gap:4px;margin-left:0;flex:0 0 auto}body.ui3-progress .ui3-drawing>.button,body.ui3-progress .ui3-drawing>a.button{display:inline-flex;align-items:center;justify-content:center;min-width:42px;min-height:42px;padding:0 8px;text-decoration:none}body.ui3-progress .compact-rotate{display:none!important}body.ui3-progress .ui3-appbar .compact-fullscreen{display:inline-flex!important}body.ui3-progress .toolbar>.compact-fullscreen,body.ui3-progress .toolbar>.more{display:none!important}
+  body.ui3-entry .controls{position:sticky!important;top:60px!important;z-index:90!important;display:flex!important;align-items:end!important;gap:6px!important;flex-wrap:nowrap!important;overflow-x:auto!important;white-space:nowrap!important;margin:0!important;padding:6px 10px!important;background:#fff!important;border-bottom:1px solid var(--ui3-line)!important}body.ui3-entry .controls>*{flex:0 0 auto}body.ui3-entry .controls .button{min-height:42px}body.ui3-entry #ocr{margin-left:auto}body.ui3-entry #save{font-weight:800}
+  body.ui3-grid .top,body.ui3-favorites .top,body.ui3-list .topbar{display:none!important}body.ui3-grid .toolbar,body.ui3-favorites .toolbar{position:sticky!important;top:60px!important;z-index:90!important}body.ui3-list .filters{top:60px!important}
+  body.ui3-projects .ui3-root{position:sticky;top:0;z-index:120;min-height:60px;display:flex!important;align-items:center!important;gap:10px!important;background:#fff!important;border-bottom:1px solid var(--ui3-line)!important}
+}
+@media(min-width:821px) and (max-width:1100px){.ui3-appbar{padding-left:8px;padding-right:8px}.ui3-back span{display:none}.ui3-back{width:44px;padding:0}body.ui3-progress .toolbar,body.ui3-entry .controls{padding-left:6px!important;padding-right:6px!important}}
+@media(max-width:820px){"""
+ui_path.write_text(ui.replace(anchor, desktop, 1), encoding="utf-8")
+
+progress_path = Path("progress.py")
+progress = progress_path.read_text(encoding="utf-8")
+css_old = ".progress-thumb.active{border-color:#1967d2;background:#e8f0fe}"
+css_new = ".progress-thumb.active{border-color:#1967d2;background:#e8f0fe}.progress-thumb.active:disabled{opacity:1;border-color:#1967d2;background:#e8f0fe;color:#174ea6;cursor:default;box-shadow:inset 0 0 0 1px #1967d2}.progress-thumb.active:disabled img{opacity:.86}"
+if progress.count(css_old) != 1:
+    raise SystemExit(f"progress css anchor mismatch: {progress.count(css_old)}")
+progress = progress.replace(css_old, css_new, 1)
+old = "function updateProgressThumbActive(){progressThumbs.querySelectorAll('.progress-thumb').forEach(b=>b.classList.toggle('active',Number(b.dataset.page)===Number(pageInput.value)));const n=Number(pageInput.value);"
+new = "function updateProgressThumbActive(){const n=Number(pageInput.value);progressThumbs.querySelectorAll('.progress-thumb').forEach(b=>{const active=Number(b.dataset.page)===n;b.classList.toggle('active',active);b.disabled=active;if(active){b.setAttribute('aria-current','page');b.title=`P${b.dataset.page}（表示中）`}else{b.removeAttribute('aria-current');b.title=`P${b.dataset.page}へ移動`}});"
+if progress.count(old) != 1:
+    raise SystemExit(f"progress function anchor mismatch: {progress.count(old)}")
+progress_path.write_text(progress.replace(old, new, 1), encoding="utf-8")
