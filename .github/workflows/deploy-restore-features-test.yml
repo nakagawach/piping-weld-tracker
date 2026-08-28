@@ -1,0 +1,69 @@
+name: Deploy restore features test
+
+on:
+  push:
+    branches:
+      - fix/restore-features-test
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-restore-features-test
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out restore branch
+        uses: actions/checkout@v4
+
+      - name: Syntax and restoration guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile progress.py
+          grep -q 'drawing-memo-launch' progress.py
+          grep -q 'navigateProgressPage' progress.py
+          grep -q 'id="bboxEdit"' templates/project_entry.html
+          grep -q 'bboxEditMode' templates/project_entry.html
+          grep -q '__drawingMemoBeforePageChange' static/progress_drawing_memo.js
+          grep -q '図面エントリーへ' global_favorites.py
+
+      - name: Upload only restored feature files
+        env:
+          PYTHONANYWHERE_API_TOKEN: ${{ secrets.PYTHONANYWHERE_API_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          api_base="https://www.pythonanywhere.com/api/v0/user/nakagawach/files/path/home/nakagawach/piping-weld-tracker"
+          upload_file(){ local file="$1"; echo "Uploading ${file}"; curl --fail --silent --show-error --retry 3 --retry-delay 2 -X POST -H "Authorization: Token ${PYTHONANYWHERE_API_TOKEN}" -F "content=@${file}" "${api_base}/${file}"; }
+          upload_file "progress.py"
+          upload_file "templates/project_entry.html"
+          upload_file "static/progress_drawing_memo.js"
+
+      - name: Reload PythonAnywhere web app
+        env:
+          PYTHONANYWHERE_API_TOKEN: ${{ secrets.PYTHONANYWHERE_API_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 3 --retry-delay 2 -X POST -H "Authorization: Token ${PYTHONANYWHERE_API_TOKEN}" "https://www.pythonanywhere.com/api/v0/user/nakagawach/webapps/nakagawach.pythonanywhere.com/reload/"
+
+      - name: Public smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          projects_json=$(curl --fail --silent --show-error --location --max-time 20 "https://nakagawach.pythonanywhere.com/weld/projects")
+          project_id=$(printf '%s' "$projects_json" | python -c 'import json,sys; d=json.load(sys.stdin); p=d.get("projects",[]); print(7 if any(x.get("id")==7 for x in p) else (p[0]["id"] if p else ""))')
+          [ -n "$project_id" ]
+          entry=$(curl --fail --silent --show-error --location --max-time 20 "https://nakagawach.pythonanywhere.com/weld/projects/${project_id}/entry")
+          progress=$(curl --fail --silent --show-error --location --max-time 20 "https://nakagawach.pythonanywhere.com/weld/projects/${project_id}/progress")
+          [[ "$entry" == *'id="bboxEdit"'* ]]
+          [[ "$entry" == *'bboxEditMode'* ]]
+          [[ "$progress" == *'drawing-memo-launch'* ]]
+          [[ "$progress" == *'navigateProgressPage'* ]]
+          [[ "$progress" == *'図面エントリーへ'* ]]
+          echo "Restore feature smoke test passed. project_id=${project_id}"
