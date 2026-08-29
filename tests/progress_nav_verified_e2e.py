@@ -168,21 +168,34 @@ def main():
             )
             grid_active = page.locator(".page-card.active")
             assert grid_active.get_attribute("data-page") == "2"
-            assert grid_active.is_disabled()
-            assert grid_active.get_attribute("aria-disabled") == "true"
-            grid_style = disabled_style(grid_active)
-            assert grid_style["pointerEvents"] == "none", grid_style
+            assert not grid_active.is_disabled()
+            assert grid_active.get_attribute("aria-disabled") is None
             assert not page.locator('.page-card[data-page="1"]').is_disabled()
-            before_url = page.url
-            grid_active.evaluate("el => el.click()")
-            page.wait_for_timeout(100)
-            assert page.url == before_url
+            grid_active.click()
+            page.wait_for_url(f"**/projects/{PROJECT_ID}/progress?page=2")
+
+            # Favorites are navigation cards too: selecting an already-favorited page
+            # must stay actionable and open the target progress page.
+            page.goto(f"{BASE_URL}/projects-screen", wait_until="domcontentloaded")
+            page.evaluate(
+                "(key) => localStorage.setItem(key, JSON.stringify([2]))",
+                f"weldFavoritePages:{PROJECT_ID}",
+            )
+            page.goto(f"{BASE_URL}/favorites", wait_until="domcontentloaded")
+            page.wait_for_function("document.querySelectorAll('.card').length >= 1")
+            favorite_card = page.locator(f'.card[data-project="{PROJECT_ID}"][data-page="2"]')
+            assert favorite_card.count() == 1
+            progress_button = favorite_card.locator("[data-progress]")
+            assert not progress_button.is_disabled()
+            favorite_card.locator("[data-open-progress]").click()
+            page.wait_for_url(f"**/projects/{PROJECT_ID}/progress?page=2")
 
             print("PC_PAGER_COORDS", measured)
             print("FIRST_PAGE_PREV_DISABLED", prev_style)
             print("LAST_PAGE_NEXT_DISABLED", next_style)
             print("INLINE_CURRENT_THUMB_DISABLED", True)
-            print("GRID_CURRENT_THUMB_DISABLED", True)
+            print("GRID_CURRENT_THUMB_NAVIGABLE", True)
+            print("FAVORITE_PAGE_NAVIGABLE", True)
             print("BOUNDARY_DISABLED_NO_EXTRA_PROGRESS_REQUEST", True)
             print("PROGRESS_NAV_VERIFIED_E2E: PASS")
             browser.close()
