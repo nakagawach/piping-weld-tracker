@@ -88,10 +88,15 @@ def draw_stroke(page, start_ratio=0.35, end_ratio=0.65):
     overlay = page.locator("#drawingMemoCanvas")
     box = overlay.bounding_box()
     assert box and box["width"] > 20 and box["height"] > 20, box
-    y = box["y"] + box["height"] * 0.5
-    page.mouse.move(box["x"] + box["width"] * start_ratio, y)
+    viewport = page.viewport_size
+    assert viewport
+    y = min(box["y"] + min(120, box["height"] * 0.25), viewport["height"] - 40)
+    assert box["y"] <= y <= box["y"] + box["height"], (box, y)
+    x1 = box["x"] + box["width"] * start_ratio
+    x2 = box["x"] + box["width"] * end_ratio
+    page.mouse.move(x1, y)
     page.mouse.down()
-    page.mouse.move(box["x"] + box["width"] * end_ratio, y, steps=8)
+    page.mouse.move(x2, y, steps=8)
     page.mouse.up()
 
 
@@ -161,12 +166,13 @@ def main():
             pointer_events = overlay.evaluate("() => window.__memoPointerEvents")
             stroke_count = overlay.get_attribute("data-memo-stroke-count")
             center = overlay.bounding_box()
+            hit_y = min(center["y"] + min(120, center["height"] * 0.25), desktop.viewport_size["height"] - 40)
             hit = desktop.evaluate(
                 """({x,y}) => {
                     const el=document.elementFromPoint(x,y);
                     return el ? {id:el.id, cls:el.className, tag:el.tagName} : null;
                 }""",
-                {"x": center["x"] + center["width"] / 2, "y": center["y"] + center["height"] / 2},
+                {"x": center["x"] + center["width"] / 2, "y": hit_y},
             )
             print("MEMO_DRAW_DIAGNOSTIC", {
                 "box": center,
