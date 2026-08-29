@@ -120,8 +120,26 @@ def main():
             edit.click()
             expect(desktop.locator("#drawingMemoTools")).to_have_class("drawing-memo-tools open")
             assert overlay.evaluate("el => getComputedStyle(el).pointerEvents") == "auto"
+            overlay.evaluate("""el => {
+                window.__memoPointerEvents=[];
+                for (const type of ['pointerdown','pointermove','pointerup']) {
+                    el.addEventListener(type, e => window.__memoPointerEvents.push({
+                        type, x:e.clientX, y:e.clientY, button:e.button, pointerType:e.pointerType
+                    }));
+                }
+            }""")
             draw_stroke(desktop)
-            assert overlay.get_attribute("data-memo-stroke-count") == "1"
+            desktop.wait_for_timeout(100)
+            pointer_events = overlay.evaluate("() => window.__memoPointerEvents")
+            stroke_count = overlay.get_attribute("data-memo-stroke-count")
+            print("MEMO_DRAW_DIAGNOSTIC", {
+                "box": overlay.bounding_box(),
+                "pointerEvents": overlay.evaluate("el => getComputedStyle(el).pointerEvents"),
+                "events": pointer_events,
+                "strokeCount": stroke_count,
+            })
+            assert pointer_events, "mouse drawing did not reach memo overlay"
+            assert stroke_count == "1"
             expect(desktop.locator("#memoDirty")).to_have_text("未保存")
             assert not desktop.locator("#memoUndo").is_disabled()
             assert not desktop.locator("#memoSave").is_disabled()
