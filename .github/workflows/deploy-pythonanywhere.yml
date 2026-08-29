@@ -1,40 +1,6 @@
 name: Deploy weld app to PythonAnywhere
 
 on:
-  push:
-    branches:
-      - feature/deploy-automation
-      - feature/google-vision-ocr
-      - feature/manual-number-map-editor
-      - feature/drawing-region-ocr
-      - feature/highres-single-ocr
-      - feature/manual-number-correction-ui
-      - feature/always-edit-entry-ui
-      - feature/save-number-map
-      - feature/weld-progress-entry
-      - feature/project-pdf-registration-safe
-      - feature/project-delete
-      - feature/project-entry-after-delete
-      - feature/project-entry-ocr
-      - feature/project-entry-auto-area
-      - feature/project-entry-fast-display
-      - feature/project-entry-adaptive-area
-      - feature/pdfium-project-entry
-      - feature/pdfium-cache-server-ocr-v2
-      - feature/ocr-label-candidates
-      - feature/project-progress-input
-      - feature/project-progress-local-zoom
-      - feature/progress-compact-viewer-ui
-      - fix/entry-hit-area-v2
-      - feature/entry-bulk-delete
-      - fix/rotation-thumbnail-stability
-      - fix/persistent-rotation-async-thumbs
-      - feature/thumbnail-grid-view
-      - fix/thumbnail-grid-performance
-      - fix/progress-empty-and-rotated-thumbs
-      - feature/page-favorites
-      - feature/global-favorites
-      - fix/progress-nav-favorite-sync
   workflow_dispatch:
 
 permissions:
