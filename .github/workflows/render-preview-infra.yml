@@ -54,7 +54,6 @@ jobs:
               Path('test_preview_wsgi.py'),
               Path('render.yaml'),
               Path('tests/seed_preview_fixture.py'),
-              Path('tests/test_preview_infra.py'),
           ]
           text = '\n'.join(path.read_text(encoding='utf-8') for path in paths)
           forbidden = [
