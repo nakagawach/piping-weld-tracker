@@ -24,19 +24,29 @@ def run_server():
     return server, thread
 
 
+def assert_responsive_header(page, kind, mobile):
+    shell = page.locator(f"[data-ui3-header='{kind}']")
+    if mobile:
+        expect(shell).to_be_visible()
+    else:
+        expect(shell).not_to_be_visible()
+        expect(page.locator("main > .top")).to_be_visible()
+
+
 def check_viewport(browser, viewport):
+    mobile = viewport["width"] <= 640
     page = browser.new_page(viewport=viewport)
     page.goto(f"{BASE_URL}/weld/projects-screen", wait_until="networkidle")
     expect(page.locator(".header.ui3-root")).to_be_visible()
     expect(page.get_by_text("UIテスト工事")).to_be_visible()
 
     page.goto(f"{BASE_URL}/weld/projects/{PROJECT_ID}/entry?page=1", wait_until="networkidle")
-    expect(page.locator("[data-ui3-header='entry']")).to_be_visible()
+    assert_responsive_header(page, "entry", mobile)
     expect(page.locator("#thumbnailGridButton")).to_be_visible()
     expect(page.locator("canvas")).to_be_visible()
 
     page.goto(f"{BASE_URL}/weld/projects/{PROJECT_ID}/progress?page=1", wait_until="networkidle")
-    expect(page.locator("[data-ui3-header='progress']")).to_be_visible()
+    assert_responsive_header(page, "progress", mobile)
     expect(page.locator("#thumbnailGridButton")).to_be_visible()
     expect(page.locator("canvas")).to_be_visible()
 
@@ -44,7 +54,7 @@ def check_viewport(browser, viewport):
         f"{BASE_URL}/weld/projects/{PROJECT_ID}/thumbnails?source=progress&page=1",
         wait_until="networkidle",
     )
-    expect(page.locator("[data-ui3-header='thumbnails']")).to_be_visible()
+    assert_responsive_header(page, "thumbnails", mobile)
     expect(page.locator(".page-card")).to_have_count(3)
     page.close()
 
