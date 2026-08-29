@@ -83,50 +83,92 @@ def wait_ready(page):
     page.wait_for_timeout(100)
 
 
-def assert_viewer_stays_visible_on_press(page, target, label):
+def assert_viewer_stays_visible_on_drag(page, target, label, pointer_type):
     canvas = page.locator("#canvas")
     empty = page.locator("#empty")
-    assert not canvas.evaluate("el => el.hidden"), f"{label}: canvas hidden before press"
-    assert empty.evaluate("el => el.hidden"), f"{label}: empty visible before press"
+    assert not canvas.evaluate("el => el.hidden"), f"{label}: canvas hidden before drag"
+    assert empty.evaluate("el => el.hidden"), f"{label}: empty visible before drag"
 
     target.dispatch_event("pointerdown", {
         "pointerId": 91,
-        "pointerType": "touch",
-        "clientX": 180,
+        "pointerType": pointer_type,
+        "clientX": 260,
         "clientY": 120,
         "button": 0,
         "buttons": 1,
     })
-    page.wait_for_timeout(50)
-
-    assert not canvas.evaluate("el => el.hidden"), (
-        f"{label}: mere pointerdown hid the drawing before any page activation"
-    )
-    assert empty.evaluate("el => el.hidden"), (
-        f"{label}: mere pointerdown showed the loading placeholder"
-    )
-    assert "読み込んでいます" not in page.locator("body").inner_text(), (
-        f"{label}: mere pointerdown exposed loading text"
-    )
-
+    target.dispatch_event("pointermove", {
+        "pointerId": 91,
+        "pointerType": pointer_type,
+        "clientX": 170,
+        "clientY": 120,
+        "button": -1,
+        "buttons": 1,
+    })
     target.dispatch_event("pointerup", {
         "pointerId": 91,
-        "pointerType": "touch",
-        "clientX": 180,
+        "pointerType": pointer_type,
+        "clientX": 170,
         "clientY": 120,
         "button": 0,
         "buttons": 0,
     })
+    page.wait_for_timeout(80)
 
+    assert not canvas.evaluate("el => el.hidden"), (
+        f"{label}: thumbnail drag hid the drawing before any page activation"
+    )
+    assert empty.evaluate("el => el.hidden"), (
+        f"{label}: thumbnail drag showed the loading placeholder"
+    )
+    assert "このページを読み込んでいます" not in page.locator("body").inner_text(), (
+        f"{label}: thumbnail drag exposed loading text"
+    )
+
+
+def assert_deliberate_activation_still_loads(page, target, label, use_tap=False):
+    canvas = page.locator("#canvas")
+    empty = page.locator("#empty")
+
+    def delay_progress(route):
+        time.sleep(0.35)
+        route.continue_()
+
+    page.route(
+        f"**/projects/{PROJECT_ID}/progress-data?page=2",
+        delay_progress,
+        times=1,
+    )
+
+    if use_tap:
+        target.tap()
+    else:
+        target.click()
+
+    page.wait_for_function(
+        "document.getElementById('page').value === '2' && "
+        "!document.getElementById('empty').hidden && "
+        "document.getElementById('canvas').hidden"
+    )
+    assert "このページを読み込んでいます" in empty.inner_text(), (
+        f"{label}: deliberate activation did not show loading placeholder"
+    )
+
+    page.wait_for_function(
+        "document.getElementById('page').value === '2' && "
+        "!document.getElementById('page').disabled && "
+        "document.getElementById('empty').hidden && "
+        "!document.getElementById('canvas').hidden"
+    )
 
 def desktop_case(browser):
     page = browser.new_page(viewport={"width": 1440, "height": 900})
     install_routes(page)
     page.goto(f"{BASE_URL}/projects/{PROJECT_ID}/progress?page=1", wait_until="domcontentloaded")
     wait_ready(page)
-    assert_viewer_stays_visible_on_press(
-        page, page.locator('.progress-thumb[data-page="2"]'), "desktop"
-    )
+    target = page.locator('.progress-thumb[data-page="2"]')
+    assert_viewer_stays_visible_on_drag(page, target, "desktop", "mouse")
+    assert_deliberate_activation_still_loads(page, target, "desktop", use_tap=False)
     page.close()
 
 
@@ -146,9 +188,9 @@ def mobile_case(browser):
     install_routes(page)
     page.goto(f"{BASE_URL}/projects/{PROJECT_ID}/progress?page=1", wait_until="domcontentloaded")
     wait_ready(page)
-    assert_viewer_stays_visible_on_press(
-        page, page.locator('.progress-thumb[data-page="2"]'), "mobile"
-    )
+    target = page.locator('.progress-thumb[data-page="2"]')
+    assert_viewer_stays_visible_on_drag(page, target, "mobile", "touch")
+    assert_deliberate_activation_still_loads(page, target, "mobile", use_tap=True)
     context.close()
 
 
