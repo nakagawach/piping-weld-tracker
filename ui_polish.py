@@ -18,6 +18,10 @@ def create_ui_polish_blueprint():
         styles = """
 <style data-responsive-ui-polish>
 :root{--favorite:#f9ab00;--favorite-bg:#fff8e1}
+body[data-ui-page="progress"] button:disabled{cursor:not-allowed!important}
+body[data-ui-page="progress"] .ui3-pages{display:flex!important;flex-direction:row!important;align-items:center!important;gap:6px!important;flex:0 0 auto!important}
+body[data-ui-page="progress"] .ui3-pages>.page-field{display:flex!important;flex-direction:row!important;align-items:center!important;gap:4px!important;flex:0 0 auto!important}
+body[data-ui-page="thumb-grid"] .page-card:disabled{cursor:not-allowed!important;opacity:.62!important}
 @media(max-width:480px){
   .global-header-actions{width:100%!important;display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;gap:8px!important}
   .global-header-actions>.button,.global-header-actions>.primary{width:100%!important;min-width:0!important;padding-left:8px!important;padding-right:8px!important}
@@ -57,13 +61,48 @@ def create_ui_polish_blueprint():
   }
   const toolbar=document.querySelector('.toolbar');
   if(toolbar){toolbar.setAttribute('aria-label','進捗画面ツールバー')}
+  const enforcePager=()=>{
+    const pages=document.querySelector('.ui3-pages');
+    const field=pages?.querySelector('.page-field');
+    if(!pages||!field)return false;
+    Object.assign(pages.style,{display:'flex',flexDirection:'row',alignItems:'center',gap:'6px',flex:'0 0 auto'});
+    Object.assign(field.style,{display:'flex',flexDirection:'row',alignItems:'center',gap:'4px',flex:'0 0 auto'});
+    return true;
+  };
+  if(!enforcePager()){
+    const observer=new MutationObserver(()=>{if(enforcePager())observer.disconnect()});
+    observer.observe(document.body,{childList:true,subtree:true});
+    setTimeout(()=>observer.disconnect(),3000);
+  }
+  requestAnimationFrame(enforcePager);
+  setTimeout(enforcePager,0);
+  setTimeout(enforcePager,500);
 })();
 </script>
 """)
         elif re.fullmatch(r"(?:/weld)?/projects-screen", path):
             scripts.append("<script data-responsive-ui-polish>document.body.dataset.uiPage='projects';</script>")
         elif re.fullmatch(r"(?:/weld)?/projects/\d+/thumbnails", path):
-            scripts.append("<script data-responsive-ui-polish>document.body.dataset.uiPage='thumb-grid';</script>")
+            scripts.append("""
+<script data-responsive-ui-polish>
+(() => {
+  document.body.dataset.uiPage='thumb-grid';
+  const disableCurrent=()=>{
+    const active=document.querySelector('.page-card.active');
+    if(!active)return false;
+    active.disabled=true;
+    active.setAttribute('aria-disabled','true');
+    active.title='現在表示中のページ';
+    return true;
+  };
+  if(!disableCurrent()){
+    const observer=new MutationObserver(()=>{if(disableCurrent())observer.disconnect()});
+    observer.observe(document.getElementById('grid')||document.body,{childList:true,subtree:true});
+    setTimeout(()=>observer.disconnect(),5000);
+  }
+})();
+</script>
+""")
         elif re.fullmatch(r"(?:/weld)?/favorites", path):
             scripts.append("<script data-responsive-ui-polish>document.body.dataset.uiPage='favorites';</script>")
         else:
