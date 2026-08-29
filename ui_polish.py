@@ -18,6 +18,8 @@ def create_ui_polish_blueprint():
         styles = """
 <style data-responsive-ui-polish>
 :root{--favorite:#f9ab00;--favorite-bg:#fff8e1}
+.ui3-pages{display:flex!important;align-items:center!important;gap:6px!important;flex:0 0 auto!important}
+.ui3-pages .page-field{display:flex!important;align-items:center!important;gap:4px!important;margin:0!important}
 @media(max-width:480px){
   .global-header-actions{width:100%!important;display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;gap:8px!important}
   .global-header-actions>.button,.global-header-actions>.primary{width:100%!important;min-width:0!important;padding-left:8px!important;padding-right:8px!important}
