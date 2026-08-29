@@ -110,14 +110,18 @@ body.progress-fullscreen .progress-thumbs{display:none}
         html = html.replace(
             "const goBack=()=>location.href=projectsScreenUrl;",
             "const progressThumbs=document.getElementById('progressThumbs');let progressThumbObserver=null;"
-            "let progressThumbPointerId=null,progressThumbStartX=0,progressThumbStartY=0,progressThumbStartScroll=0,progressThumbSuppressUntil=0,progressThumbWheelUntil=0;"
+            "let progressThumbPointerId=null,progressThumbStartX=0,progressThumbStartY=0,progressThumbStartScroll=0,progressThumbSuppressUntil=0,progressThumbWheelUntil=0,progressThumbTouchX=0,progressThumbTouchY=0,progressThumbTouchMoved=false;"
             "const suppressProgressThumbActivation=(ms=550)=>{progressThumbSuppressUntil=Math.max(progressThumbSuppressUntil,performance.now()+ms)};"
             "progressThumbs.addEventListener('wheel',e=>{if(Math.abs(e.deltaX)>0||Math.abs(e.deltaY)>0){progressThumbWheelUntil=performance.now()+180;suppressProgressThumbActivation()}},{passive:true});"
-            "progressThumbs.addEventListener('scroll',()=>{if(progressThumbPointerId!==null||performance.now()<progressThumbWheelUntil)suppressProgressThumbActivation()},{passive:true});"
+            "progressThumbs.addEventListener('scroll',()=>{if(progressThumbPointerId!==null||progressThumbTouchMoved||performance.now()<progressThumbWheelUntil)suppressProgressThumbActivation()},{passive:true});"
             "progressThumbs.addEventListener('pointerdown',e=>{progressThumbPointerId=e.pointerId;progressThumbStartX=e.clientX;progressThumbStartY=e.clientY;progressThumbStartScroll=progressThumbs.scrollLeft},{passive:true});"
             "progressThumbs.addEventListener('pointermove',e=>{if(e.pointerId!==progressThumbPointerId)return;if(Math.hypot(e.clientX-progressThumbStartX,e.clientY-progressThumbStartY)>6||Math.abs(progressThumbs.scrollLeft-progressThumbStartScroll)>2)suppressProgressThumbActivation()},{passive:true});"
             "progressThumbs.addEventListener('pointerup',e=>{if(e.pointerId!==progressThumbPointerId)return;if(Math.hypot(e.clientX-progressThumbStartX,e.clientY-progressThumbStartY)>6||Math.abs(progressThumbs.scrollLeft-progressThumbStartScroll)>2)suppressProgressThumbActivation();progressThumbPointerId=null},{passive:true});"
             "progressThumbs.addEventListener('pointercancel',e=>{if(e.pointerId!==progressThumbPointerId)return;suppressProgressThumbActivation();progressThumbPointerId=null},{passive:true});"
+            "progressThumbs.addEventListener('touchstart',e=>{if(e.touches.length!==1)return;progressThumbTouchX=e.touches[0].clientX;progressThumbTouchY=e.touches[0].clientY;progressThumbTouchMoved=false},{passive:true});"
+            "progressThumbs.addEventListener('touchmove',e=>{if(e.touches.length!==1)return;if(Math.hypot(e.touches[0].clientX-progressThumbTouchX,e.touches[0].clientY-progressThumbTouchY)>6){progressThumbTouchMoved=true;suppressProgressThumbActivation()}},{passive:true});"
+            "progressThumbs.addEventListener('touchend',()=>{if(progressThumbTouchMoved)suppressProgressThumbActivation();setTimeout(()=>{progressThumbTouchMoved=false},600)},{passive:true});"
+            "progressThumbs.addEventListener('touchcancel',()=>{suppressProgressThumbActivation();progressThumbTouchMoved=true;setTimeout(()=>{progressThumbTouchMoved=false},600)},{passive:true});"
             "progressThumbs.addEventListener('click',e=>{if(performance.now()>progressThumbSuppressUntil)return;const thumb=e.target.closest('.progress-thumb');if(!thumb)return;e.preventDefault();e.stopImmediatePropagation()},true);"
             "const goBack=()=>location.href=projectsScreenUrl;",
             1,
