@@ -36,6 +36,10 @@ def create_ui_shell_blueprint():
 <style data-weld-ui-shell-v3>
 :root{--ui3-bg:#f5f6f8;--ui3-bar:#fff;--ui3-line:#e5e7eb;--ui3-text:#202124;--ui3-muted:#6b7280;--ui3-blue:#1967d2;--ui3-touch:48px;--ui3-header:56px;--ui3-toolbar:52px}
 .ui3-appbar{display:none}
+body.ui3-progress .ui3-pages{display:flex;flex-direction:row;align-items:center;gap:6px;flex:0 0 auto}
+body.ui3-progress .ui3-pages .page-field{display:flex;flex-direction:row;align-items:center;gap:4px;flex:0 0 auto}
+body.ui3-progress button:disabled{cursor:not-allowed!important}
+body.ui3-grid .page-card:disabled{cursor:not-allowed!important;opacity:.62!important}
 @media(max-width:820px){
   body{overscroll-behavior-y:none}
   .ui3-appbar{display:flex;position:sticky;top:0;z-index:120;min-height:var(--ui3-header);align-items:center;gap:4px;padding:4px max(6px,env(safe-area-inset-right)) 4px max(6px,env(safe-area-inset-left));background:rgba(255,255,255,.98);border-bottom:1px solid var(--ui3-line);backdrop-filter:saturate(180%) blur(12px)}
@@ -110,7 +114,7 @@ def create_ui_shell_blueprint():
             parent_path = "progress" if source == "progress" else "entry"
             script = f"""
 <script data-weld-ui-shell-v3>
-(() => {{document.body.classList.add('ui3-grid');const top=document.querySelector('.top');if(!top)return;const app=document.createElement('div');app.className='ui3-appbar';app.dataset.ui3Header='thumbnails';const b=document.createElement('a');b.className='ui3-back';b.href='{prefix}/projects/{project_id}/{parent_path}?page={page}';b.setAttribute('aria-label','{parent_label}へ');b.innerHTML='<span>{parent_label}</span>';const title=document.createElement('div');title.className='ui3-title';title.innerHTML='<strong>ページ一覧</strong><small></small>';title.querySelector('small').textContent=top.querySelector('.meta')?.textContent?.trim()||'';app.append(b,title);document.querySelector('main')?.prepend(app)}})();
+(() => {{document.body.classList.add('ui3-grid');const top=document.querySelector('.top');if(!top)return;const app=document.createElement('div');app.className='ui3-appbar';app.dataset.ui3Header='thumbnails';const b=document.createElement('a');b.className='ui3-back';b.href='{prefix}/projects/{project_id}/{parent_path}?page={page}';b.setAttribute('aria-label','{parent_label}へ');b.innerHTML='<span>{parent_label}</span>';const title=document.createElement('div');title.className='ui3-title';title.innerHTML='<strong>ページ一覧</strong><small></small>';title.querySelector('small').textContent=top.querySelector('.meta')?.textContent?.trim()||'';app.append(b,title);document.querySelector('main')?.prepend(app);const disable=()=>{{const active=document.querySelector('.page-card.active');if(!active)return false;active.disabled=true;active.setAttribute('aria-disabled','true');active.title='現在表示中のページ';return true}};if(!disable()){{const ob=new MutationObserver(()=>{{if(disable())ob.disconnect()}});ob.observe(document.getElementById('grid')||document.body,{{childList:true,subtree:true}});setTimeout(()=>ob.disconnect(),5000)}}}})();
 </script>
 """
         elif progress_list:
