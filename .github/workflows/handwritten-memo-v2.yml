@@ -1,0 +1,76 @@
+name: Handwritten Memo V2 Checks
+
+on:
+  push:
+    branches:
+      - feature/progress-handwritten-memo-v2
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  drawing-memo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install app and browser dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt playwright
+          python -m playwright install --with-deps chromium
+
+      - name: Syntax checks
+        run: |
+          python -m py_compile app.py progress.py projects.py project_render.py thumbnail_grid.py global_favorites.py ui_shell.py
+          node --check static/progress_drawing_memo.js
+
+      - name: Memo API validation
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python tests/test_drawing_memo_v2.py
+
+      - name: Memo browser E2E
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python tests/drawing_memo_v2_e2e.py
+
+      - name: Existing mobile UI shell regression
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python tests/ui_shell_e2e.py
+
+      - name: Protected-area guard
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          progress = Path('progress.py').read_text(encoding='utf-8')
+          js = Path('static/progress_drawing_memo.js').read_text(encoding='utf-8')
+          assert 'CREATE TABLE' not in progress
+          assert 'ALTER TABLE' not in progress
+          assert 'DROP TABLE' not in progress
+          assert 'drawing_memos' in progress
+          assert '__drawingMemoBeforePageChange' in js
+          assert "weld:progress-page-loaded" in progress + js
+          assert 'pointerEvents' in js
+          assert 'touchstart' in js and 'touchmove' in js
+          assert 'DB_VERSION' not in progress + js
+          print('DRAWING_MEMO_PROTECTION_GUARD: PASS')
+          PY
+
+      - name: Upload browser screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: drawing-memo-browser-screenshots
+          path: test-artifacts/*.png
+          if-no-files-found: ignore
