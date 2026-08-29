@@ -1,9 +1,6 @@
 name: Deploy rotation stability test
 
 on:
-  push:
-    branches:
-      - fix/rotation-thumbnail-stability
   workflow_dispatch:
 
 permissions:
