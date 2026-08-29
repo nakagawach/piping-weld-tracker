@@ -1,5 +1,5 @@
-import base64
 import sqlite3
+from io import BytesIO
 import sys
 import threading
 import time
@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from PIL import Image, ImageDraw
 from playwright.sync_api import expect, sync_playwright
 from werkzeug.serving import make_server
 
@@ -16,9 +17,21 @@ from app import DB_PATH, app
 from tests.ui_shell_e2e import PROJECT_ID, seed_database
 
 BASE_URL = "http://127.0.0.1:8767"
-PNG_1X1 = base64.b64decode(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Z7ZQAAAAASUVORK5CYII="
-)
+
+
+def make_test_png():
+    image = Image.new("RGB", (1600, 1000), "white")
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((80, 80, 1520, 920), outline="#d0d4d9", width=3)
+    draw.line((120, 250, 1480, 250), fill="#d0d4d9", width=2)
+    draw.line((120, 500, 1480, 500), fill="#d0d4d9", width=2)
+    draw.line((120, 750, 1480, 750), fill="#d0d4d9", width=2)
+    buffer = BytesIO()
+    image.save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+TEST_PNG = make_test_png()
 
 
 def memo_path(page_number):
@@ -79,7 +92,7 @@ def install_pdf_routes(page):
         lambda route: route.fulfill(
             status=200,
             content_type="image/png",
-            body=PNG_1X1,
+            body=TEST_PNG,
         ),
     )
 
