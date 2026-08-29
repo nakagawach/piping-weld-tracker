@@ -12,6 +12,7 @@ on:
       - render.yaml
       - tests/seed_preview_fixture.py
       - tests/test_preview_infra.py
+      - tests/preview_browser_e2e.py
       - tests/__init__.py
       - .github/workflows/render-preview-infra.yml
 
@@ -32,7 +33,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Syntax check
-        run: python -m py_compile app.py projects.py project_render.py progress.py thumbnail_grid.py global_favorites.py ui_shell.py test_preview_wsgi.py tests/seed_preview_fixture.py tests/test_preview_infra.py
+        run: python -m py_compile app.py projects.py project_render.py progress.py thumbnail_grid.py global_favorites.py ui_shell.py test_preview_wsgi.py tests/seed_preview_fixture.py tests/test_preview_infra.py tests/preview_browser_e2e.py
 
       - name: Seed deterministic preview fixture
         run: python tests/seed_preview_fixture.py
@@ -40,11 +41,12 @@ jobs:
       - name: Render preview infrastructure tests
         run: python tests/test_preview_infra.py
 
-      - name: Existing UI browser regression
+      - name: Browser regressions
         run: |
           pip install playwright
           playwright install --with-deps chromium
           python tests/ui_shell_e2e.py
+          python tests/preview_browser_e2e.py
 
       - name: Production isolation checks
         run: |
