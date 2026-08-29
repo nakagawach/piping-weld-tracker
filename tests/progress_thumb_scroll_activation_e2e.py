@@ -33,7 +33,7 @@ def install_routes(page):
         lambda route: route.fulfill(
             status=200,
             content_type="application/json",
-            body='{"pageCount":12}',
+            body='{"pageCount":24}',
         ),
     )
     page.route(
@@ -59,7 +59,7 @@ def open_progress(page):
         wait_until="domcontentloaded",
     )
     page.wait_for_function(
-        "document.querySelectorAll('.progress-thumb').length === 12 && "
+        "document.querySelectorAll('.progress-thumb').length === 24 && "
         "document.getElementById('page').value === '1' && "
         "!document.getElementById('page').disabled"
     )
