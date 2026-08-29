@@ -117,9 +117,10 @@ def main():
         progress_url = discover_progress_url(browser)
         print("LIVE_PROGRESS_URL", progress_url)
 
-        desktop = browser.new_page(viewport={"width": 1440, "height": 900})
-        run_case(desktop, "desktop", progress_url, mobile=False)
-        desktop.close()
+        for width in (1440, 1024, 820):
+            desktop = browser.new_page(viewport={"width": width, "height": 900})
+            run_case(desktop, f"desktop-{width}", progress_url, mobile=False)
+            desktop.close()
 
         mobile_context = browser.new_context(
             viewport={"width": 390, "height": 844},
