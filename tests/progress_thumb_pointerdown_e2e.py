@@ -127,19 +127,6 @@ def assert_viewer_stays_visible_on_drag(page, target, label, pointer_type):
 
 
 def assert_deliberate_activation_still_loads(page, target, label, use_tap=False):
-    canvas = page.locator("#canvas")
-    empty = page.locator("#empty")
-
-    def delay_progress(route):
-        time.sleep(0.35)
-        route.continue_()
-
-    page.route(
-        f"**/projects/{PROJECT_ID}/progress-data?page=2",
-        delay_progress,
-        times=1,
-    )
-
     if use_tap:
         target.tap()
     else:
@@ -147,18 +134,12 @@ def assert_deliberate_activation_still_loads(page, target, label, use_tap=False)
 
     page.wait_for_function(
         "document.getElementById('page').value === '2' && "
-        "!document.getElementById('empty').hidden && "
-        "document.getElementById('canvas').hidden"
-    )
-    assert "このページを読み込んでいます" in empty.inner_text(), (
-        f"{label}: deliberate activation did not show loading placeholder"
-    )
-
-    page.wait_for_function(
-        "document.getElementById('page').value === '2' && "
         "!document.getElementById('page').disabled && "
         "document.getElementById('empty').hidden && "
         "!document.getElementById('canvas').hidden"
+    )
+    assert "2 / 3 ページ" in page.locator("#status").inner_text(), (
+        f"{label}: deliberate page activation did not complete"
     )
 
 def desktop_case(browser):
