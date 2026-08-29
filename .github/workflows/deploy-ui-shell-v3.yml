@@ -1,9 +1,6 @@
 name: Deploy UI shell v3
 
 on:
-  push:
-    branches:
-      - fix/ui-shell-v3
   workflow_dispatch:
 
 permissions:

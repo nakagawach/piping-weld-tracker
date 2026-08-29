@@ -1,0 +1,81 @@
+name: Manual Deploy Guard CI
+
+on:
+  push:
+    branches:
+      - chore/pythonanywhere-manual-branch-deploy
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/deploy-pythonanywhere-dev.yml
+      - .github/workflows/deploy-pythonanywhere.yml
+      - .github/workflows/deploy-ui-shell-v3.yml
+      - .github/workflows/deploy-rotation-stability-test.yml
+      - .github/workflows/manual-deploy-guard-ci.yml
+      - .github/scripts/manual_deploy_guard.py
+      - tests/test_manual_deploy_guard.py
+
+permissions:
+  contents: read
+
+jobs:
+  guard-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Syntax check deploy guard
+        run: python -m py_compile .github/scripts/manual_deploy_guard.py tests/test_manual_deploy_guard.py
+
+      - name: Manual deploy guard unit and workflow checks
+        run: python tests/test_manual_deploy_guard.py
+
+      - name: Confirm application runtime is untouched by this infrastructure branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          changed=$(git diff --name-only origin/main...HEAD)
+          echo 'Infrastructure branch changed files:'
+          printf '%s\n' "$changed"
+          forbidden=$(printf '%s\n' "$changed" | grep -E '^(app\.py|global_favorites\.py|progress\.py|project_render\.py|projects\.py|thumbnail_grid\.py|ui_polish\.py|ui_shell\.py|viewer_mode\.py|templates/|static/|data/|requirements\.txt$)' || true)
+          if [ -n "$forbidden" ]; then
+            echo 'Application/runtime file changed unexpectedly:' >&2
+            printf '%s\n' "$forbidden" >&2
+            exit 1
+          fi
+
+      - name: Confirm legacy deploy workflow changes are trigger-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in \
+            .github/workflows/deploy-pythonanywhere.yml \
+            .github/workflows/deploy-ui-shell-v3.yml \
+            .github/workflows/deploy-rotation-stability-test.yml
+          do
+            python - "$file" <<'PY'
+          import subprocess, sys
+          path = sys.argv[1]
+          old = subprocess.check_output(['git','show',f'origin/main:{path}'], text=True)
+          new = open(path, encoding='utf-8').read()
+          marker = '\npermissions:\n'
+          if marker not in old or marker not in new:
+              raise SystemExit(f'{path}: permissions marker missing')
+          old_prefix, old_suffix = old.split(marker, 1)
+          new_prefix, new_suffix = new.split(marker, 1)
+          if old_suffix != new_suffix:
+              raise SystemExit(f'{path}: deploy logic changed beyond trigger block')
+          expected_prefix = old_prefix.split('\non:\n', 1)[0] + '\non:\n  workflow_dispatch:\n'
+          if new_prefix != expected_prefix:
+              raise SystemExit(f'{path}: trigger block is not manual-only')
+          print(f'{path}: trigger-only change PASS')
+          PY
+          done
