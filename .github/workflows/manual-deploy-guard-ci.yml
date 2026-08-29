@@ -66,13 +66,16 @@ jobs:
           path = sys.argv[1]
           old = subprocess.check_output(['git','show',f'origin/main:{path}'], text=True)
           new = open(path, encoding='utf-8').read()
-          def strip_trigger(text):
-              lines=text.splitlines()
-              start=lines.index('on:')
-              end=next(i for i in range(start+1,len(lines)) if lines[i] and not lines[i].startswith(' '))
-              return lines[:start] + ['on:', '  workflow_dispatch:'] + lines[end:]
-          if strip_trigger(old) != new.splitlines():
-              raise SystemExit(f'{path}: changes exceed trigger-only normalization')
+          marker = '\npermissions:\n'
+          if marker not in old or marker not in new:
+              raise SystemExit(f'{path}: permissions marker missing')
+          old_prefix, old_suffix = old.split(marker, 1)
+          new_prefix, new_suffix = new.split(marker, 1)
+          if old_suffix != new_suffix:
+              raise SystemExit(f'{path}: deploy logic changed beyond trigger block')
+          expected_prefix = old_prefix.split('\non:\n', 1)[0] + '\non:\n  workflow_dispatch:\n'
+          if new_prefix != expected_prefix:
+              raise SystemExit(f'{path}: trigger block is not manual-only')
           print(f'{path}: trigger-only change PASS')
           PY
           done
