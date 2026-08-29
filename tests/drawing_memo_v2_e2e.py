@@ -1,4 +1,5 @@
 import base64
+import sqlite3
 import sys
 import threading
 import time
@@ -29,6 +30,32 @@ def cleanup():
         path = memo_path(page_number)
         if path.exists():
             path.unlink()
+
+
+def seed_number_map():
+    with sqlite3.connect(DB_PATH) as connection:
+        connection.execute("DELETE FROM number_map WHERE drawing_key = ?", (f"project:{PROJECT_ID}",))
+        for page_number in (1, 2, 3):
+            connection.execute(
+                """
+                INSERT INTO number_map (
+                    drawing_key, page_number, item_order, number_text, source,
+                    x, y, width, height, saved_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    f"project:{PROJECT_ID}",
+                    page_number,
+                    0,
+                    str(page_number),
+                    "manual",
+                    100.0,
+                    100.0,
+                    80.0,
+                    80.0,
+                    "2026-08-29T00:00:00+00:00",
+                ),
+            )
 
 
 def run_server():
@@ -88,6 +115,7 @@ def memo_json(page, page_number):
 
 def main():
     seed_database()
+    seed_number_map()
     cleanup()
     server, thread = run_server()
     time.sleep(0.2)
@@ -132,9 +160,18 @@ def main():
             desktop.wait_for_timeout(100)
             pointer_events = overlay.evaluate("() => window.__memoPointerEvents")
             stroke_count = overlay.get_attribute("data-memo-stroke-count")
+            center = overlay.bounding_box()
+            hit = desktop.evaluate(
+                """({x,y}) => {
+                    const el=document.elementFromPoint(x,y);
+                    return el ? {id:el.id, cls:el.className, tag:el.tagName} : null;
+                }""",
+                {"x": center["x"] + center["width"] / 2, "y": center["y"] + center["height"] / 2},
+            )
             print("MEMO_DRAW_DIAGNOSTIC", {
-                "box": overlay.bounding_box(),
+                "box": center,
                 "pointerEvents": overlay.evaluate("el => getComputedStyle(el).pointerEvents"),
+                "hitTarget": hit,
                 "events": pointer_events,
                 "strokeCount": stroke_count,
             })
