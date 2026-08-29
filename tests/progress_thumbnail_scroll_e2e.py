@@ -147,7 +147,8 @@ def main():
             assert progress_requests == [], progress_requests
             assert page.locator("#status").inner_text() == before_status
 
-            # A deliberate tap on another thumbnail must still navigate.
+            # Once the short drag-suppression window has elapsed, a deliberate tap must navigate.
+            page.wait_for_timeout(550)
             p2.tap()
             page.wait_for_function(
                 "document.getElementById('page').value === '2' && "
