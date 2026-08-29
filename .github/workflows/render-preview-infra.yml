@@ -1,0 +1,69 @@
+name: Render Preview Infra
+
+on:
+  push:
+    branches:
+      - chore/render-test-preview-infra
+  pull_request:
+    branches:
+      - main
+    paths:
+      - test_preview_wsgi.py
+      - render.yaml
+      - tests/seed_preview_fixture.py
+      - tests/test_preview_infra.py
+      - tests/__init__.py
+      - .github/workflows/render-preview-infra.yml
+
+permissions:
+  contents: read
+
+jobs:
+  preview-infra:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Syntax check
+        run: python -m py_compile app.py projects.py project_render.py progress.py thumbnail_grid.py global_favorites.py ui_shell.py test_preview_wsgi.py tests/seed_preview_fixture.py tests/test_preview_infra.py
+
+      - name: Seed deterministic preview fixture
+        run: python tests/seed_preview_fixture.py
+
+      - name: Render preview infrastructure tests
+        run: python tests/test_preview_infra.py
+
+      - name: Existing UI browser regression
+        run: |
+          pip install playwright
+          playwright install --with-deps chromium
+          python tests/ui_shell_e2e.py
+
+      - name: Production isolation checks
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          paths = [
+              Path('test_preview_wsgi.py'),
+              Path('render.yaml'),
+              Path('tests/seed_preview_fixture.py'),
+              Path('tests/test_preview_infra.py'),
+          ]
+          text = '\n'.join(path.read_text(encoding='utf-8') for path in paths)
+          forbidden = [
+              'PYTHONANYWHERE_API_TOKEN',
+              '/home/nakagawach/piping-weld-tracker',
+              '/var/www/nakagawach_pythonanywhere_com_wsgi.py',
+              'nakagawach.pythonanywhere.com',
+          ]
+          for token in forbidden:
+              assert token not in text, token
+          print('Production isolation checks: PASS')
+          PY
