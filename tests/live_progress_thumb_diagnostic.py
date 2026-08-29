@@ -1,4 +1,3 @@
-import re
 import time
 from pathlib import Path
 
@@ -9,74 +8,126 @@ ARTIFACTS = Path("test-artifacts")
 ARTIFACTS.mkdir(exist_ok=True)
 
 
-def main():
-    with sync_playwright() as p:
-        browser = p.chromium.launch()
-        page = browser.new_page(viewport={"width": 1440, "height": 900})
-        requests = []
-        page.on("request", lambda req: requests.append((time.time(), req.url, req.resource_type)))
-
+def discover_progress_url(browser):
+    page = browser.new_page(viewport={"width": 1440, "height": 900})
+    try:
         page.goto(f"{BASE}/projects-screen", wait_until="domcontentloaded", timeout=60000)
         page.wait_for_selector("[data-progress]", timeout=60000)
         progress_path = page.locator("[data-progress]").first.get_attribute("data-progress")
         if not progress_path:
             raise AssertionError("no progress target found from projects-screen")
-        progress_url = f"{BASE}/{progress_path.lstrip('/')}"
+        return f"{BASE}/{progress_path.lstrip('/')}"
+    finally:
+        page.close()
 
-        page.goto(progress_url, wait_until="domcontentloaded", timeout=60000)
-        page.wait_for_selector("#progressThumbs", timeout=60000)
-        page.wait_for_function("document.querySelectorAll('.progress-thumb').length > 1", timeout=60000)
-        page.wait_for_timeout(500)
 
-        strip = page.locator("#progressThumbs")
-        before = {
-            "url": page.url,
-            "page": page.locator("#page").input_value(),
-            "status": page.locator("#status").inner_text(),
-            "scrollLeft": strip.evaluate("el => el.scrollLeft"),
-            "scrollWidth": strip.evaluate("el => el.scrollWidth"),
-            "clientWidth": strip.evaluate("el => el.clientWidth"),
-            "readyState": page.evaluate("document.readyState"),
-            "pageDisabled": page.locator("#page").is_disabled(),
-        }
-        page.screenshot(path=str(ARTIFACTS / "live-progress-before-scroll.png"), full_page=False)
-        before_count = len(requests)
+def wait_progress_ready(page):
+    page.wait_for_selector("#progressThumbs", timeout=60000)
+    page.wait_for_function(
+        "document.querySelectorAll('.progress-thumb').length > 1",
+        timeout=60000,
+    )
+    page.wait_for_function(
+        "document.getElementById('status').textContent.includes('ピンチ・移動・回転・全画面')",
+        timeout=60000,
+    )
+    page.wait_for_timeout(300)
 
-        # Force a real horizontal scroll on the deployed progress thumbnail strip.
-        page.mouse.move(
-            (strip.bounding_box() or {"x": 0, "y": 0, "width": 1, "height": 1})["x"] + 100,
-            (strip.bounding_box() or {"x": 0, "y": 0, "width": 1, "height": 1})["y"] + 20,
-        )
-        strip.evaluate("el => { el.scrollLeft = Math.max(0, el.scrollWidth - el.clientWidth); el.dispatchEvent(new Event('scroll')); }")
-        page.wait_for_timeout(1200)
 
-        after = {
-            "url": page.url,
-            "page": page.locator("#page").input_value(),
-            "status": page.locator("#status").inner_text(),
-            "scrollLeft": strip.evaluate("el => el.scrollLeft"),
-            "readyState": page.evaluate("document.readyState"),
-            "pageDisabled": page.locator("#page").is_disabled(),
-        }
-        page.screenshot(path=str(ARTIFACTS / "live-progress-after-scroll.png"), full_page=False)
+def run_case(page, label, progress_url, mobile=False):
+    requests = []
+    page.on("request", lambda req: requests.append((time.time(), req.url, req.resource_type)))
+    page.goto(progress_url, wait_until="domcontentloaded", timeout=60000)
+    wait_progress_ready(page)
 
-        new_requests = requests[before_count:]
-        pdfium = [u for _,u,_ in new_requests if "/pdfium-page" in u]
-        pdata = [u for _,u,_ in new_requests if "/progress-data" in u]
-        others = [u for _,u,_ in new_requests if "/pdfium-page" not in u and "/progress-data" not in u]
+    strip = page.locator("#progressThumbs")
+    box = strip.bounding_box()
+    assert box
+    before = {
+        "page": page.locator("#page").input_value(),
+        "status": page.locator("#status").inner_text(),
+        "scrollLeft": strip.evaluate("el => el.scrollLeft"),
+        "scrollWidth": strip.evaluate("el => el.scrollWidth"),
+        "clientWidth": strip.evaluate("el => el.clientWidth"),
+        "pageDisabled": page.locator("#page").is_disabled(),
+        "loadedImages": strip.locator("img[src]").count(),
+    }
+    page.screenshot(path=str(ARTIFACTS / f"live-{label}-before.png"), full_page=False)
+    before_count = len(requests)
 
+    if mobile:
+        context = page.context
+        cdp = context.new_cdp_session(page)
+        y = box["y"] + min(box["height"] / 2, 25)
+        start_x = box["x"] + box["width"] * 0.80
+        end_x = box["x"] + box["width"] * 0.20
+        cdp.send("Input.dispatchTouchEvent", {
+            "type": "touchStart",
+            "touchPoints": [{"x": start_x, "y": y}],
+        })
+        for step in range(1, 9):
+            x = start_x + (end_x - start_x) * step / 8
+            cdp.send("Input.dispatchTouchEvent", {
+                "type": "touchMove",
+                "touchPoints": [{"x": x, "y": y}],
+            })
+        cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+    else:
+        # Move the strip far enough to expose thumbnails that were previously off-screen.
+        strip.evaluate("el => {el.scrollLeft=Math.max(0,el.scrollWidth-el.clientWidth);el.dispatchEvent(new Event('scroll'))}")
+
+    page.wait_for_timeout(1500)
+    after = {
+        "page": page.locator("#page").input_value(),
+        "status": page.locator("#status").inner_text(),
+        "scrollLeft": strip.evaluate("el => el.scrollLeft"),
+        "pageDisabled": page.locator("#page").is_disabled(),
+        "loadedImages": strip.locator("img[src]").count(),
+    }
+    page.screenshot(path=str(ARTIFACTS / f"live-{label}-after.png"), full_page=False)
+
+    new_requests = requests[before_count:]
+    pdfium = [u for _,u,_ in new_requests if "/pdfium-page" in u]
+    pdata = [u for _,u,_ in new_requests if "/progress-data" in u]
+
+    print(label.upper(), "BEFORE", before)
+    print(label.upper(), "AFTER", after)
+    print(label.upper(), "NEW_PDFIUM_PAGE_REQUESTS", len(pdfium))
+    for u in pdfium[:50]:
+        print(label.upper(), "PDFIUM", u)
+    print(label.upper(), "NEW_PROGRESS_DATA_REQUESTS", len(pdata))
+    for u in pdata[:20]:
+        print(label.upper(), "PROGRESS_DATA", u)
+
+
+def main():
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        progress_url = discover_progress_url(browser)
         print("LIVE_PROGRESS_URL", progress_url)
-        print("BEFORE", before)
-        print("AFTER", after)
-        print("NEW_PDFIUM_PAGE_REQUESTS", len(pdfium))
-        for u in pdfium[:50]:
-            print("PDFIUM", u)
-        print("NEW_PROGRESS_DATA_REQUESTS", len(pdata))
-        for u in pdata[:20]:
-            print("PROGRESS_DATA", u)
-        print("OTHER_NEW_REQUESTS", len(others))
-        print("LIVE_SCROLL_DIAGNOSTIC: PASS")
+
+        desktop = browser.new_page(viewport={"width": 1440, "height": 900})
+        run_case(desktop, "desktop", progress_url, mobile=False)
+        desktop.close()
+
+        mobile_context = browser.new_context(
+            viewport={"width": 390, "height": 844},
+            screen={"width": 390, "height": 844},
+            device_scale_factor=2.75,
+            is_mobile=True,
+            has_touch=True,
+            user_agent=(
+                "Mozilla/5.0 (Linux; Android 16; Pixel 7 Pro) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Mobile Safari/537.36"
+            ),
+        )
+        mobile = mobile_context.new_page()
+        run_case(mobile, "mobile", progress_url, mobile=True)
+        mobile_context.close()
+
         browser.close()
+
+    print("LIVE_SCROLL_DIAGNOSTIC: PASS")
 
 
 if __name__ == "__main__":
