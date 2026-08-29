@@ -94,6 +94,7 @@ def create_progress_blueprint(db_path: Path):
 .progress-thumbs{display:flex;gap:6px;overflow-x:auto;padding:5px 6px;border-bottom:1px solid #eee;background:#fff;scrollbar-width:thin}
 .progress-thumb{flex:0 0 74px;border:2px solid transparent;border-radius:8px;background:#fff;padding:3px;cursor:pointer}
 .progress-thumb.active{border-color:#1967d2;background:#e8f0fe}
+.progress-thumb:disabled{opacity:.42;cursor:default;pointer-events:none;box-shadow:none}
 .progress-thumb img{display:block;width:100%;height:46px;object-fit:contain;background:#f1f3f4;border-radius:4px}
 .progress-thumb span{display:block;margin-top:2px;font-size:.7rem;font-weight:800;text-align:center}
 body.progress-fullscreen .progress-thumbs{display:none}
@@ -109,12 +110,21 @@ body.progress-fullscreen .progress-thumbs{display:none}
         html = html.replace(
             "const goBack=()=>location.href=projectsScreenUrl;",
             "const progressThumbs=document.getElementById('progressThumbs');let progressThumbObserver=null;"
+            "let progressThumbPointerId=null,progressThumbStartX=0,progressThumbStartY=0,progressThumbStartScroll=0,progressThumbSuppressUntil=0,progressThumbWheelUntil=0;"
+            "const suppressProgressThumbActivation=(ms=550)=>{progressThumbSuppressUntil=Math.max(progressThumbSuppressUntil,performance.now()+ms)};"
+            "progressThumbs.addEventListener('wheel',e=>{if(Math.abs(e.deltaX)>0||Math.abs(e.deltaY)>0){progressThumbWheelUntil=performance.now()+180;suppressProgressThumbActivation()}},{passive:true});"
+            "progressThumbs.addEventListener('scroll',()=>{if(progressThumbPointerId!==null||performance.now()<progressThumbWheelUntil)suppressProgressThumbActivation()},{passive:true});"
+            "progressThumbs.addEventListener('pointerdown',e=>{progressThumbPointerId=e.pointerId;progressThumbStartX=e.clientX;progressThumbStartY=e.clientY;progressThumbStartScroll=progressThumbs.scrollLeft},{passive:true});"
+            "progressThumbs.addEventListener('pointermove',e=>{if(e.pointerId!==progressThumbPointerId)return;if(Math.hypot(e.clientX-progressThumbStartX,e.clientY-progressThumbStartY)>6||Math.abs(progressThumbs.scrollLeft-progressThumbStartScroll)>2)suppressProgressThumbActivation()},{passive:true});"
+            "progressThumbs.addEventListener('pointerup',e=>{if(e.pointerId!==progressThumbPointerId)return;if(Math.hypot(e.clientX-progressThumbStartX,e.clientY-progressThumbStartY)>6||Math.abs(progressThumbs.scrollLeft-progressThumbStartScroll)>2)suppressProgressThumbActivation();progressThumbPointerId=null},{passive:true});"
+            "progressThumbs.addEventListener('pointercancel',e=>{if(e.pointerId!==progressThumbPointerId)return;suppressProgressThumbActivation();progressThumbPointerId=null},{passive:true});"
+            "progressThumbs.addEventListener('click',e=>{if(performance.now()>progressThumbSuppressUntil)return;const thumb=e.target.closest('.progress-thumb');if(!thumb)return;e.preventDefault();e.stopImmediatePropagation()},true);"
             "const goBack=()=>location.href=projectsScreenUrl;",
             1,
         )
         thumb_js = (
             "function ensureProgressThumbLoaded(p){const img=progressThumbs.querySelector(`.progress-thumb[data-page=\"${p}\"] img`);if(img&&img.dataset.src&&!img.src)img.src=img.dataset.src;}"
-            "function updateProgressThumbActive(){progressThumbs.querySelectorAll('.progress-thumb').forEach(b=>b.classList.toggle('active',Number(b.dataset.page)===Number(pageInput.value)));const n=Number(pageInput.value);ensureProgressThumbLoaded(n);if(n>1)ensureProgressThumbLoaded(n-1);if(n<pageCount)ensureProgressThumbLoaded(n+1);const activeThumb=progressThumbs.querySelector('.progress-thumb.active');if(activeThumb)activeThumb.scrollIntoView({block:'nearest',inline:'nearest'});}"
+            "function updateProgressThumbActive(){progressThumbs.querySelectorAll('.progress-thumb').forEach(b=>{const active=Number(b.dataset.page)===Number(pageInput.value);b.classList.toggle('active',active);b.disabled=active;if(active){b.setAttribute('aria-disabled','true');b.title='現在表示中のページ'}else{b.removeAttribute('aria-disabled');b.removeAttribute('title')}});const n=Number(pageInput.value);ensureProgressThumbLoaded(n);if(n>1)ensureProgressThumbLoaded(n-1);if(n<pageCount)ensureProgressThumbLoaded(n+1);const activeThumb=progressThumbs.querySelector('.progress-thumb.active');if(activeThumb)activeThumb.scrollIntoView({block:'nearest',inline:'nearest'});}"
             "function setupProgressThumbnails(){progressThumbs.innerHTML='';if(progressThumbObserver)progressThumbObserver.disconnect();progressThumbObserver='IntersectionObserver' in window?new IntersectionObserver(entries=>{for(const entry of entries){if(entry.isIntersecting){const img=entry.target.querySelector('img');if(img&&img.dataset.src&&!img.src)img.src=img.dataset.src;}}},{root:progressThumbs,rootMargin:'0px 100px'}):null;for(let p=1;p<=pageCount;p++){const b=document.createElement('button');b.type='button';b.className='progress-thumb';b.dataset.page=String(p);b.innerHTML=`<img alt=\"P${p} サムネイル\" data-src=\"${pdfiumPageUrl}?page=${p}&longEdge=320&format=jpeg\"><span>P${p}</span>`;b.onclick=()=>loadPage(p);progressThumbs.appendChild(b);if(progressThumbObserver)progressThumbObserver.observe(b);}if(!progressThumbObserver){ensureProgressThumbLoaded(1);if(pageCount>1)ensureProgressThumbLoaded(2);}updateProgressThumbActive();}"
         )
         html = html.replace("function setBusy(v){", thumb_js + "function setBusy(v){", 1)
