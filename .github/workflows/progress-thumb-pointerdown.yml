@@ -1,0 +1,32 @@
+name: Progress Thumbnail Pointerdown Guard
+
+on:
+  push:
+    branches:
+      - fix/progress-thumb-pointerdown-loading-v4
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  browser-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt playwright
+          python -m playwright install --with-deps chromium
+      - name: Syntax
+        run: python -m py_compile app.py thumbnail_grid.py progress.py ui_shell.py
+      - name: Pointerdown must not show loading state
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python tests/progress_thumb_pointerdown_e2e.py
