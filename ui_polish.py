@@ -61,22 +61,19 @@ body[data-ui-page="thumb-grid"] .page-card:disabled{cursor:not-allowed!important
   }
   const toolbar=document.querySelector('.toolbar');
   if(toolbar){toolbar.setAttribute('aria-label','進捗画面ツールバー')}
+  const important=(el,name,value)=>el.style.setProperty(name,value,'important');
   const enforcePager=()=>{
     const pages=document.querySelector('.ui3-pages');
     const field=pages?.querySelector('.page-field');
     if(!pages||!field)return false;
-    Object.assign(pages.style,{display:'flex',flexDirection:'row',alignItems:'center',gap:'6px',flex:'0 0 auto'});
-    Object.assign(field.style,{display:'flex',flexDirection:'row',alignItems:'center',gap:'4px',flex:'0 0 auto'});
+    important(pages,'display','flex');important(pages,'flex-direction','row');important(pages,'align-items','center');important(pages,'gap','6px');important(pages,'flex','0 0 auto');
+    important(field,'display','flex');important(field,'flex-direction','row');important(field,'align-items','center');important(field,'gap','4px');important(field,'flex','0 0 auto');
     return true;
   };
-  if(!enforcePager()){
-    const observer=new MutationObserver(()=>{if(enforcePager())observer.disconnect()});
-    observer.observe(document.body,{childList:true,subtree:true});
-    setTimeout(()=>observer.disconnect(),3000);
-  }
-  requestAnimationFrame(enforcePager);
-  setTimeout(enforcePager,0);
-  setTimeout(enforcePager,500);
+  const observer=new MutationObserver(enforcePager);
+  observer.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['class','style']});
+  enforcePager();requestAnimationFrame(enforcePager);setTimeout(enforcePager,0);setTimeout(enforcePager,120);setTimeout(enforcePager,500);
+  setTimeout(()=>observer.disconnect(),3000);
 })();
 </script>
 """)
