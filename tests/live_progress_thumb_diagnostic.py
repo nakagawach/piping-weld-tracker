@@ -17,12 +17,11 @@ def main():
         page.on("request", lambda req: requests.append((time.time(), req.url, req.resource_type)))
 
         page.goto(f"{BASE}/projects-screen", wait_until="domcontentloaded", timeout=60000)
-        links = page.locator("a").evaluate_all(
-            """els => els.map(a => a.href).filter(h => /\/projects\/\d+\/(?:progress|entry)/.test(h))"""
-        )
-        progress_url = next((h for h in links if re.search(r"/projects/\d+/progress", h)), None)
-        if not progress_url:
-            raise AssertionError(f"no progress URL found from projects-screen; sample links={links[:20]}")
+        page.wait_for_selector("[data-progress]", timeout=60000)
+        progress_path = page.locator("[data-progress]").first.get_attribute("data-progress")
+        if not progress_path:
+            raise AssertionError("no progress target found from projects-screen")
+        progress_url = f"{BASE}/{progress_path.lstrip('/')}"
 
         page.goto(progress_url, wait_until="domcontentloaded", timeout=60000)
         page.wait_for_selector("#progressThumbs", timeout=60000)
