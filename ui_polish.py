@@ -18,6 +18,12 @@ def create_ui_polish_blueprint():
         styles = """
 <style data-responsive-ui-polish>
 :root{--favorite:#f9ab00;--favorite-bg:#fff8e1}
+body[data-ui-page="progress"] button:disabled{cursor:not-allowed!important}
+@media(min-width:821px){
+  body[data-ui-page="progress"] .ui3-pages{display:flex!important;flex-direction:row!important;align-items:center!important;gap:6px!important;flex:0 0 auto!important;white-space:nowrap!important}
+  body[data-ui-page="progress"] .ui3-pages>.nav-button,body[data-ui-page="progress"] .ui3-pages>.page-field{flex:0 0 auto!important;margin:0!important}
+  body[data-ui-page="progress"] .ui3-pages>.page-field{display:flex!important;flex-direction:row!important;align-items:center!important;gap:4px!important}
+}
 @media(max-width:480px){
   .global-header-actions{width:100%!important;display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;gap:8px!important}
   .global-header-actions>.button,.global-header-actions>.primary{width:100%!important;min-width:0!important;padding-left:8px!important;padding-right:8px!important}
@@ -48,6 +54,24 @@ def create_ui_polish_blueprint():
 <script data-responsive-ui-polish>
 (() => {
   document.body.dataset.uiPage='progress';
+  const enforcePager=()=>{
+    const pages=document.querySelector('.ui3-pages');
+    if(!pages)return false;
+    pages.style.setProperty('display','flex','important');
+    pages.style.setProperty('flex-direction','row','important');
+    pages.style.setProperty('align-items','center','important');
+    pages.style.setProperty('white-space','nowrap','important');
+    const field=pages.querySelector('.page-field');
+    if(field){
+      field.style.setProperty('display','flex','important');
+      field.style.setProperty('flex-direction','row','important');
+      field.style.setProperty('align-items','center','important');
+    }
+    return true;
+  };
+  enforcePager();
+  const pagerObserver=new MutationObserver(enforcePager);
+  pagerObserver.observe(document.body,{childList:true,subtree:true});
   const menu=document.querySelector('.more-menu');
   const rotate=document.getElementById('rotateCompact');
   const fullscreen=document.getElementById('fullscreenCompact');
