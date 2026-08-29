@@ -51,6 +51,11 @@ def run_case(page, label, progress_url, mobile=False):
         "clientWidth": strip.evaluate("el => el.clientWidth"),
         "pageDisabled": page.locator("#page").is_disabled(),
         "loadedImages": strip.locator("img[src]").count(),
+        "canvasHidden": page.locator("#canvas").evaluate("el => el.hidden"),
+        "canvasSize": page.locator("#canvas").evaluate("el => [el.width,el.height]"),
+        "emptyHidden": page.locator("#empty").evaluate("el => el.hidden"),
+        "emptyText": page.locator("#empty").inner_text(),
+        "viewerScrollTop": page.locator("#viewer").evaluate("el => el.scrollTop"),
     }
     page.screenshot(path=str(ARTIFACTS / f"live-{label}-before.png"), full_page=False)
     before_count = len(requests)
@@ -83,6 +88,12 @@ def run_case(page, label, progress_url, mobile=False):
         "scrollLeft": strip.evaluate("el => el.scrollLeft"),
         "pageDisabled": page.locator("#page").is_disabled(),
         "loadedImages": strip.locator("img[src]").count(),
+        "canvasHidden": page.locator("#canvas").evaluate("el => el.hidden"),
+        "canvasSize": page.locator("#canvas").evaluate("el => [el.width,el.height]"),
+        "emptyHidden": page.locator("#empty").evaluate("el => el.hidden"),
+        "emptyText": page.locator("#empty").inner_text(),
+        "viewerScrollTop": page.locator("#viewer").evaluate("el => el.scrollTop"),
+        "bodyLoadingTexts": page.locator("body").evaluate("el => (el.innerText.match(/[^\\n]*読み込[^\\n]*/g)||[])"),
     }
     page.screenshot(path=str(ARTIFACTS / f"live-{label}-after.png"), full_page=False)
 
