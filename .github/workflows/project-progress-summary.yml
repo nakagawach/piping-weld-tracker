@@ -1,0 +1,41 @@
+name: Project Progress Summary Checks
+
+on:
+  push:
+    branches:
+      - feature/project-progress-summary-v2
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  projects-screen:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install browser dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt playwright
+          python -m playwright install --with-deps chromium
+
+      - name: Python syntax
+        run: python -m py_compile app.py progress.py projects.py ui_shell.py
+
+      - name: Project progress summary browser E2E
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python tests/project_progress_summary_e2e.py
+
+      - name: Existing UI shell regression
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python tests/ui_shell_e2e.py
