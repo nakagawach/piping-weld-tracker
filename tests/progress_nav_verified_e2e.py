@@ -1,4 +1,3 @@
-import sqlite3
 import sys
 import threading
 import time
@@ -11,18 +10,10 @@ if str(ROOT) not in sys.path:
 from playwright.sync_api import sync_playwright
 from werkzeug.serving import make_server
 
-from app import DB_PATH, app
+from app import app
+from tests.ui_shell_e2e import PROJECT_ID, seed_database
 
-PROJECT_ID = 998
 BASE_URL = "http://127.0.0.1:8766"
-
-
-def seed_database():
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(DB_PATH) as connection:
-        connection.execute("""CREATE TABLE IF NOT EXISTS projects (id INTEGER PRIMARY KEY AUTOINCREMENT, project_name TEXT NOT NULL, original_pdf_name TEXT NOT NULL, stored_pdf_name TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL)""")
-        connection.execute("DELETE FROM projects WHERE id = ?", (PROJECT_ID,))
-        connection.execute("INSERT INTO projects (id, project_name, original_pdf_name, stored_pdf_name, created_at) VALUES (?, ?, ?, ?, ?)", (PROJECT_ID, "PCナビ検証", "verify.pdf", "verify.pdf", "2026-08-29T00:00:00+00:00"))
 
 
 def run_server():
@@ -71,7 +62,6 @@ def main():
             cursor = page.locator("#prev").evaluate("el => getComputedStyle(el).cursor")
             assert cursor == "not-allowed", cursor
 
-            # Same-page thumbnail must be a real disabled button, not a clickable reload/navigation target.
             page.goto(f"{BASE_URL}/projects/{PROJECT_ID}/thumbnails?source=progress&page=3", wait_until="domcontentloaded")
             page.locator("#grid").evaluate("grid => { grid.innerHTML='<button type=\"button\" class=\"page-card active\" data-page=\"3\">P3</button>'; }")
             page.wait_for_timeout(50)
