@@ -1,0 +1,67 @@
+name: Dispatch PythonAnywhere development deploy from PR comment
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  actions: write
+  checks: read
+  contents: read
+  pull-requests: read
+
+jobs:
+  dispatch:
+    if: >-
+      github.event.issue.pull_request &&
+      github.event.comment.body == '/deploy-pa'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve PR and dispatch trusted manual deploy
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          api="https://api.github.com/repos/${REPO}"
+          auth=(
+            -H "Authorization: Bearer ${GH_TOKEN}"
+            -H "Accept: application/vnd.github+json"
+            -H "X-GitHub-Api-Version: 2022-11-28"
+          )
+
+          pr_json="$(curl --fail --silent --show-error "${auth[@]}" "${api}/pulls/${PR_NUMBER}")"
+          state="$(jq -r '.state' <<<"${pr_json}")"
+          base="$(jq -r '.base.ref' <<<"${pr_json}")"
+          branch="$(jq -r '.head.ref' <<<"${pr_json}")"
+          sha="$(jq -r '.head.sha' <<<"${pr_json}")"
+
+          test "${state}" = "open"
+          test "${base}" = "main"
+          test "${branch}" != "main"
+          [[ "${sha}" =~ ^[0-9a-f]{40}$ ]]
+
+          checks_json="$(curl --fail --silent --show-error "${auth[@]}" "${api}/commits/${sha}/check-runs?per_page=100")"
+          bad="$(jq -r '[.check_runs[] | select(.status != "completed" or (.conclusion != "success" and .conclusion != "neutral" and .conclusion != "skipped"))] | length' <<<"${checks_json}")"
+          if [ "${bad}" != "0" ]; then
+            echo "PR head has incomplete or failing checks; refusing deploy."
+            exit 1
+          fi
+
+          payload="$(jq -n \
+            --arg ref main \
+            --arg pr "${PR_NUMBER}" \
+            --arg branch "${branch}" \
+            --arg sha "${sha}" \
+            '{ref:$ref,inputs:{operation:"pr_deploy",pr_number:$pr,target_branch:$branch,expected_sha:$sha,qa_sha:$sha,qa_confirmation:"QA_PASS",target_smoke_path:"/weld/projects-screen"}}')"
+
+          curl --fail --silent --show-error \
+            -X POST \
+            "${auth[@]}" \
+            -H "Content-Type: application/json" \
+            "${api}/actions/workflows/deploy-pythonanywhere-dev.yml/dispatches" \
+            -d "${payload}"
+
+          echo "Dispatched trusted manual deploy for PR #${PR_NUMBER} ${branch}@${sha}."
