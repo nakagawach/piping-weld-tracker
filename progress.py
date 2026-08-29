@@ -110,12 +110,12 @@ body.progress-fullscreen .progress-thumbs{display:none}
         html = html.replace(
             "const goBack=()=>location.href=projectsScreenUrl;",
             "const progressThumbs=document.getElementById('progressThumbs');let progressThumbObserver=null;"
-            "let progressThumbPointerId=null,progressThumbStartX=0,progressThumbStartY=0,progressThumbDragged=false;"
+            "let progressThumbPointerId=null,progressThumbStartX=0,progressThumbStartY=0,progressThumbDragged=false,progressThumbSuppressUntil=0;"
             "progressThumbs.addEventListener('pointerdown',e=>{progressThumbPointerId=e.pointerId;progressThumbStartX=e.clientX;progressThumbStartY=e.clientY;progressThumbDragged=false},{passive:true});"
-            "progressThumbs.addEventListener('pointermove',e=>{if(e.pointerId!==progressThumbPointerId)return;if(Math.hypot(e.clientX-progressThumbStartX,e.clientY-progressThumbStartY)>8)progressThumbDragged=true},{passive:true});"
-            "progressThumbs.addEventListener('pointerup',e=>{if(e.pointerId!==progressThumbPointerId)return;progressThumbPointerId=null;setTimeout(()=>{progressThumbDragged=false},0)},{passive:true});"
-            "progressThumbs.addEventListener('pointercancel',e=>{if(e.pointerId!==progressThumbPointerId)return;progressThumbPointerId=null;setTimeout(()=>{progressThumbDragged=false},0)},{passive:true});"
-            "progressThumbs.addEventListener('click',e=>{if(!progressThumbDragged)return;const thumb=e.target.closest('.progress-thumb');if(!thumb)return;e.preventDefault();e.stopImmediatePropagation()},true);"
+            "progressThumbs.addEventListener('pointermove',e=>{if(e.pointerId!==progressThumbPointerId)return;if(Math.hypot(e.clientX-progressThumbStartX,e.clientY-progressThumbStartY)>8){progressThumbDragged=true;progressThumbSuppressUntil=performance.now()+500}},{passive:true});"
+            "progressThumbs.addEventListener('pointerup',e=>{if(e.pointerId!==progressThumbPointerId)return;if(progressThumbDragged)progressThumbSuppressUntil=performance.now()+500;progressThumbPointerId=null},{passive:true});"
+            "progressThumbs.addEventListener('pointercancel',e=>{if(e.pointerId!==progressThumbPointerId)return;if(progressThumbDragged)progressThumbSuppressUntil=performance.now()+500;progressThumbPointerId=null},{passive:true});"
+            "progressThumbs.addEventListener('click',e=>{if(performance.now()>progressThumbSuppressUntil)return;const thumb=e.target.closest('.progress-thumb');if(!thumb)return;e.preventDefault();e.stopImmediatePropagation()},true);"
             "const goBack=()=>location.href=projectsScreenUrl;",
             1,
         )
