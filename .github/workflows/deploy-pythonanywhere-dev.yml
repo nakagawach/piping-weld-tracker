@@ -1,0 +1,209 @@
+name: Manual PythonAnywhere development deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Deploy an approved PR SHA or restore current main runtime
+        required: true
+        type: choice
+        options:
+          - pr_deploy
+          - rollback_main
+      pr_number:
+        description: PR number for pr_deploy; use 0 for rollback_main
+        required: true
+        type: string
+      target_branch:
+        description: Exact PR head branch; use main for rollback_main
+        required: true
+        type: string
+      expected_sha:
+        description: Exact 40-character SHA approved for deployment
+        required: true
+        type: string
+      qa_sha:
+        description: Exact SHA independently approved by QA; must equal expected_sha
+        required: true
+        type: string
+      qa_confirmation:
+        description: Enter QA_PASS only after independent QA approval
+        required: true
+        type: string
+      target_smoke_path:
+        description: Additional read-only /weld path to smoke after reload
+        required: false
+        default: /weld/projects-screen
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: read
+  checks: read
+
+concurrency:
+  group: deploy-pythonanywhere-weld
+  cancel-in-progress: false
+
+jobs:
+  gated-manual-deploy:
+    runs-on: ubuntu-latest
+    env:
+      TARGET_DIR: /home/nakagawach/piping-weld-tracker
+      PA_FILE_API: https://www.pythonanywhere.com/api/v0/user/nakagawach/files/path/home/nakagawach/piping-weld-tracker
+      PA_RELOAD_API: https://www.pythonanywhere.com/api/v0/user/nakagawach/webapps/nakagawach.pythonanywhere.com/reload/
+      PUBLIC_ORIGIN: https://nakagawach.pythonanywhere.com
+    steps:
+      - name: Check out trusted deploy control plane from main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Preserve trusted deploy guard
+        shell: bash
+        run: cp .github/scripts/manual_deploy_guard.py "$RUNNER_TEMP/manual_deploy_guard.py"
+
+      - name: Log deploy request
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Deploy start UTC: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          echo "Operation: ${{ inputs.operation }}"
+          echo "PR number: ${{ inputs.pr_number }}"
+          echo "Target branch: ${{ inputs.target_branch }}"
+          echo "Expected SHA: ${{ inputs.expected_sha }}"
+          echo "QA SHA: ${{ inputs.qa_sha }}"
+
+      - name: GitHub metadata and QA gate
+        id: metadata
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python "$RUNNER_TEMP/manual_deploy_guard.py" metadata \
+            --operation '${{ inputs.operation }}' \
+            --pr-number '${{ inputs.pr_number }}' \
+            --target-branch '${{ inputs.target_branch }}' \
+            --expected-sha '${{ inputs.expected_sha }}' \
+            --qa-sha '${{ inputs.qa_sha }}' \
+            --qa-confirmation '${{ inputs.qa_confirmation }}'
+
+      - name: Validate additional smoke path
+        shell: bash
+        env:
+          TARGET_SMOKE_PATH: ${{ inputs.target_smoke_path }}
+        run: |
+          set -euo pipefail
+          case "$TARGET_SMOKE_PATH" in
+            /weld|/weld/*) ;;
+            *) echo 'GATE FAIL: target_smoke_path must stay under /weld' >&2; exit 1 ;;
+          esac
+          if [[ "$TARGET_SMOKE_PATH" == *$'\n'* || "$TARGET_SMOKE_PATH" == *$'\r'* ]]; then
+            echo 'GATE FAIL: target_smoke_path contains a newline' >&2
+            exit 1
+          fi
+
+      - name: Check out exact approved target SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.expected_sha }}
+          fetch-depth: 0
+
+      - name: Verify checkout and protected diff; build full runtime manifest
+        id: local
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin '${{ steps.metadata.outputs.main_sha }}'
+          python "$RUNNER_TEMP/manual_deploy_guard.py" local \
+            --operation '${{ inputs.operation }}' \
+            --main-sha '${{ steps.metadata.outputs.main_sha }}' \
+            --expected-sha '${{ inputs.expected_sha }}' \
+            --manifest "$RUNNER_TEMP/pythonanywhere-runtime-manifest.txt"
+
+      - name: Syntax check approved runtime Python
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile \
+            app.py global_favorites.py progress.py project_render.py projects.py \
+            thumbnail_grid.py ui_polish.py ui_shell.py viewer_mode.py
+
+      - name: Upload complete allowlisted runtime snapshot
+        env:
+          PYTHONANYWHERE_API_TOKEN: ${{ secrets.PYTHONANYWHERE_API_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${PYTHONANYWHERE_API_TOKEN:-}" || { echo 'PythonAnywhere API token is not configured.' >&2; exit 1; }
+          manifest="$RUNNER_TEMP/pythonanywhere-runtime-manifest.txt"
+          test -s "$manifest"
+          echo 'Upload file list:'
+          cat "$manifest"
+          upload_file() {
+            local file="$1"
+            echo "Uploading ${file}"
+            curl --fail --silent --show-error --retry 3 --retry-delay 2 \
+              -X POST \
+              -H "Authorization: Token ${PYTHONANYWHERE_API_TOKEN}" \
+              -F "content=@${file}" \
+              "${PA_FILE_API}/${file}" >/dev/null
+          }
+          while IFS= read -r file; do
+            test -n "$file" || continue
+            upload_file "$file"
+          done < "$manifest"
+          echo 'All allowlisted runtime files uploaded successfully. Reload is now permitted.'
+
+      - name: Reload shared PythonAnywhere web app
+        env:
+          PYTHONANYWHERE_API_TOKEN: ${{ secrets.PYTHONANYWHERE_API_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 3 --retry-delay 2 \
+            -X POST \
+            -H "Authorization: Token ${PYTHONANYWHERE_API_TOKEN}" \
+            "$PA_RELOAD_API" >/dev/null
+          echo 'PythonAnywhere reload API succeeded.'
+
+      - name: Smoke mysite and weld after reload
+        shell: bash
+        env:
+          TARGET_SMOKE_PATH: ${{ inputs.target_smoke_path }}
+        run: |
+          set -euo pipefail
+          fetch_ok() {
+            local url="$1"
+            curl --fail --silent --show-error --location --max-time 30 "$url" --output /dev/null
+          }
+          smoke_once() {
+            fetch_ok "${PUBLIC_ORIGIN}/" || return 1
+            fetch_ok "${PUBLIC_ORIGIN}/weld/" || return 1
+            fetch_ok "${PUBLIC_ORIGIN}/weld/projects-screen" || return 1
+            fetch_ok "${PUBLIC_ORIGIN}${TARGET_SMOKE_PATH}" || return 1
+
+            local projects_json project_id
+            projects_json=$(curl --fail --silent --show-error --location --max-time 30 "${PUBLIC_ORIGIN}/weld/projects") || return 1
+            project_id=$(printf '%s' "$projects_json" | python -c 'import json,sys; d=json.load(sys.stdin); p=d.get("projects",[]); print(p[0]["id"] if p else "")') || return 1
+            test -n "$project_id" || return 1
+
+            fetch_ok "${PUBLIC_ORIGIN}/weld/projects/${project_id}/entry?page=1" || return 1
+            fetch_ok "${PUBLIC_ORIGIN}/weld/projects/${project_id}/progress?page=1" || return 1
+            fetch_ok "${PUBLIC_ORIGIN}/weld/projects/${project_id}/thumbnails?source=progress&page=1" || return 1
+            fetch_ok "${PUBLIC_ORIGIN}/weld/projects/${project_id}/pdfium-info" || return 1
+            fetch_ok "${PUBLIC_ORIGIN}/weld/projects/${project_id}/pdfium-page?page=1&longEdge=500&format=jpeg" || return 1
+          }
+
+          for attempt in 1 2 3 4 5 6; do
+            if smoke_once; then
+              echo "Smoke checks passed on attempt ${attempt}."
+              exit 0
+            fi
+            echo "Smoke attempt ${attempt} failed; retrying after reload propagation."
+            sleep 5
+          done
+          echo 'Smoke checks failed.' >&2
+          exit 1
