@@ -31,6 +31,10 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: python tests/progress_thumbnail_scroll_e2e.py
+      - name: Pager and disabled-thumbnail regression
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python tests/progress_nav_verified_e2e.py
       - name: Existing UI shell regression
         env:
           PYTHONPATH: ${{ github.workspace }}
