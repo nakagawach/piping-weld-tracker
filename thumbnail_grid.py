@@ -153,8 +153,6 @@ def create_thumbnail_grid_blueprint(db_path: Path):
   const canvas=document.getElementById('canvas'),empty=document.getElementById('empty'),summary=document.getElementById('summary');
   if(!canvas||!empty)return;
   const hideOld=()=>{canvas.hidden=true;canvas.style.display='none';empty.hidden=false;empty.style.display='block';if(summary)summary.hidden=true};
-  const navSelector='#prev,#next,.progress-thumb';
-  document.addEventListener('pointerdown',e=>{if(e.target.closest(navSelector))hideOld()},true);
   document.getElementById('page')?.addEventListener('change',hideOld,true);
   new MutationObserver(()=>{if(!empty.hidden){canvas.hidden=true;canvas.style.display='none'}}).observe(empty,{attributes:true,attributeFilter:['hidden'],childList:true,subtree:true});
 })();
