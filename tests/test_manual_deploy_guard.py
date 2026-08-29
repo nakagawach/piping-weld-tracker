@@ -1,5 +1,8 @@
 import importlib.util
+import os
+import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[1]
 GUARD_PATH = ROOT / ".github" / "scripts" / "manual_deploy_guard.py"
@@ -11,6 +14,15 @@ spec.loader.exec_module(guard)
 def require(condition, message):
     if not condition:
         raise AssertionError(message)
+
+
+def expect_gate_failure(callback, label):
+    try:
+        callback()
+    except SystemExit as exc:
+        require(exc.code == 1, f"{label}: unexpected exit code {exc.code}")
+    else:
+        raise AssertionError(f"{label}: gate unexpectedly passed")
 
 
 def test_guard_functions():
@@ -63,6 +75,94 @@ def test_guard_functions():
     require(set(guard.RUNTIME_ROOT_FILES) == expected_runtime, "runtime allowlist drifted")
 
 
+def test_metadata_gate():
+    main_sha = "a" * 40
+    head_sha = "b" * 40
+    original_api_get = guard.api_get
+    original_write_output = guard.write_output
+    original_repo = os.environ.get("GITHUB_REPOSITORY")
+
+    def fake_api_get(path):
+        if path.endswith("/branches/main"):
+            return {"commit": {"sha": main_sha}}
+        if path.endswith("/pulls/77"):
+            return {
+                "state": "open",
+                "base": {"ref": "main"},
+                "head": {"ref": "fix/header-disabled-thumbnail-nav", "sha": head_sha},
+            }
+        if "/check-runs" in path:
+            return {
+                "check_runs": [
+                    {"name": "qa-regression", "status": "completed", "conclusion": "success"}
+                ]
+            }
+        raise AssertionError(f"unexpected API path: {path}")
+
+    try:
+        os.environ["GITHUB_REPOSITORY"] = "nakagawach/piping-weld-tracker"
+        guard.api_get = fake_api_get
+        guard.write_output = lambda _name, _value: None
+        good = SimpleNamespace(
+            operation="pr_deploy",
+            pr_number=77,
+            target_branch="fix/header-disabled-thumbnail-nav",
+            expected_sha=head_sha,
+            qa_sha=head_sha,
+            qa_confirmation="QA_PASS",
+        )
+        guard.metadata_gate(good)
+
+        wrong_branch = SimpleNamespace(**{**vars(good), "target_branch": "fix/wrong"})
+        expect_gate_failure(lambda: guard.metadata_gate(wrong_branch), "PR head branch gate")
+
+        wrong_qa = SimpleNamespace(**{**vars(good), "qa_sha": main_sha})
+        expect_gate_failure(lambda: guard.metadata_gate(wrong_qa), "QA SHA gate")
+
+        rollback = SimpleNamespace(
+            operation="rollback_main",
+            pr_number=0,
+            target_branch="main",
+            expected_sha=main_sha,
+            qa_sha=main_sha,
+            qa_confirmation="QA_PASS",
+        )
+        guard.metadata_gate(rollback)
+    finally:
+        guard.api_get = original_api_get
+        guard.write_output = original_write_output
+        if original_repo is None:
+            os.environ.pop("GITHUB_REPOSITORY", None)
+        else:
+            os.environ["GITHUB_REPOSITORY"] = original_repo
+
+
+def test_rollback_local_dry_run():
+    sha = "c" * 40
+    original_git = guard.git
+    original_write_output = guard.write_output
+    try:
+        guard.git = lambda *args: sha if args == ("rev-parse", "HEAD") else ""
+        guard.write_output = lambda _name, _value: None
+        with tempfile.TemporaryDirectory() as temp_dir:
+            manifest = Path(temp_dir) / "runtime-manifest.txt"
+            args = SimpleNamespace(
+                operation="rollback_main",
+                main_sha=sha,
+                expected_sha=sha,
+                manifest=str(manifest),
+            )
+            guard.local_gate(args)
+            lines = manifest.read_text(encoding="utf-8").splitlines()
+            for runtime_file in guard.RUNTIME_ROOT_FILES:
+                require(runtime_file in lines, f"rollback manifest missing {runtime_file}")
+            require("requirements.txt" not in lines, "rollback manifest must not include requirements")
+            require(not any(line.startswith("data/") for line in lines), "rollback manifest includes data")
+    finally:
+        guard.git = original_git
+        guard.write_output = original_write_output
+
+
 def test_workflow_structure():
     legacy = [
         ROOT / ".github" / "workflows" / "deploy-pythonanywhere.yml",
@@ -97,6 +197,8 @@ def test_workflow_structure():
 
 def main():
     test_guard_functions()
+    test_metadata_gate()
+    test_rollback_local_dry_run()
     test_workflow_structure()
     print("Manual deploy guard tests: PASS")
 
