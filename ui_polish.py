@@ -18,6 +18,14 @@ def create_ui_polish_blueprint():
         styles = """
 <style data-responsive-ui-polish>
 :root{--favorite:#f9ab00;--favorite-bg:#fff8e1}
+body[data-ui-page="progress"] .ui3-pages,body[data-ui-page="progress"] .ui3-drawing{display:flex;align-items:center;gap:6px}
+@media(min-width:821px){
+  body[data-ui-page="progress"] .toolbar{display:flex!important;flex-wrap:nowrap!important;align-items:center!important;gap:6px!important}
+  body[data-ui-page="progress"] .ui3-pages{display:flex!important;flex:0 0 auto!important;align-items:center!important;gap:6px!important}
+  body[data-ui-page="progress"] .ui3-pages .nav-button{flex:0 0 auto!important;margin:0!important}
+  body[data-ui-page="progress"] .ui3-pages .page-field{display:flex!important;flex:0 0 auto!important;align-items:center!important;margin:0!important}
+  body[data-ui-page="progress"] .ui3-drawing{display:flex!important;flex:0 0 auto!important;align-items:center!important;gap:6px!important}
+}
 @media(max-width:480px){
   .global-header-actions{width:100%!important;display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;gap:8px!important}
   .global-header-actions>.button,.global-header-actions>.primary{width:100%!important;min-width:0!important;padding-left:8px!important;padding-right:8px!important}
