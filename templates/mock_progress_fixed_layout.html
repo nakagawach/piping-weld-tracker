@@ -80,7 +80,7 @@ button{touch-action:manipulation}
 .toast.show{opacity:1}
 .minimap{position:absolute;left:10px;bottom:10px;width:118px;height:84px;border:1px solid rgba(15,23,42,.35);border-radius:7px;background:rgba(255,255,255,.88);box-shadow:0 2px 10px rgba(15,23,42,.16);overflow:hidden;pointer-events:none;opacity:0;transition:opacity .12s}
 .minimap.show{opacity:1}
-.minimap img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+.minimap img{position:absolute;left:50%;top:50%;object-fit:contain;transform-origin:center center}
 .minimap-viewport{position:absolute;border:2px solid #ff4fa3;background:rgba(255,79,163,.22);border-radius:2px}
 @media(max-width:900px),(orientation:portrait){
   .app{grid-template-rows:44px 54px minmax(0,1fr)}
@@ -259,7 +259,7 @@ function rotatedPoint(x,y){
   if(r===0)return{x,y};if(r===90)return{x:h-y,y:x};if(r===180)return{x:w-x,y:h-y};return{x:y,y:w-x};
 }
 function rotateDrawing(){
-  state.rotation=(state.rotation+90)%360;$('#rotate').textContent='↻ '+state.rotation+'°';updateRotationGeometry();
+  state.rotation=(state.rotation+90)%360;$('#rotate').textContent='↻ '+state.rotation+'°';updateRotationGeometry();updateMinimapImageRotation();
   if(state.mode==='FIT')fit();else applyTransform();
   if(state.selected)centerSelected();
 }
@@ -292,9 +292,16 @@ function setManualScale(next,cx=viewer.clientWidth/2,cy=viewer.clientHeight/2){
   state.mode='MANUAL';const old=state.scale;const s=rotatedStageSize();next=Math.max(Math.min(4,next),Math.min(viewer.clientWidth/s.w,viewer.clientHeight/s.h));
   const wx=(cx-state.tx)/old,wy=(cy-state.ty)/old;state.scale=next;state.tx=cx-wx*next;state.ty=cy-wy*next;applyTransform();$('#mode').textContent='MANUAL';$('#fit').classList.remove('active')
 }
+function updateMinimapImageRotation(){
+  const r=((state.rotation%360)+360)%360,mw=minimap.clientWidth,mh=minimap.clientHeight;
+  if(r===90||r===270){minimapImg.style.width=mh+'px';minimapImg.style.height=mw+'px'}
+  else{minimapImg.style.width=mw+'px';minimapImg.style.height=mh+'px'}
+  minimapImg.style.transform='translate(-50%,-50%) rotate('+r+'deg)';
+}
 function updateMinimap(){
   if(state.mode!=='MANUAL'||!img.naturalWidth){minimap.classList.remove('show');return}
   minimap.classList.add('show');
+  updateMinimapImageRotation();
   const s=rotatedStageSize(),mw=minimap.clientWidth,mh=minimap.clientHeight;
   const fit=Math.min(mw/s.w,mh/s.h),dw=s.w*fit,dh=s.h*fit,ox=(mw-dw)/2,oy=(mh-dh)/2;
   const left=Math.max(0,(-state.tx/state.scale))*fit+ox;
