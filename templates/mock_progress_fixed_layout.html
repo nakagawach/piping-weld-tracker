@@ -78,6 +78,10 @@ button{touch-action:manipulation}
 .loading{position:absolute;inset:0;display:grid;place-items:center;background:#eef2f7;color:#64748b;font-weight:700}
 .toast{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);background:rgba(15,23,42,.9);color:#fff;padding:7px 12px;border-radius:999px;font-size:12px;opacity:0;transition:.15s;pointer-events:none}
 .toast.show{opacity:1}
+.minimap{position:absolute;left:10px;bottom:10px;width:118px;height:84px;border:1px solid rgba(15,23,42,.35);border-radius:7px;background:rgba(255,255,255,.88);box-shadow:0 2px 10px rgba(15,23,42,.16);overflow:hidden;pointer-events:none;opacity:0;transition:opacity .12s}
+.minimap.show{opacity:1}
+.minimap img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+.minimap-viewport{position:absolute;border:2px solid #ff4fa3;background:rgba(255,79,163,.22);border-radius:2px}
 @media(max-width:900px),(orientation:portrait){
   .app{grid-template-rows:44px 54px minmax(0,1fr)}
   .header{padding:2px 5px;gap:4px}
@@ -138,6 +142,7 @@ button{touch-action:manipulation}
         </div>
         <div class="loading" id="loading">モックを読み込み中…</div>
         <div class="toast" id="toast"></div>
+        <div class="minimap" id="minimap"><img id="minimapImg" alt=""><div class="minimap-viewport" id="minimapViewport"></div></div>
       </div>
     </section>
 
@@ -164,7 +169,7 @@ button{touch-action:manipulation}
 <script>
 (()=>{
 const $=s=>document.querySelector(s);
-const viewer=$('#viewer'),stage=$('#stage'),rotator=$('#rotator'),img=$('#pageImg'),markers=$('#markers'),records=$('#records');
+const viewer=$('#viewer'),stage=$('#stage'),rotator=$('#rotator'),img=$('#pageImg'),markers=$('#markers'),records=$('#records'),minimap=$('#minimap'),minimapImg=$('#minimapImg'),minimapViewport=$('#minimapViewport');
 const state={project:null,page:1,pageCount:1,items:[],pageItems:[],selected:null,filter:'all',query:'',panelOpen:true,mode:'FIT',scale:1,tx:0,ty:0,rotation:0,pointers:new Map(),pinchStart:null,dragStart:null,pulseToken:0};
 const rel=(path)=>new URL(path,location.href).pathname;
 const projectsUrl=rel('../projects');
@@ -219,7 +224,10 @@ function syncListPosition(){
   renderList();
   requestAnimationFrame(()=>requestAnimationFrame(()=>{
     const el=state.selected?records.querySelector(dataKey(state.selected)):records.querySelector('.row.current-page');
-    if(el)el.scrollIntoView({block:'center'});
+    if(!el)return;
+    const rr=records.getBoundingClientRect(),er=el.getBoundingClientRect();
+    const fullyVisible=er.top>=rr.top&&er.bottom<=rr.bottom;
+    if(!fullyVisible)el.scrollIntoView({block:'nearest',behavior:'auto'});
   }));
 }
 async function loadPage(p,keepSelection=false){
@@ -229,7 +237,7 @@ async function loadPage(p,keepSelection=false){
   if(!keepSelection||!state.selected||state.selected.pageNumber!==p)state.selected=null;
   state.pageItems=state.items.filter(i=>i.pageNumber===p);
   const src=projectUrl(state.project.id,'pdfium-page')+'?page='+p+'&longEdge=1600&format=png';
-  await new Promise((res,rej)=>{img.onload=res;img.onerror=()=>rej(new Error('図面画像を読めません'));img.src=src});
+  await new Promise((res,rej)=>{img.onload=res;img.onerror=()=>rej(new Error('図面画像を読めません'));img.src=src});minimapImg.src=src;
   markers.style.width=img.naturalWidth+'px';markers.style.height=img.naturalHeight+'px';rotator.style.width=img.naturalWidth+'px';rotator.style.height=img.naturalHeight+'px';updateRotationGeometry();
   renderMarkers();renderList();if(state.mode==='FIT')fit();
 }
@@ -278,11 +286,25 @@ function centerSelected(){
 }
 function fit(){
   if(!img.naturalWidth)return;state.mode='FIT';const s=rotatedStageSize(),sx=viewer.clientWidth/s.w,sy=viewer.clientHeight/s.h;
-  state.scale=Math.min(sx,sy);state.tx=(viewer.clientWidth-s.w*state.scale)/2;state.ty=(viewer.clientHeight-s.h*state.scale)/2;applyTransform();$('#mode').textContent='FIT';$('#fit').classList.add('active')
+  state.scale=Math.min(sx,sy);state.tx=(viewer.clientWidth-s.w*state.scale)/2;state.ty=(viewer.clientHeight-s.h*state.scale)/2;applyTransform();$('#mode').textContent='FIT';$('#fit').classList.add('active');minimap.classList.remove('show')
 }
 function setManualScale(next,cx=viewer.clientWidth/2,cy=viewer.clientHeight/2){
   state.mode='MANUAL';const old=state.scale;const s=rotatedStageSize();next=Math.max(Math.min(4,next),Math.min(viewer.clientWidth/s.w,viewer.clientHeight/s.h));
   const wx=(cx-state.tx)/old,wy=(cy-state.ty)/old;state.scale=next;state.tx=cx-wx*next;state.ty=cy-wy*next;applyTransform();$('#mode').textContent='MANUAL';$('#fit').classList.remove('active')
+}
+function updateMinimap(){
+  if(state.mode!=='MANUAL'||!img.naturalWidth){minimap.classList.remove('show');return}
+  minimap.classList.add('show');
+  const s=rotatedStageSize(),mw=minimap.clientWidth,mh=minimap.clientHeight;
+  const fit=Math.min(mw/s.w,mh/s.h),dw=s.w*fit,dh=s.h*fit,ox=(mw-dw)/2,oy=(mh-dh)/2;
+  const left=Math.max(0,(-state.tx/state.scale))*fit+ox;
+  const top=Math.max(0,(-state.ty/state.scale))*fit+oy;
+  const vw=Math.min(s.w,viewer.clientWidth/state.scale)*fit;
+  const vh=Math.min(s.h,viewer.clientHeight/state.scale)*fit;
+  minimapViewport.style.left=Math.max(ox,Math.min(ox+dw-vw,left))+'px';
+  minimapViewport.style.top=Math.max(oy,Math.min(oy+dh-vh,top))+'px';
+  minimapViewport.style.width=Math.max(8,vw)+'px';
+  minimapViewport.style.height=Math.max(8,vh)+'px';
 }
 function clampPan(){
   const s=rotatedStageSize(),sw=s.w*state.scale,sh=s.h*state.scale,vw=viewer.clientWidth,vh=viewer.clientHeight;
@@ -290,7 +312,7 @@ function clampPan(){
   if(sw<=vw){state.tx=(vw-sw)/2}else{state.tx=Math.min(margin,Math.max(vw-sw-margin,state.tx))}
   if(sh<=vh){state.ty=(vh-sh)/2}else{state.ty=Math.min(margin,Math.max(vh-sh-margin,state.ty))}
 }
-function applyTransform(){clampPan();stage.style.transform='translate('+state.tx+'px,'+state.ty+'px) scale('+state.scale+')'}
+function applyTransform(){clampPan();stage.style.transform='translate('+state.tx+'px,'+state.ty+'px) scale('+state.scale+')';requestAnimationFrame(updateMinimap)}
 function togglePanel(open){
   state.panelOpen=open;$('#panel').classList.toggle('hidden',!open);$('#workspace').classList.toggle('panel-hidden',!open);$('#toggleList').classList.toggle('active',open);
   requestAnimationFrame(()=>requestAnimationFrame(()=>{if(state.mode==='FIT')fit();if(open)syncListPosition()}));
