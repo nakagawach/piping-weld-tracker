@@ -41,3 +41,8 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: python tests/ui_shell_e2e.py
+      - name: Public normal-list and memo-zoom read-only E2E
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+          PUBLIC_BASE_URL: https://nakagawach.pythonanywhere.com/weld
+        run: python tests/public_normal_list_memo_v3.py
