@@ -60,7 +60,7 @@ body.progress-fullscreen.progress-list-open .progress-list-panel{top:48px}
       <button class="button nav-button" id="prev" type="button" aria-label="前のページ">‹</button>
       <label class="page-field"><span>ページ</span><input id="page" type="number" min="1" value="1" inputmode="numeric"><span class="page-total" id="pageTotal">/ -</span></label>
       <button class="button nav-button" id="next" type="button" aria-label="次のページ">›</button>
-      <div class="spacer"></div><button class="button icon-button progress-list-toggle" id="progressListToggle" type="button" aria-label="進捗一覧表示切替" title="進捗一覧">☷</button>
+      <div class="spacer"></div><button class="button icon-button progress-list-toggle" id="progressListToggle" type="button" aria-label="進捗一覧" title="進捗一覧">☷</button>
       <div class="desktop-tools" aria-label="図面表示操作"><button class="button" id="zoomOut" type="button">−</button><button class="button zoom-value" id="zoomReset" type="button">100%</button><button class="button" id="zoomIn" type="button">＋</button><button class="button" id="rotate" type="button">↻ 0°</button><button class="button" id="viewReset" type="button">位置リセット</button><button class="button" id="reload" type="button">再読込</button><button class="button" id="fullscreen" type="button">⛶ 全画面</button></div>
       <button class="button icon-button compact-rotate" id="rotateCompact" type="button" aria-label="90度回転">↻</button>
       <button class="button icon-button compact-fullscreen" id="fullscreenCompact" type="button" aria-label="全画面">⛶</button>
@@ -68,7 +68,7 @@ body.progress-fullscreen.progress-list-open .progress-list-panel{top:48px}
     </div>
     <div class="statusline" id="status">図面を読み込んでいます…</div><div class="summary" id="summary" hidden></div>
     <div class="viewer" id="viewer"><canvas id="canvas"></canvas><div class="empty" id="empty" hidden></div></div>
-    <aside class="progress-list-panel" id="progressListPanel" data-list-url="{{ url_for('progress.get_project_progress_list', project_id=project_id) }}" aria-label="進捗一覧">
+    <aside class="progress-list-panel" id="progressListPanel" data-list-url="{{ url_for('progress.get_project_progress_list', project_id=project_id) }}" aria-label="進捗一覧パネル">
       <div class="panel-head"><strong>進捗一覧</strong><span class="panel-state" id="progressListState">非同期読込</span><button class="button panel-close" id="progressListClose" type="button" aria-label="進捗一覧を閉じる">×</button></div>
       <div class="panel-filters"><div class="panel-tabs" id="progressListTabs"><button class="panel-tab active" data-filter="all" type="button">すべて</button><button class="panel-tab" data-filter="未着手" type="button">未着手</button><button class="panel-tab" data-filter="施工中" type="button">施工中</button><button class="panel-tab" data-filter="完了" type="button">完了</button></div><div class="panel-search"><input id="progressListSearch" type="search" placeholder="番号・メモで検索"><button class="button" id="progressListSearchClear" type="button">×</button></div></div>
       <div class="progress-list-records" id="progressListRecords"><div class="progress-list-empty">図面表示後に一覧を読み込みます…</div></div>
