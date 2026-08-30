@@ -1,0 +1,38 @@
+name: Progress Split Mock V2 Checks
+
+on:
+  push:
+    branches:
+      - feature/progress-split-mock-v2
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  mock-browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt playwright
+          python -m playwright install --with-deps chromium
+      - name: Syntax checks
+        run: |
+          python -m py_compile app.py global_favorites.py progress.py projects.py
+          node --check static/mock_progress_split.js
+      - name: Progress split mock browser E2E
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python tests/progress_split_mock_e2e.py
+      - name: Existing UI shell regression
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python tests/ui_shell_e2e.py
