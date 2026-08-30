@@ -125,14 +125,31 @@ def main():
             assert center_px[:3] != [255,255,255],center_px
             assert corner_px[:3] == [255,255,255],corner_px
 
-            # Selected marker keeps status fill and adds outer blue ring.
+            # Selected marker keeps status fill, adds blue ring, and blinks outside it.
             row(landscape,1,1).locator(".progress-list-focus").click()
             expect(landscape.locator("#canvas")).to_have_attribute("data-selected-target","1:760:760",timeout=7000)
-            landscape.wait_for_timeout(80)
+            landscape.wait_for_timeout(50)
             selected_center=pixel(landscape,cx,cy)
             ring_px=pixel(landscape,cx+36,cy)
+            pulse_px=pixel(landscape,cx+46,cy)
             assert selected_center[:3] != [255,255,255],selected_center
             assert ring_px[2] > ring_px[0]+40,ring_px
+            assert pulse_px[:3] != [255,255,255],pulse_px
+
+            # A new selection cancels the previous blink immediately.
+            cx2=1230*SCALE
+            row(landscape,2,1).locator(".progress-list-focus").click()
+            expect(landscape.locator("#canvas")).to_have_attribute("data-selected-target","1:1230:760",timeout=7000)
+            landscape.wait_for_timeout(60)
+            old_outer=pixel(landscape,cx+46,cy)
+            new_outer=pixel(landscape,cx2+46,cy)
+            assert old_outer[:3] == [255,255,255],old_outer
+            assert new_outer[:3] != [255,255,255],new_outer
+            landscape.wait_for_timeout(950)
+            pulse_finished=pixel(landscape,cx2+46,cy)
+            blue_ring_stays=pixel(landscape,cx2+36,cy)
+            assert pulse_finished[:3] == [255,255,255],pulse_finished
+            assert blue_ring_stays[2] > blue_ring_stays[0]+40,blue_ring_stays
             landscape.close()
 
             # Large portrait tablet: bottom 40%, one-shot A4 landscape fit.
