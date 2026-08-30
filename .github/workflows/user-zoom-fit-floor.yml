@@ -50,3 +50,7 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}
           PUBLIC_BASE_URL: https://nakagawach.pythonanywhere.com/weld
         run: python tests/public_user_zoom_fit_floor.py
+      - name: Public progress-list sync race diagnostic
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python tests/public_progress_list_sync_race_diagnostic.py
