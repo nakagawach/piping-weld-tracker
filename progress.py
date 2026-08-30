@@ -250,13 +250,13 @@ body.progress-fullscreen .progress-thumbs{display:none}
         )
         html = html.replace("function setBusy(v){", thumb_js + "function setBusy(v){", 1)
         html = html.replace(
-            "async function loadPage(n){if(busy||!pageCount)return;n=Math.max(1,Math.min(pageCount,Number(n)||1));pageInput.value=n;setBusy(true);",
-            "async function loadPage(n){if(busy||!pageCount)return;n=Math.max(1,Math.min(pageCount,Number(n)||1));const previousPage=Number(pageInput.value)||1;if(n!==previousPage&&window.__drawingMemoBeforePageChange&&!await window.__drawingMemoBeforePageChange(previousPage,n))return;if(n!==previousPage)window.dispatchEvent(new CustomEvent('weld:progress-page-changing',{detail:{from:previousPage,to:n}}));pageInput.value=n;setBusy(true);",
+            "async function loadPage(n){if(!pageCount)return;n=Math.max(1,Math.min(pageCount,Number(n)||1));if(busy){pendingPage=n;return}pageInput.value=n;setBusy(true);",
+            "async function loadPage(n){if(!pageCount)return;n=Math.max(1,Math.min(pageCount,Number(n)||1));if(busy){pendingPage=n;return}const previousPage=Number(pageInput.value)||1;if(n!==previousPage&&window.__drawingMemoBeforePageChange&&!await window.__drawingMemoBeforePageChange(previousPage,n))return;if(n!==previousPage)window.dispatchEvent(new CustomEvent('weld:progress-page-changing',{detail:{from:previousPage,to:n}}));pageInput.value=n;setBusy(true);",
             1,
         )
         html = html.replace(
-            "}catch(e){status.className='statusline error';status.textContent=e.message}finally{setBusy(false)}}",
-            "}catch(e){status.className='statusline error';status.textContent=e.message}finally{setBusy(false);window.dispatchEvent(new CustomEvent('weld:progress-page-loaded',{detail:{page:n}}))}}",
+            "}catch(e){status.className='statusline error';status.textContent=e.message}finally{setBusy(false);const queued=pendingPage;pendingPage=null;if(queued!==null&&queued!==n)loadPage(queued)}}",
+            "}catch(e){status.className='statusline error';status.textContent=e.message}finally{setBusy(false);window.dispatchEvent(new CustomEvent('weld:progress-page-loaded',{detail:{page:n}}));const queued=pendingPage;pendingPage=null;if(queued!==null&&queued!==n)loadPage(queued)}}",
             1,
         )
 
