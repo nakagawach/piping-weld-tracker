@@ -179,6 +179,46 @@ def main():
             }""")
             assert prevented is True,prevented
 
+            # Row selection must not recenter if the row is already visible.
+            ipad.locator("#fit").click()
+            visible_row=ipad.locator(".row").nth(2)
+            records_top_before=ipad.locator("#records").evaluate("el=>el.scrollTop")
+            visible_row.click()
+            ipad.wait_for_timeout(80)
+            records_top_after=ipad.locator("#records").evaluate("el=>el.scrollTop")
+            assert abs(records_top_after-records_top_before)<=1,(records_top_before,records_top_after)
+
+            # Off-screen selection scrolls only enough to reveal the row, not force it to the middle.
+            ipad.locator("#records").evaluate("el=>el.scrollTop=0")
+            deep=ipad.locator(".row").nth(24)
+            deep.click()
+            ipad.wait_for_timeout(100)
+            rr=ipad.locator("#records").bounding_box();dr=deep.bounding_box()
+            assert rr and dr
+            assert dr["y"]>=rr["y"]-1 and dr["y"]+dr["height"]<=rr["y"]+rr["height"]+1,(rr,dr)
+            row_center=dr["y"]+dr["height"]/2
+            list_center=rr["y"]+rr["height"]/2
+            assert abs(row_center-list_center)>dr["height"],(row_center,list_center)
+
+            # Minimap appears only in MANUAL and follows pan/zoom.
+            ipad.locator("#fit").click()
+            expect(ipad.locator("#minimap")).not_to_have_class(__import__("re").compile(r".*show.*"))
+            ipad.locator("#zoomIn").click()
+            expect(ipad.locator("#mode")).to_have_text("MANUAL")
+            expect(ipad.locator("#minimap")).to_have_class(__import__("re").compile(r".*show.*"),timeout=2000)
+            mm=ipad.locator("#minimap").bounding_box();vp=ipad.locator("#minimapViewport").bounding_box()
+            assert mm and vp and vp["width"]>5 and vp["height"]>5,(mm,vp)
+            before_vp=ipad.locator("#minimapViewport").get_attribute("style")
+            vb2=ipad.locator("#viewer").bounding_box();assert vb2
+            ipad.mouse.move(vb2["x"]+vb2["width"]/2,vb2["y"]+vb2["height"]/2)
+            ipad.mouse.down()
+            ipad.mouse.move(vb2["x"]+vb2["width"]/2+90,vb2["y"]+vb2["height"]/2+35,steps=4)
+            ipad.mouse.up();ipad.wait_for_timeout(100)
+            after_vp=ipad.locator("#minimapViewport").get_attribute("style")
+            assert after_vp!=before_vp,(before_vp,after_vp)
+            ipad.locator("#fit").click()
+            expect(ipad.locator("#minimap")).not_to_have_class(__import__("re").compile(r".*show.*"))
+
             # Close sidebar, select via simulated drawing event, reopen -> row selection remains/scrolls.
             ipad.locator("#closePanel").click()
             expect(ipad.locator("#panel")).not_to_be_visible()
