@@ -172,6 +172,7 @@ def main():
             expect(phone.locator(".record-input")).to_have_count(3, timeout=5000)
             phone.locator('.marker[data-number="2"]').click()
             expect(phone.locator(".record.selected .number")).to_have_text("2")
+            assert "selected-target" in (phone.locator('.marker[data-number="2"]').get_attribute("class") or "")
             expect(phone.locator("#mockDialog")).to_be_visible()
             phone.locator("#closeDialog").click()
             expect(phone.locator("#mobileCloseSide")).to_be_visible()
@@ -180,6 +181,19 @@ def main():
             phone.locator("#openSide").click()
             assert "mobile-side-closed" not in (phone.locator("#mockApp").get_attribute("class") or "")
             expect(phone.locator("#side")).to_be_visible()
+
+            # Page controls and list rows stay synchronized in both directions.
+            phone.locator("#next").click()
+            expect(phone.locator("#page")).to_have_value("2")
+            expect(phone.locator(".record.current-page .number")).to_have_text("3")
+            assert "current-page" not in (phone.locator(".record").filter(has=phone.locator(".number", has_text="1")).get_attribute("class") or "")
+            phone.locator("#closeDialog").click() if phone.locator("#mockDialog").evaluate("el => el.open") else None
+            row1 = phone.locator(".record").filter(has=phone.locator(".number", has_text="1"))
+            row1.locator(".record-focus").click()
+            expect(phone.locator("#page")).to_have_value("1")
+            expect(phone.locator(".record.current-page").first).to_be_visible()
+            expect(phone.locator(".record.selected .number")).to_have_text("1")
+            assert "selected-target" in (phone.locator('.marker[data-number="1"]').get_attribute("class") or "")
             phone.close()
 
             browser.close()
