@@ -68,6 +68,7 @@
     if(open){
       if(!loaded)loadList();
       else syncOpenPosition();
+      requestAnimationFrame(()=>requestAnimationFrame(()=>window.dispatchEvent(new CustomEvent('weld:progress-fit-request'))));
     }
   }
   function scrollSelected(){requestAnimationFrame(()=>records.querySelector('.progress-list-record.selected')?.scrollIntoView({block:'nearest',behavior:'auto'}))}
@@ -108,7 +109,7 @@
   search.oninput=render;clear.onclick=()=>{search.value='';render();search.focus()};
   window.addEventListener('weld:progress-selection',event=>{const detail=event.detail||{};if(!loaded){pendingSelection=detail;currentPage=Number(detail.pageNumber)||currentPage;return}applySelectionDetail(detail)});
   window.addEventListener('weld:progress-page-changing',event=>{currentPage=Number(event.detail?.to)||currentPage;if(selectedKey&&!selectedKey.startsWith(`${currentPage}:`))selectedKey='';if(loaded){render();scrollCurrentPage()}});
-  window.addEventListener('weld:progress-page-loaded',event=>{currentPage=Number(event.detail?.page)||Number(pageInput.value)||1;if(selectedKey&&!selectedKey.startsWith(`${currentPage}:`))selectedKey='';if(!loaded)loadList();else{render();if(selectedKey)scrollSelected();else scrollCurrentPage()}});
+  window.addEventListener('weld:progress-page-loaded',event=>{currentPage=Number(event.detail?.page)||Number(pageInput.value)||1;if(selectedKey&&!selectedKey.startsWith(`${currentPage}:`))selectedKey='';if(!loaded)loadList();else{render();if(selectedKey)scrollSelected();else scrollCurrentPage()}if(document.body.classList.contains('progress-list-open'))requestAnimationFrame(()=>window.dispatchEvent(new CustomEvent('weld:progress-fit-request')))});
   window.addEventListener('weld:progress-saved',event=>{const saved=event.detail||{},matched=matchListItem(saved);if(matched){const key=itemKey(matched),index=allItems.findIndex(item=>itemKey(item)===key);if(index>=0)allItems[index]={...allItems[index],...saved};selectedKey=key}else{selectedKey=''}if(loaded){render();if(selectedKey)scrollSelected();else scrollCurrentPage()}});
   window.addEventListener('resize',syncBottomPaneViewer);
   if(bottomPaneMedia.addEventListener)bottomPaneMedia.addEventListener('change',syncBottomPaneViewer);
