@@ -73,6 +73,8 @@
     if (overlay.height !== baseCanvas.height) overlay.height = baseCanvas.height;
     overlay.style.width = baseCanvas.style.width || '100%';
     overlay.style.height = 'auto';
+    overlay.style.left = `${baseCanvas.offsetLeft}px`;
+    overlay.style.top = `${baseCanvas.offsetTop}px`;
     render();
   }
 
@@ -497,6 +499,14 @@
     attributes: true,
     attributeFilter: ['width', 'height', 'style'],
   });
+  const canvasResizeObserver = 'ResizeObserver' in window
+    ? new ResizeObserver(syncOverlaySize)
+    : null;
+  if (canvasResizeObserver) {
+    canvasResizeObserver.observe(baseCanvas);
+    canvasResizeObserver.observe(viewer);
+  }
+  window.addEventListener('resize', syncOverlaySize);
 
   if (rotateButton) {
     new MutationObserver(() => {
