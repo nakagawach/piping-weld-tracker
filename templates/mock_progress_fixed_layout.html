@@ -47,6 +47,7 @@ button{touch-action:manipulation}
 .mode{margin-left:auto;font-weight:700;color:#64748b}
 .viewer{position:relative;min-width:0;min-height:0;overflow:hidden;background:#dfe5ec;touch-action:none;user-select:none}
 .stage{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform}
+.rotator{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform}
 .page-img{display:block;pointer-events:none;user-select:none;max-width:none}
 .markers{position:absolute;inset:0;pointer-events:none}
 .marker{position:absolute;border-radius:50%;transform:translate(-50%,-50%);border:2px solid var(--marker-border);background:var(--marker-fill);box-shadow:0 0 0 0 rgba(25,103,210,0)}
@@ -115,6 +116,7 @@ button{touch-action:manipulation}
       <button class="tool-btn" id="fit"><span class="fit-label">Fit</span> ⛶</button>
       <button class="tool-btn secondary" id="zoomOut">−</button>
       <button class="tool-btn secondary" id="zoomIn">＋</button>
+      <button class="tool-btn" id="rotate">↻ 0°</button>
       <button class="tool-btn" id="toggleList">☷</button>
     </div>
   </header>
@@ -129,8 +131,10 @@ button{touch-action:manipulation}
       </div>
       <div class="viewer" id="viewer">
         <div class="stage" id="stage">
-          <img class="page-img" id="pageImg" alt="">
-          <div class="markers" id="markers"></div>
+          <div class="rotator" id="rotator">
+            <img class="page-img" id="pageImg" alt="">
+            <div class="markers" id="markers"></div>
+          </div>
         </div>
         <div class="loading" id="loading">モックを読み込み中…</div>
         <div class="toast" id="toast"></div>
@@ -160,8 +164,8 @@ button{touch-action:manipulation}
 <script>
 (()=>{
 const $=s=>document.querySelector(s);
-const viewer=$('#viewer'),stage=$('#stage'),img=$('#pageImg'),markers=$('#markers'),records=$('#records');
-const state={project:null,page:1,pageCount:1,items:[],pageItems:[],selected:null,filter:'all',query:'',panelOpen:true,mode:'FIT',scale:1,tx:0,ty:0,pointers:new Map(),pinchStart:null,dragStart:null,pulseToken:0};
+const viewer=$('#viewer'),stage=$('#stage'),rotator=$('#rotator'),img=$('#pageImg'),markers=$('#markers'),records=$('#records');
+const state={project:null,page:1,pageCount:1,items:[],pageItems:[],selected:null,filter:'all',query:'',panelOpen:true,mode:'FIT',scale:1,tx:0,ty:0,rotation:0,pointers:new Map(),pinchStart:null,dragStart:null,pulseToken:0};
 const rel=(path)=>new URL(path,location.href).pathname;
 const projectsUrl=rel('../projects');
 const projectUrl=(id,path)=>rel('../projects/'+id+'/'+path);
@@ -226,12 +230,30 @@ async function loadPage(p,keepSelection=false){
   state.pageItems=state.items.filter(i=>i.pageNumber===p);
   const src=projectUrl(state.project.id,'pdfium-page')+'?page='+p+'&longEdge=1600&format=png';
   await new Promise((res,rej)=>{img.onload=res;img.onerror=()=>rej(new Error('図面画像を読めません'));img.src=src});
-  stage.style.width=img.naturalWidth+'px';stage.style.height=img.naturalHeight+'px';markers.style.width=img.naturalWidth+'px';markers.style.height=img.naturalHeight+'px';
+  markers.style.width=img.naturalWidth+'px';markers.style.height=img.naturalHeight+'px';rotator.style.width=img.naturalWidth+'px';rotator.style.height=img.naturalHeight+'px';updateRotationGeometry();
   renderMarkers();renderList();if(state.mode==='FIT')fit();
 }
 function sourceSize(){
   const w=img.naturalWidth,h=img.naturalHeight;
   return w>=h?{w:6000,h:6000*h/w}:{w:6000*w/h,h:6000};
+}
+function rotatedStageSize(){return state.rotation%180===0?{w:img.naturalWidth,h:img.naturalHeight}:{w:img.naturalHeight,h:img.naturalWidth}}
+function updateRotationGeometry(){
+  const w=img.naturalWidth,h=img.naturalHeight,r=((state.rotation%360)+360)%360,s=rotatedStageSize();
+  stage.style.width=s.w+'px';stage.style.height=s.h+'px';
+  if(r===0)rotator.style.transform='translate(0px,0px) rotate(0deg)';
+  else if(r===90)rotator.style.transform='translate('+h+'px,0px) rotate(90deg)';
+  else if(r===180)rotator.style.transform='translate('+w+'px,'+h+'px) rotate(180deg)';
+  else rotator.style.transform='translate(0px,'+w+'px) rotate(270deg)';
+}
+function rotatedPoint(x,y){
+  const w=img.naturalWidth,h=img.naturalHeight,r=((state.rotation%360)+360)%360;
+  if(r===0)return{x,y};if(r===90)return{x:h-y,y:x};if(r===180)return{x:w-x,y:h-y};return{x:y,y:w-x};
+}
+function rotateDrawing(){
+  state.rotation=(state.rotation+90)%360;$('#rotate').textContent='↻ '+state.rotation+'°';updateRotationGeometry();
+  if(state.mode==='FIT')fit();else applyTransform();
+  if(state.selected)centerSelected();
 }
 function renderMarkers(){
   markers.innerHTML='';const src=sourceSize();
@@ -251,15 +273,15 @@ function selectItem(i,move){
   state.selected=i;renderMarkers();syncListPosition();if(move)centerSelected();pulseSelected();
 }
 function centerSelected(){
-  if(!state.selected)return;const src=sourceSize();const x=state.selected.x/src.w*img.naturalWidth,y=state.selected.y/src.h*img.naturalHeight;
-  state.tx=viewer.clientWidth/2-x*state.scale;state.ty=viewer.clientHeight/2-y*state.scale;applyTransform();
+  if(!state.selected)return;const src=sourceSize();const x=state.selected.x/src.w*img.naturalWidth,y=state.selected.y/src.h*img.naturalHeight,p=rotatedPoint(x,y);
+  state.tx=viewer.clientWidth/2-p.x*state.scale;state.ty=viewer.clientHeight/2-p.y*state.scale;applyTransform();
 }
 function fit(){
-  if(!img.naturalWidth)return;state.mode='FIT';const sx=viewer.clientWidth/img.naturalWidth,sy=viewer.clientHeight/img.naturalHeight;
-  state.scale=Math.min(sx,sy);state.tx=(viewer.clientWidth-img.naturalWidth*state.scale)/2;state.ty=(viewer.clientHeight-img.naturalHeight*state.scale)/2;applyTransform();$('#mode').textContent='FIT';$('#fit').classList.add('active')
+  if(!img.naturalWidth)return;state.mode='FIT';const s=rotatedStageSize(),sx=viewer.clientWidth/s.w,sy=viewer.clientHeight/s.h;
+  state.scale=Math.min(sx,sy);state.tx=(viewer.clientWidth-s.w*state.scale)/2;state.ty=(viewer.clientHeight-s.h*state.scale)/2;applyTransform();$('#mode').textContent='FIT';$('#fit').classList.add('active')
 }
 function setManualScale(next,cx=viewer.clientWidth/2,cy=viewer.clientHeight/2){
-  state.mode='MANUAL';const old=state.scale;next=Math.max(Math.min(4,next),Math.min(viewer.clientWidth/img.naturalWidth,viewer.clientHeight/img.naturalHeight));
+  state.mode='MANUAL';const old=state.scale;const s=rotatedStageSize();next=Math.max(Math.min(4,next),Math.min(viewer.clientWidth/s.w,viewer.clientHeight/s.h));
   const wx=(cx-state.tx)/old,wy=(cy-state.ty)/old;state.scale=next;state.tx=cx-wx*next;state.ty=cy-wy*next;applyTransform();$('#mode').textContent='MANUAL';$('#fit').classList.remove('active')
 }
 function applyTransform(){stage.style.transform='translate('+state.tx+'px,'+state.ty+'px) scale('+state.scale+')'}
@@ -269,7 +291,7 @@ function togglePanel(open){
 }
 $('#back').onclick=()=>location.href=rel('../projects-screen');
 $('#prev').onclick=()=>loadPage(state.page-1,true);$('#next').onclick=()=>loadPage(state.page+1,true);
-$('#fit').onclick=fit;$('#zoomOut').onclick=()=>setManualScale(state.scale*.8);$('#zoomIn').onclick=()=>setManualScale(state.scale*1.25);
+$('#fit').onclick=fit;$('#zoomOut').onclick=()=>setManualScale(state.scale*.8);$('#zoomIn').onclick=()=>setManualScale(state.scale*1.25);$('#rotate').onclick=rotateDrawing;
 $('#toggleList').onclick=()=>togglePanel(!state.panelOpen);$('#closePanel').onclick=()=>togglePanel(false);
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');state.filter=b.dataset.filter;renderList()});
 $('#search').oninput=e=>{state.query=e.target.value;renderList()};$('#clearSearch').onclick=()=>{$('#search').value='';state.query='';renderList()};
