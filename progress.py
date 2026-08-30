@@ -186,14 +186,6 @@ def create_progress_blueprint(db_path: Path):
             pdf_name=project["original_pdf_name"],
         )
 
-        progress_list_url = url_for("progress.project_progress_list", project_id=project_id)
-        list_button = (
-            f'<a class="button icon-button" href="{progress_list_url}" '
-            'aria-label="進捗一覧" title="進捗一覧" '
-            'style="display:inline-flex;align-items:center;justify-content:center;text-decoration:none">☷</a>'
-        )
-        html = html.replace('<div class="spacer"></div>', f'<div class="spacer"></div>{list_button}', 1)
-
         memo_css = """
 .drawing-memo-launch.active,.drawing-memo-edit.active{border-color:#1967d2;background:#e8f0fe;color:#174ea6}
 .drawing-memo-tools{display:none;gap:6px;align-items:center;padding:6px;border-bottom:1px solid #eee;background:#fff;overflow-x:auto;white-space:nowrap}
