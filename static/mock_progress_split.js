@@ -23,6 +23,7 @@
     surface.querySelectorAll('.marker span').forEach(span=>span.style.transform=`rotate(${-rotation}deg)`);
     zoomValue.textContent=`${Math.round(zoom*100)}%`;rotateButton.textContent=`↻ ${rotation}°`;
   }
+  function isBottomPane(){return window.innerWidth<=600||(window.innerWidth<=900&&window.innerHeight>window.innerWidth)}
   function applyZoom(next){const minZoom=window.innerWidth<=600?.5:1;zoom=Math.max(minZoom,Math.min(3,Math.round(next*4)/4));layoutSurface()}
   function clearFocus(){
     if(highlightTimer){clearTimeout(highlightTimer);highlightTimer=0}
@@ -103,7 +104,7 @@
     clearFocus();selectedKey=itemKey(item);renderList();
     if(item.pageNumber!==currentPage){status.textContent=`P${item.pageNumber} の ${item.number} へ移動中…`;void loadPage(item.pageNumber,item)}
     else focusTarget(item);
-    if(window.innerWidth>600)closeDrawer();
+    if(!isBottomPane())closeDrawer();
   }
   function renderList(){
     const q=document.getElementById('search').value.trim().toLowerCase();
@@ -130,11 +131,11 @@
     activeDialogItem=updated;selectedKey=key;renderList();dialog.close();status.textContent=`${updated.number} をモック上で「${updated.status}」に変更しました（未保存）`;
   }
   function openDrawer(){
-    if(window.innerWidth<=600){app.classList.remove('mobile-side-closed');return}
+    if(isBottomPane()){app.classList.remove('mobile-side-closed');return}
     side.classList.add('open');backdrop.classList.add('open')
   }
   function closeDrawer(){
-    if(window.innerWidth<=600){app.classList.add('mobile-side-closed');return}
+    if(isBottomPane()){app.classList.add('mobile-side-closed');return}
     side.classList.remove('open');backdrop.classList.remove('open')
   }
   prev.onclick=()=>void loadPage(currentPage-1);next.onclick=()=>void loadPage(currentPage+1);pageInput.onchange=()=>void loadPage(pageInput.value);
@@ -147,6 +148,6 @@
   document.getElementById('projectSelect').onchange=e=>location.href=`?project=${encodeURIComponent(e.target.value)}`;
   document.getElementById('closeDialog').onclick=()=>dialog.close();document.getElementById('dialogCloseBottom').onclick=()=>dialog.close();document.getElementById('mockSave').onclick=applyMockEdit;
   dialogStatus.onchange=()=>{if(dialogStatus.value==='完了'&&!dialogDate.value)dialogDate.value=new Date().toISOString().slice(0,10)};
-  window.addEventListener('resize',()=>{if(innerWidth>900){side.classList.remove('open');backdrop.classList.remove('open')}if(innerWidth>600){app.classList.remove('mobile-side-closed');if(zoom<1)applyZoom(1)}});
+  window.addEventListener('resize',()=>{if(innerWidth>900){side.classList.remove('open');backdrop.classList.remove('open')}if(!isBottomPane())app.classList.remove('mobile-side-closed');if(innerWidth>600&&zoom<1)applyZoom(1)});
   (async()=>{try{const r=await fetch(infoUrl,{cache:'no-store'}),data=await r.json();if(!r.ok)throw new Error(data.error||'PDF情報を取得できませんでした。');pageCount=data.pageCount||1;setPager();await loadPage(1);setTimeout(loadList,0)}catch(e){status.textContent=e.message}})();
 })();
