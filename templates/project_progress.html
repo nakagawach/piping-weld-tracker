@@ -45,11 +45,11 @@ body.progress-list-open .progress-list-panel{display:flex;flex-direction:column}
   .progress-list-panel{right:10px;top:72px;bottom:10px;width:360px;border-radius:12px}
   body.progress-fullscreen.progress-list-open .progress-list-panel{top:48px}
 }
-@media(min-width:641px) and (max-width:1200px) and (orientation:landscape){
-  body.progress-list-open .toolbar .desktop-tools{display:none}
-  body.progress-list-open .toolbar .compact-rotate,
-  body.progress-list-open .toolbar .compact-fullscreen{display:inline-flex;align-items:center;justify-content:center}
-  body.progress-list-open .toolbar .more{display:block}
+@media(min-width:821px) and (max-width:1200px) and (orientation:landscape){
+  body.progress-list-open .toolbar .desktop-tools{display:flex;align-items:center;gap:4px}
+  body.progress-list-open .toolbar .desktop-tools>button{display:none}
+  body.progress-list-open .toolbar .desktop-tools>#rotate,
+  body.progress-list-open .toolbar .desktop-tools>#fullscreen{display:inline-flex;align-items:center;justify-content:center;white-space:nowrap}
 }
 @media(max-width:640px), (min-width:641px) and (max-width:900px) and (orientation:portrait){
   .progress-list-panel{left:0;right:0;top:auto;bottom:0;height:50dvh;border-left:0;border-right:0;border-bottom:0;border-radius:16px 16px 0 0}
