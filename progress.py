@@ -328,7 +328,7 @@ body.ui3-progress{--progress-v5-appbar:44px;--progress-v5-toolbar:44px}
   body.ui3-progress .progress-thumb img{height:42px!important}
   body.ui3-progress .progress-thumb span{position:absolute!important;left:4px!important;bottom:3px!important;margin:0!important;padding:1px 4px!important;border-radius:5px!important;background:rgba(255,255,255,.88)!important;font-size:.62rem!important;line-height:1.2!important}
 }
-@media(max-width:640px), (min-width:641px) and (max-width:900px) and (orientation:portrait){
+@media(max-width:640px), (min-width:641px) and (max-width:1200px) and (orientation:portrait){
   body.progress-list-open main{padding-bottom:40dvh!important}
   body.progress-list-open .progress-list-panel{left:0!important;right:0!important;top:auto!important;bottom:0!important;height:40dvh!important;border-radius:14px 14px 0 0!important}
   body.progress-fullscreen.progress-list-open main{padding-bottom:40dvh!important}
