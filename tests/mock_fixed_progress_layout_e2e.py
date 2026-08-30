@@ -133,6 +133,52 @@ def main():
                 return float(m.group(1)) if m else None
             assert abs(scale_of(style_before_rotate)-scale_of(style_after_rotate))<1e-9,(style_before_rotate,style_after_rotate)
 
+            # Repeated real touch pinch using CDP must never push the drawing fully outside the viewer.
+            cdp=ipad.context.new_cdp_session(ipad)
+            vb=ipad.locator("#viewer").bounding_box()
+            assert vb
+            cx0=vb["x"]+vb["width"]/2
+            cy0=vb["y"]+vb["height"]/2
+            def touch(kind,pts):
+                cdp.send("Input.dispatchTouchEvent",{
+                    "type":kind,
+                    "touchPoints":[{"x":x,"y":y,"radiusX":4,"radiusY":4,"force":1,"id":i+1} for i,(x,y) in enumerate(pts)]
+                })
+            for _ in range(10):
+                touch("touchStart",[(cx0-45,cy0),(cx0+45,cy0)])
+                touch("touchMove",[(cx0-95,cy0-5),(cx0+95,cy0+5)])
+                touch("touchMove",[(cx0-38,cy0),(cx0+38,cy0)])
+                touch("touchEnd",[])
+                ipad.wait_for_timeout(30)
+                viewer_box=ipad.locator("#viewer").bounding_box()
+                stage_box=ipad.locator("#stage").bounding_box()
+                assert viewer_box and stage_box
+                overlap_x=max(0,min(viewer_box["x"]+viewer_box["width"],stage_box["x"]+stage_box["width"])-max(viewer_box["x"],stage_box["x"]))
+                overlap_y=max(0,min(viewer_box["y"]+viewer_box["height"],stage_box["y"]+stage_box["height"])-max(viewer_box["y"],stage_box["y"]))
+                assert overlap_x>20 and overlap_y>20,(viewer_box,stage_box)
+
+            # Two fingers -> one remaining finger -> pan must not jump the stage away.
+            touch("touchStart",[(cx0-50,cy0),(cx0+50,cy0)])
+            touch("touchMove",[(cx0-100,cy0),(cx0+100,cy0)])
+            touch("touchEnd",[(cx0-100,cy0)])
+            touch("touchMove",[(cx0-70,cy0+25)])
+            touch("touchEnd",[])
+            ipad.wait_for_timeout(80)
+            viewer_box=ipad.locator("#viewer").bounding_box()
+            stage_box=ipad.locator("#stage").bounding_box()
+            assert viewer_box and stage_box
+            overlap_x=max(0,min(viewer_box["x"]+viewer_box["width"],stage_box["x"]+stage_box["width"])-max(viewer_box["x"],stage_box["x"]))
+            overlap_y=max(0,min(viewer_box["y"]+viewer_box["height"],stage_box["y"]+stage_box["height"])-max(viewer_box["y"],stage_box["y"]))
+            assert overlap_x>20 and overlap_y>20,(viewer_box,stage_box)
+
+            # iOS page gesture hooks are canceling document-level magnification gestures.
+            prevented=ipad.evaluate("""()=>{
+              const e=new Event('gesturestart',{bubbles:true,cancelable:true});
+              document.dispatchEvent(e);
+              return e.defaultPrevented;
+            }""")
+            assert prevented is True,prevented
+
             # Close sidebar, select via simulated drawing event, reopen -> row selection remains/scrolls.
             ipad.locator("#closePanel").click()
             expect(ipad.locator("#panel")).not_to_be_visible()
