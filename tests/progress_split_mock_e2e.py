@@ -98,7 +98,7 @@ def main():
             record2.click()
             expect(page.locator("#zoomValue")).to_have_text("150%")
             expect(page.locator(".record.selected .number")).to_have_text("2")
-            expect(page.locator('.marker[data-number="2"]')).to_have_class(lambda value: "focused" in value)
+            assert "focused" in (page.locator('.marker[data-number="2"]').get_attribute("class") or "")
             assert not page.locator("#mockDialog").evaluate("el => el.open")
             page.locator('.marker[data-number="2"]').click()
             expect(page.locator("#mockDialog")).to_be_visible()
@@ -119,7 +119,7 @@ def main():
             narrow.goto(f"{BASE_URL}/mock/progress-split?project={PROJECT_ID}", wait_until="domcontentloaded")
             expect(narrow.locator("#openSide")).to_be_visible()
             narrow.locator("#openSide").click()
-            expect(narrow.locator("#side")).to_have_class(lambda value: "open" in value)
+            assert "open" in (narrow.locator("#side").get_attribute("class") or "")
             expect(narrow.locator(".record")).to_have_count(3, timeout=5000)
             narrow.close()
 
