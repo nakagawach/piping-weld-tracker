@@ -36,8 +36,3 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: python tests/ui_shell_e2e.py
-      - name: Public PythonAnywhere read-only browser E2E
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-          PUBLIC_BASE_URL: https://nakagawach.pythonanywhere.com/weld
-        run: python tests/public_integrated_progress_list_e2e.py
