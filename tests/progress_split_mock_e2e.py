@@ -95,11 +95,36 @@ def main():
             page.locator("#zoomIn").click()
             expect(page.locator("#zoomValue")).to_have_text("150%")
             record2 = page.locator(".record").filter(has=page.locator(".number", has_text="2"))
-            record2.click()
+            record2.locator(".record-focus").click()
             expect(page.locator("#zoomValue")).to_have_text("150%")
             expect(page.locator(".record.selected .number")).to_have_text("2")
             assert "focused" in (page.locator('.marker[data-number="2"]').get_attribute("class") or "")
             assert not page.locator("#mockDialog").evaluate("el => el.open")
+
+            # A second click must cancel the first highlight immediately and select the latest target.
+            record1 = page.locator(".record").filter(has=page.locator(".number", has_text="1"))
+            record1.locator(".record-focus").click()
+            expect(page.locator(".record.selected .number")).to_have_text("1")
+            assert "focused" in (page.locator('.marker[data-number="1"]').get_attribute("class") or "")
+            assert "focused" not in (page.locator('.marker[data-number="2"]').get_attribute("class") or "")
+
+            # Rotation works without changing zoom.
+            page.locator("#rotate").click()
+            expect(page.locator("#rotate")).to_have_text("↻ 90°")
+            expect(page.locator("#zoomValue")).to_have_text("150%")
+            assert "rotate(90deg)" in (page.locator("#surface").get_attribute("style") or "")
+
+            # Right-side progress input opens instantly and applies locally only.
+            record2.locator(".record-input").click()
+            expect(page.locator("#mockDialog")).to_be_visible()
+            expect(page.locator("#dialogTarget")).to_contain_text("2 / P1")
+            page.locator("#dialogStatus").select_option("完了")
+            page.locator("#dialogMemo").fill("モック更新")
+            page.locator("#mockSave").click()
+            expect(record2.locator(".badge")).to_have_text("完了")
+            expect(record2.locator(".memo")).to_have_text("モック更新")
+
+            # Drawing marker still opens the same input mock.
             page.locator('.marker[data-number="2"]').click()
             expect(page.locator("#mockDialog")).to_be_visible()
             expect(page.locator("#dialogTarget")).to_contain_text("2 / P1")
@@ -122,6 +147,20 @@ def main():
             assert "open" in (narrow.locator("#side").get_attribute("class") or "")
             expect(narrow.locator(".record")).to_have_count(3, timeout=5000)
             narrow.close()
+
+            phone = browser.new_page(viewport={"width": 390, "height": 844})
+            stub_pdf(phone)
+            phone.goto(f"{BASE_URL}/mock/progress-split?project={PROJECT_ID}", wait_until="domcontentloaded")
+            expect(phone.locator("#openSide")).to_be_visible()
+            expect(phone.locator("#rotate")).to_be_visible()
+            phone.locator("#rotate").click()
+            expect(phone.locator("#rotate")).to_have_attribute("aria-label", "図面を90度回転")
+            phone.locator("#openSide").click()
+            expect(phone.locator("#side")).to_be_visible()
+            box = phone.locator("#side").bounding_box()
+            assert box is not None and box["width"] >= 380, box
+            expect(phone.locator(".record-input")).to_have_count(3, timeout=5000)
+            phone.close()
 
             browser.close()
     finally:
