@@ -1,3 +1,4 @@
+import re
 import sqlite3
 import sys
 import threading
@@ -122,8 +123,8 @@ def main():
             desktop.locator("#prev").click()
             expect(desktop.locator("#page")).to_have_value("1", timeout=7000)
             expect(desktop.locator("#canvas")).not_to_have_attribute("data-selected-target", "2:2060:1560")
-            assert "current-page" in (record(desktop, 1).get_attribute("class") or "")
-            assert "current-page" not in (record(desktop, 3).get_attribute("class") or "")
+            expect(record(desktop, 1)).to_have_attribute("class", re.compile(r".*\\bcurrent-page\\b.*"), timeout=3000)
+            expect(record(desktop, 3)).not_to_have_attribute("class", re.compile(r".*\\bcurrent-page\\b.*"), timeout=3000)
 
             # Drawing -> list selection, plus persistent blue target state.
             canvas = desktop.locator("#canvas")
