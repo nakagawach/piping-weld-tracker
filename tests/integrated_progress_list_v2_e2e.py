@@ -66,6 +66,22 @@ def main():
             assert normal_panel and normal_viewer and normal_viewer["y"] + normal_viewer["height"] <= normal_panel["y"] + 2, (normal_viewer,normal_panel)
             row(phone,3).locator(".progress-list-focus").click()
             expect(phone.locator("#canvas")).to_have_attribute("data-selected-target","1:1060:960",timeout=7000)
+            phone.wait_for_timeout(120)
+            assert float(phone.locator("#canvas").get_attribute("data-selection-pulse") or "0") > 0
+            phone.wait_for_timeout(1450)
+            assert float(phone.locator("#canvas").get_attribute("data-selection-pulse") or "0") == 0
+
+            # Repeated zoom-out must stop at fit-to-view: one axis fills the viewer.
+            for _ in range(4):
+                phone.locator("#zoomOut").evaluate("el => el.click()")
+            phone.wait_for_timeout(120)
+            fit_canvas=phone.locator("#canvas").bounding_box()
+            fit_viewer=phone.locator("#viewer").bounding_box()
+            assert fit_canvas and fit_viewer
+            assert fit_canvas["width"] <= fit_viewer["width"] + 2
+            assert fit_canvas["height"] <= fit_viewer["height"] + 2
+            assert min(abs(fit_canvas["width"]-fit_viewer["width"]),abs(fit_canvas["height"]-fit_viewer["height"])) <= 2.5,(fit_canvas,fit_viewer)
+
             phone.evaluate("document.body.classList.add('progress-fullscreen')")
             panel=phone.locator("#progressListPanel").bounding_box()
             assert panel and 410<=panel["height"]<=430 and panel["y"]>=410, panel
@@ -85,6 +101,15 @@ def main():
             portrait=b.new_page(viewport={"width":768,"height":1024});stub(portrait)
             portrait.goto(f"{BASE}/projects/{PROJECT_ID}/progress?page=1",wait_until="domcontentloaded")
             portrait.locator("#progressListToggle").click()
+            for _ in range(4):
+                portrait.locator("#zoomOut").evaluate("el => el.click()")
+            portrait.wait_for_timeout(120)
+            pc=portrait.locator("#canvas").bounding_box()
+            pv=portrait.locator("#viewer").bounding_box()
+            assert pc and pv
+            assert pc["width"] <= pv["width"] + 2
+            assert pc["height"] <= pv["height"] + 2
+            assert min(abs(pc["width"]-pv["width"]),abs(pc["height"]-pv["height"])) <= 2.5,(pc,pv)
             portrait.evaluate("document.body.classList.add('progress-fullscreen')")
             pb=portrait.locator("#progressListPanel").bounding_box()
             assert pb and 500<=pb["height"]<=525 and pb["y"]>=500,pb
