@@ -95,6 +95,7 @@
   });
   window.addEventListener('weld:progress-page-loaded',event=>{
     currentPage=Number(event.detail?.page)||Number(pageInput.value)||1;
+    if(selectedKey&&!selectedKey.startsWith(`${currentPage}:`))selectedKey='';
     if(!loaded)loadList();else{render();scrollCurrentPage()}
   });
   window.addEventListener('weld:progress-saved',event=>{
