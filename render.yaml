@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: piping-weld-tracker-test
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt && pip install "gunicorn>=22,<24"
+    startCommand: python tests/seed_preview_fixture.py && gunicorn test_preview_wsgi:application --bind 0.0.0.0:$PORT
+    healthCheckPath: /healthz
+    autoDeployTrigger: off
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10.21
