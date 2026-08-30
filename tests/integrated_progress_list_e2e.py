@@ -87,6 +87,13 @@ def main():
             desktop = browser.new_page(viewport={"width": 1440, "height": 900})
             stub_pdf(desktop)
             desktop.goto(f"{BASE_URL}/projects/{PROJECT_ID}/progress?page=1", wait_until="domcontentloaded")
+            # A target selected while the initial drawing is still loading must be queued, not dropped.
+            desktop.evaluate("""
+              window.dispatchEvent(new CustomEvent('weld:progress-panel-target', {
+                detail: {pageNumber: 1, number: '1', x: 960, y: 1060, openEditor: false}
+              }))
+            """)
+            expect(desktop.locator("#canvas")).to_have_attribute("data-selected-target", "1:960:1060", timeout=7000)
             expect(desktop.locator("#progressListToggle")).to_be_visible()
             expect(desktop.locator('a[href*="progress-list"]')).to_have_count(0)
             expect(desktop.locator("#progressListPanel")).not_to_be_visible()
