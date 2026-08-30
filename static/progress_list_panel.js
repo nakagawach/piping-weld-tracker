@@ -10,7 +10,7 @@
   const pageInput=document.getElementById('page');
   const viewer=document.getElementById('viewer');
   if(!toggle||!panel||!records||!state||!tabs||!search||!clear||!pageInput||!viewer)return;
-  const bottomPaneMedia=window.matchMedia('(max-width:640px), (min-width:641px) and (max-width:900px) and (orientation:portrait)');
+  const bottomPaneMedia=window.matchMedia('(max-width:640px), (min-width:641px) and (max-width:1200px) and (orientation:portrait)');
   const listUrl=panel.dataset.listUrl;
   let allItems=[],filter='all',selectedKey='',currentPage=Math.max(1,Number(pageInput.value)||1),loaded=false,loading=false,pendingSelection=null,bottomPaneFrame=0;
   const itemKey=item=>`${item.pageNumber}:${Math.round(item.x)}:${Math.round(item.y)}`;
