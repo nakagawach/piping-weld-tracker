@@ -1,3 +1,4 @@
+import sqlite3
 import sys
 import threading
 import time
@@ -9,7 +10,7 @@ if str(ROOT) not in sys.path: sys.path.insert(0,str(ROOT))
 from playwright.sync_api import expect, sync_playwright
 from werkzeug.serving import make_server
 
-from app import app
+from app import DB_PATH, app
 from tests.ui_shell_e2e import PROJECT_ID, seed_database
 
 BASE="http://127.0.0.1:8773"
@@ -34,6 +35,16 @@ def assert_aligned(page):
 
 def main():
     seed_database()
+    key=f"project:{PROJECT_ID}"
+    with sqlite3.connect(DB_PATH) as connection:
+        connection.execute("DELETE FROM number_map WHERE drawing_key=?",(key,))
+        connection.execute(
+            """INSERT INTO number_map(
+                drawing_key,page_number,item_order,number_text,source,
+                x,y,width,height,saved_at
+            ) VALUES(?,?,?,?,?,?,?,?,?,?)""",
+            (key,1,0,"1","manual",1000,900,120,120,"2026-08-30T00:00:00+00:00"),
+        )
     s,t=run_server();time.sleep(.2)
     try:
         with sync_playwright() as p:
