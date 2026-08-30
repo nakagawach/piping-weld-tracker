@@ -284,7 +284,13 @@ function setManualScale(next,cx=viewer.clientWidth/2,cy=viewer.clientHeight/2){
   state.mode='MANUAL';const old=state.scale;const s=rotatedStageSize();next=Math.max(Math.min(4,next),Math.min(viewer.clientWidth/s.w,viewer.clientHeight/s.h));
   const wx=(cx-state.tx)/old,wy=(cy-state.ty)/old;state.scale=next;state.tx=cx-wx*next;state.ty=cy-wy*next;applyTransform();$('#mode').textContent='MANUAL';$('#fit').classList.remove('active')
 }
-function applyTransform(){stage.style.transform='translate('+state.tx+'px,'+state.ty+'px) scale('+state.scale+')'}
+function clampPan(){
+  const s=rotatedStageSize(),sw=s.w*state.scale,sh=s.h*state.scale,vw=viewer.clientWidth,vh=viewer.clientHeight;
+  const margin=Math.min(72,Math.max(24,Math.min(vw,vh)*.12));
+  if(sw<=vw){state.tx=(vw-sw)/2}else{state.tx=Math.min(margin,Math.max(vw-sw-margin,state.tx))}
+  if(sh<=vh){state.ty=(vh-sh)/2}else{state.ty=Math.min(margin,Math.max(vh-sh-margin,state.ty))}
+}
+function applyTransform(){clampPan();stage.style.transform='translate('+state.tx+'px,'+state.ty+'px) scale('+state.scale+')'}
 function togglePanel(open){
   state.panelOpen=open;$('#panel').classList.toggle('hidden',!open);$('#workspace').classList.toggle('panel-hidden',!open);$('#toggleList').classList.toggle('active',open);
   requestAnimationFrame(()=>requestAnimationFrame(()=>{if(state.mode==='FIT')fit();if(open)syncListPosition()}));
@@ -295,11 +301,73 @@ $('#fit').onclick=fit;$('#zoomOut').onclick=()=>setManualScale(state.scale*.8);$
 $('#toggleList').onclick=()=>togglePanel(!state.panelOpen);$('#closePanel').onclick=()=>togglePanel(false);
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');state.filter=b.dataset.filter;renderList()});
 $('#search').oninput=e=>{state.query=e.target.value;renderList()};$('#clearSearch').onclick=()=>{$('#search').value='';state.query='';renderList()};
-viewer.addEventListener('pointerdown',e=>{viewer.setPointerCapture(e.pointerId);state.pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});if(state.pointers.size===1)state.dragStart={x:e.clientX,y:e.clientY,tx:state.tx,ty:state.ty};if(state.pointers.size===2){const a=[...state.pointers.values()];state.pinchStart={dist:Math.hypot(a[1].x-a[0].x,a[1].y-a[0].y),scale:state.scale,mid:{x:(a[0].x+a[1].x)/2-viewer.getBoundingClientRect().left,y:(a[0].y+a[1].y)/2-viewer.getBoundingClientRect().top}}}});
-viewer.addEventListener('pointermove',e=>{if(!state.pointers.has(e.pointerId))return;state.pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});if(state.pointers.size===1&&state.dragStart){state.mode='MANUAL';state.tx=state.dragStart.tx+e.clientX-state.dragStart.x;state.ty=state.dragStart.ty+e.clientY-state.dragStart.y;applyTransform();$('#mode').textContent='MANUAL';$('#fit').classList.remove('active')}else if(state.pointers.size===2&&state.pinchStart){const a=[...state.pointers.values()];const d=Math.hypot(a[1].x-a[0].x,a[1].y-a[0].y);setManualScale(state.pinchStart.scale*d/state.pinchStart.dist,state.pinchStart.mid.x,state.pinchStart.mid.y)}});
-function up(e){state.pointers.delete(e.pointerId);if(state.pointers.size<2)state.pinchStart=null;if(state.pointers.size===0)state.dragStart=null}
+function pointerSnapshot(){
+  const a=[...state.pointers.values()];
+  if(a.length<2)return null;
+  const rect=viewer.getBoundingClientRect();
+  return{
+    dist:Math.max(1,Math.hypot(a[1].x-a[0].x,a[1].y-a[0].y)),
+    mid:{x:(a[0].x+a[1].x)/2-rect.left,y:(a[0].y+a[1].y)/2-rect.top}
+  };
+}
+viewer.addEventListener('pointerdown',e=>{
+  viewer.setPointerCapture(e.pointerId);
+  state.pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(state.pointers.size===1){
+    state.dragStart={x:e.clientX,y:e.clientY,tx:state.tx,ty:state.ty};
+    state.pinchStart=null;
+  }else if(state.pointers.size===2){
+    state.dragStart=null;
+    state.pinchStart=pointerSnapshot();
+  }
+});
+viewer.addEventListener('pointermove',e=>{
+  if(!state.pointers.has(e.pointerId))return;
+  state.pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(state.pointers.size===1&&state.dragStart){
+    state.mode='MANUAL';
+    state.tx=state.dragStart.tx+e.clientX-state.dragStart.x;
+    state.ty=state.dragStart.ty+e.clientY-state.dragStart.y;
+    applyTransform();$('#mode').textContent='MANUAL';$('#fit').classList.remove('active');
+  }else if(state.pointers.size===2){
+    const next=pointerSnapshot();
+    if(!next)return;
+    if(!state.pinchStart){state.pinchStart=next;return}
+    const factor=next.dist/state.pinchStart.dist;
+    const oldScale=state.scale;
+    const newScale=Math.max(Math.min(4,oldScale*factor),Math.min(viewer.clientWidth/rotatedStageSize().w,viewer.clientHeight/rotatedStageSize().h));
+    const wx=(state.pinchStart.mid.x-state.tx)/oldScale,wy=(state.pinchStart.mid.y-state.ty)/oldScale;
+    state.scale=newScale;
+    state.tx=next.mid.x-wx*newScale;
+    state.ty=next.mid.y-wy*newScale;
+    state.mode='MANUAL';$('#mode').textContent='MANUAL';$('#fit').classList.remove('active');
+    applyTransform();
+    state.pinchStart=next;
+  }
+});
+function up(e){
+  state.pointers.delete(e.pointerId);
+  if(state.pointers.size===1){
+    const [p]=state.pointers.values();
+    state.pinchStart=null;
+    state.dragStart={x:p.x,y:p.y,tx:state.tx,ty:state.ty};
+  }else if(state.pointers.size===0){
+    state.pinchStart=null;state.dragStart=null;
+  }else{
+    state.pinchStart=pointerSnapshot();
+  }
+}
 viewer.addEventListener('pointerup',up);viewer.addEventListener('pointercancel',up);
-viewer.addEventListener('dblclick',e=>{e.preventDefault();toast('ページ全体ではなく図面だけを操作します')});
+viewer.addEventListener('dblclick',e=>{e.preventDefault();toast('図面はピンチ操作を使ってください')});
+for(const type of ['gesturestart','gesturechange','gestureend']){
+  document.addEventListener(type,e=>{e.preventDefault()}, {passive:false});
+}
+let lastTouchEnd=0;
+document.addEventListener('touchend',e=>{
+  const now=Date.now();
+  if(now-lastTouchEnd<320)e.preventDefault();
+  lastTouchEnd=now;
+},{passive:false});
 window.addEventListener('resize',()=>{requestAnimationFrame(()=>{if(state.mode==='FIT')fit()})});
 init();
 })();
