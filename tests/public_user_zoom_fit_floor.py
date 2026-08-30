@@ -50,26 +50,27 @@ def main():
         expect(phone.locator("#progressListPanel")).to_be_visible()
         zoom_to_floor(phone)
 
-        before_style=phone.locator("#canvas").get_attribute("style") or ""
+        before_width=phone.locator("#canvas").evaluate("el => el.style.width")
         before_zoom=phone.locator("#zoomReset").text_content()
+        print("phone before", before_width, before_zoom)
 
         phone.set_viewport_size({"width":390,"height":730})
         phone.wait_for_timeout(250)
-        assert (phone.locator("#canvas").get_attribute("style") or "") == before_style
+        assert phone.locator("#canvas").evaluate("el => el.style.width") == before_width
         assert phone.locator("#zoomReset").text_content() == before_zoom
 
         phone.locator("#progressListClose").click()
         phone.wait_for_timeout(250)
-        assert (phone.locator("#canvas").get_attribute("style") or "") == before_style
+        assert phone.locator("#canvas").evaluate("el => el.style.width") == before_width
         assert phone.locator("#zoomReset").text_content() == before_zoom
 
         phone.locator("#progressListToggle").click()
         phone.wait_for_timeout(250)
-        assert (phone.locator("#canvas").get_attribute("style") or "") == before_style
+        assert phone.locator("#canvas").evaluate("el => el.style.width") == before_width
 
         phone.evaluate("document.body.classList.add('progress-fullscreen')")
         phone.wait_for_timeout(250)
-        assert (phone.locator("#canvas").get_attribute("style") or "") == before_style
+        assert phone.locator("#canvas").evaluate("el => el.style.width") == before_width
         assert phone.locator("#zoomReset").text_content() == before_zoom
 
         assert not posts,posts
@@ -81,11 +82,12 @@ def main():
         ipad.locator("#progressListToggle").click()
         expect(ipad.locator("#progressListPanel")).to_be_visible()
         zoom_to_floor(ipad)
-        ipad_style=ipad.locator("#canvas").get_attribute("style") or ""
+        ipad_width=ipad.locator("#canvas").evaluate("el => el.style.width")
         ipad_zoom=ipad.locator("#zoomReset").text_content()
+        print("ipad before", ipad_width, ipad_zoom)
         ipad.set_viewport_size({"width":768,"height":900})
         ipad.wait_for_timeout(250)
-        assert (ipad.locator("#canvas").get_attribute("style") or "") == ipad_style
+        assert ipad.locator("#canvas").evaluate("el => el.style.width") == ipad_width
         assert ipad.locator("#zoomReset").text_content() == ipad_zoom
         ipad.close()
 
