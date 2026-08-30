@@ -48,6 +48,18 @@ def main():
         phone.goto(url,wait_until="domcontentloaded",timeout=60000)
         phone.locator("#progressListToggle").click()
         expect(phone.locator("#progressListPanel")).to_be_visible()
+        html=phone.content()
+        print("PUBLIC_HAS_USER_FIT_FLOOR", "function userFitFloor" in html)
+        print("PUBLIC_ZOOM_ONCLICK", phone.locator("#zoomOut").evaluate("el => String(el.onclick)"))
+        expect(phone.locator("#zoomOut")).to_be_enabled(timeout=20000)
+        for i in range(4):
+            before=phone.locator("#canvas").evaluate("el => el.style.width")
+            zbefore=phone.locator("#zoomReset").text_content()
+            phone.locator("#zoomOut").evaluate("el => el.click()")
+            phone.wait_for_timeout(80)
+            after=phone.locator("#canvas").evaluate("el => el.style.width")
+            zafter=phone.locator("#zoomReset").text_content()
+            print("PUBLIC_ZOOM_STEP", i, before, zbefore, "=>", after, zafter)
         zoom_to_floor(phone)
 
         before_width=phone.locator("#canvas").evaluate("el => el.style.width")
