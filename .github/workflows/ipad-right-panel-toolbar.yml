@@ -1,0 +1,55 @@
+name: iPad Right Panel Toolbar Checks
+
+on:
+  push:
+    branches:
+      - fix/ipad-right-panel-toolbar
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt playwright
+          python -m playwright install --with-deps chromium
+      - name: Syntax checks
+        run: |
+          python -m py_compile app.py progress.py projects.py global_favorites.py
+          node --check static/progress_list_panel.js
+          node --check static/progress_drawing_memo.js
+      - name: iPad right-panel toolbar E2E
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python tests/ipad_right_panel_toolbar_e2e.py
+      - name: Latest-wins page navigation regression
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python tests/progress_page_latest_wins_e2e.py
+      - name: Stable selection regression
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python tests/progress_list_stable_sync_e2e.py
+      - name: User zoom fit floor regression
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python tests/user_zoom_fit_floor_e2e.py
+      - name: Memo zoom alignment regression
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python tests/drawing_memo_zoom_alignment_e2e.py
+      - name: Existing UI shell regression
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python tests/ui_shell_e2e.py
