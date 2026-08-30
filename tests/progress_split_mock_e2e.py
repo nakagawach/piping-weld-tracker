@@ -157,6 +157,12 @@ def main():
             phone.goto(f"{BASE_URL}/mock/progress-split?project={PROJECT_ID}", wait_until="domcontentloaded")
             expect(phone.locator("#openSide")).to_be_visible()
             expect(phone.locator("#rotate")).to_be_visible()
+            phone.locator("#zoomOut").click()
+            expect(phone.locator("#zoomValue")).to_have_text("75%")
+            phone.locator("#zoomOut").click()
+            expect(phone.locator("#zoomValue")).to_have_text("50%")
+            phone.locator("#zoomOut").click()
+            expect(phone.locator("#zoomValue")).to_have_text("50%")
             phone.locator("#rotate").click()
             expect(phone.locator("#rotate")).to_have_attribute("aria-label", "図面を90度回転")
             expect(phone.locator("#side")).to_be_visible()
@@ -164,6 +170,10 @@ def main():
             assert box is not None and box["width"] >= 380, box
             assert 400 <= box["height"] <= 430, box
             expect(phone.locator(".record-input")).to_have_count(3, timeout=5000)
+            phone.locator('.marker[data-number="2"]').click()
+            expect(phone.locator(".record.selected .number")).to_have_text("2")
+            expect(phone.locator("#mockDialog")).to_be_visible()
+            phone.locator("#closeDialog").click()
             expect(phone.locator("#mobileCloseSide")).to_be_visible()
             phone.locator("#mobileCloseSide").click()
             assert "mobile-side-closed" in (phone.locator("#mockApp").get_attribute("class") or "")
