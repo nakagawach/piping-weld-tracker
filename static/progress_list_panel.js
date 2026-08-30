@@ -8,15 +8,34 @@
   const search=document.getElementById('progressListSearch');
   const clear=document.getElementById('progressListSearchClear');
   const pageInput=document.getElementById('page');
-  if(!toggle||!panel||!records||!state||!tabs||!search||!clear||!pageInput)return;
+  const viewer=document.getElementById('viewer');
+  if(!toggle||!panel||!records||!state||!tabs||!search||!clear||!pageInput||!viewer)return;
+  const bottomPaneMedia=window.matchMedia('(max-width:640px), (min-width:641px) and (max-width:900px) and (orientation:portrait)');
   const listUrl=panel.dataset.listUrl;
   let allItems=[],filter='all',selectedKey='',currentPage=Math.max(1,Number(pageInput.value)||1),loaded=false,loading=false;
   const itemKey=item=>`${item.pageNumber}:${Math.round(item.x)}:${Math.round(item.y)}`;
   const statusClass=status=>status==='完了'?'done':status==='施工中'?'working':'';
+  function syncBottomPaneViewer(){
+    if(!document.body.classList.contains('progress-list-open')||!bottomPaneMedia.matches){
+      viewer.style.removeProperty('height');
+      viewer.style.removeProperty('min-height');
+      viewer.style.removeProperty('max-height');
+      return;
+    }
+    requestAnimationFrame(()=>{
+      const panelTop=panel.getBoundingClientRect().top;
+      const viewerTop=viewer.getBoundingClientRect().top;
+      const height=Math.max(0,Math.floor(panelTop-viewerTop));
+      viewer.style.height=`${height}px`;
+      viewer.style.minHeight='0px';
+      viewer.style.maxHeight=`${height}px`;
+    });
+  }
   function setOpen(open){
     document.body.classList.toggle('progress-list-open',open);
     toggle.classList.toggle('active',open);
     toggle.setAttribute('aria-expanded',open?'true':'false');
+    syncBottomPaneViewer();
     if(open&&!loaded)loadList();
   }
   function scrollSelected(){requestAnimationFrame(()=>records.querySelector('.progress-list-record.selected')?.scrollIntoView({block:'nearest',behavior:'auto'}))}
@@ -58,5 +77,8 @@
   window.addEventListener('weld:progress-selection',event=>{const detail=event.detail||{};selectedKey=`${Number(detail.pageNumber)||currentPage}:${Math.round(Number(detail.x))}:${Math.round(Number(detail.y))}`;currentPage=Number(detail.pageNumber)||currentPage;if(loaded){render();scrollSelected()}});
   window.addEventListener('weld:progress-page-loaded',event=>{currentPage=Number(event.detail?.page)||Number(pageInput.value)||1;if(selectedKey&&!selectedKey.startsWith(`${currentPage}:`))selectedKey='';if(!loaded)loadList();else{render();scrollCurrentPage()}});
   window.addEventListener('weld:progress-saved',event=>{const saved=event.detail||{},key=itemKey(saved),index=allItems.findIndex(item=>itemKey(item)===key);if(index>=0)allItems[index]={...allItems[index],...saved};selectedKey=key;if(loaded){render();scrollSelected()}});
-  setTimeout(()=>{currentPage=Number(pageInput.value)||1;if(!loaded)loadList()},0);
+  window.addEventListener('resize',syncBottomPaneViewer);
+  if(bottomPaneMedia.addEventListener)bottomPaneMedia.addEventListener('change',syncBottomPaneViewer);
+  new MutationObserver(syncBottomPaneViewer).observe(document.body,{attributes:true,attributeFilter:['class']});
+  setTimeout(()=>{currentPage=Number(pageInput.value)||1;if(!loaded)loadList();syncBottomPaneViewer()},0);
 })();
