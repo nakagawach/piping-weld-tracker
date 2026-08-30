@@ -32,6 +32,7 @@ def assert_fit(page):
     assert min(abs(canvas["width"]-viewer["width"]),abs(canvas["height"]-viewer["height"])) <= 3,(canvas,viewer)
 
 def zoom_to_floor(page):
+    expect(page.locator("#zoomOut")).to_be_enabled(timeout=20000)
     for _ in range(6):
         page.locator("#zoomOut").evaluate("el => el.click()")
     page.wait_for_timeout(180)
