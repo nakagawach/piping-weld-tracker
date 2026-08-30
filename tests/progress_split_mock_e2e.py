@@ -143,6 +143,20 @@ def main():
             expect(tablet.locator(".record")).to_have_count(3, timeout=5000)
             tablet.close()
 
+            tablet_portrait = browser.new_page(viewport={"width": 768, "height": 1024})
+            stub_pdf(tablet_portrait)
+            tablet_portrait.goto(f"{BASE_URL}/mock/progress-split?project={PROJECT_ID}", wait_until="domcontentloaded")
+            expect(tablet_portrait.locator("#side")).to_be_visible()
+            tablet_box = tablet_portrait.locator("#side").bounding_box()
+            assert tablet_box is not None and 500 <= tablet_box["height"] <= 525, tablet_box
+            expect(tablet_portrait.locator("#mobileCloseSide")).to_be_visible()
+            tablet_portrait.locator("#mobileCloseSide").click()
+            assert "mobile-side-closed" in (tablet_portrait.locator("#mockApp").get_attribute("class") or "")
+            tablet_portrait.locator("#openSide").click()
+            assert "mobile-side-closed" not in (tablet_portrait.locator("#mockApp").get_attribute("class") or "")
+            expect(tablet_portrait.locator("#side")).to_be_visible()
+            tablet_portrait.close()
+
             narrow = browser.new_page(viewport={"width": 820, "height": 900})
             stub_pdf(narrow)
             narrow.goto(f"{BASE_URL}/mock/progress-split?project={PROJECT_ID}", wait_until="domcontentloaded")
