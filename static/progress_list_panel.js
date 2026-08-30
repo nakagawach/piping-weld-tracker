@@ -12,9 +12,25 @@
   if(!toggle||!panel||!records||!state||!tabs||!search||!clear||!pageInput||!viewer)return;
   const bottomPaneMedia=window.matchMedia('(max-width:640px), (min-width:641px) and (max-width:900px) and (orientation:portrait)');
   const listUrl=panel.dataset.listUrl;
-  let allItems=[],filter='all',selectedKey='',currentPage=Math.max(1,Number(pageInput.value)||1),loaded=false,loading=false;
+  let allItems=[],filter='all',selectedKey='',currentPage=Math.max(1,Number(pageInput.value)||1),loaded=false,loading=false,pendingSelection=null;
   const itemKey=item=>`${item.pageNumber}:${Math.round(item.x)}:${Math.round(item.y)}`;
   const statusClass=status=>status==='完了'?'done':status==='施工中'?'working':'';
+  function matchListItem(detail){
+    if(!detail)return null;
+    const page=Number(detail.pageNumber)||currentPage,x=Number(detail.x),y=Number(detail.y),number=detail.number==null?'':String(detail.number);
+    const candidates=allItems.filter(item=>Number(item.pageNumber)===page&&(!number||String(item.number)===number));
+    if(Number.isFinite(x)&&Number.isFinite(y)){
+      const close=candidates.find(item=>Math.abs(Number(item.x)-x)<=2&&Math.abs(Number(item.y)-y)<=2);
+      if(close)return close;
+    }
+    return candidates.length===1?candidates[0]:null;
+  }
+  function applySelectionDetail(detail){
+    currentPage=Number(detail?.pageNumber)||currentPage;
+    const matched=matchListItem(detail);
+    selectedKey=matched?itemKey(matched):'';
+    if(loaded){render();if(selectedKey)scrollSelected();else scrollCurrentPage()}
+  }
   function syncBottomPaneViewer(){
     if(!document.body.classList.contains('progress-list-open')||!bottomPaneMedia.matches){
       viewer.style.removeProperty('height');
@@ -66,7 +82,7 @@
     try{
       const response=await fetch(listUrl,{cache:'no-store'}),data=await response.json();
       if(!response.ok)throw new Error(data.error||'進捗一覧を取得できませんでした。');
-      allItems=Array.isArray(data.items)?data.items:[];loaded=true;state.textContent=`${allItems.length}件`;render();scrollCurrentPage();
+      allItems=Array.isArray(data.items)?data.items:[];loaded=true;state.textContent=`${allItems.length}件`;if(pendingSelection){const detail=pendingSelection;pendingSelection=null;applySelectionDetail(detail)}else{render();scrollCurrentPage()};
     }catch(error){state.textContent='取得失敗';records.innerHTML=`<div class="progress-list-empty">${error.message}</div>`}finally{loading=false}
   }
   toggle.setAttribute('aria-expanded','false');
@@ -74,9 +90,10 @@
   close.onclick=()=>setOpen(false);
   tabs.onclick=event=>{const button=event.target.closest('[data-filter]');if(!button)return;filter=button.dataset.filter;tabs.querySelectorAll('[data-filter]').forEach(item=>item.classList.toggle('active',item===button));render()};
   search.oninput=render;clear.onclick=()=>{search.value='';render();search.focus()};
-  window.addEventListener('weld:progress-selection',event=>{const detail=event.detail||{};selectedKey=`${Number(detail.pageNumber)||currentPage}:${Math.round(Number(detail.x))}:${Math.round(Number(detail.y))}`;currentPage=Number(detail.pageNumber)||currentPage;if(loaded){render();scrollSelected()}});
-  window.addEventListener('weld:progress-page-loaded',event=>{currentPage=Number(event.detail?.page)||Number(pageInput.value)||1;if(selectedKey&&!selectedKey.startsWith(`${currentPage}:`))selectedKey='';if(!loaded)loadList();else{render();scrollCurrentPage()}});
-  window.addEventListener('weld:progress-saved',event=>{const saved=event.detail||{},key=itemKey(saved),index=allItems.findIndex(item=>itemKey(item)===key);if(index>=0)allItems[index]={...allItems[index],...saved};selectedKey=key;if(loaded){render();scrollSelected()}});
+  window.addEventListener('weld:progress-selection',event=>{const detail=event.detail||{};if(!loaded){pendingSelection=detail;currentPage=Number(detail.pageNumber)||currentPage;return}applySelectionDetail(detail)});
+  window.addEventListener('weld:progress-page-changing',event=>{currentPage=Number(event.detail?.to)||currentPage;if(selectedKey&&!selectedKey.startsWith(`${currentPage}:`))selectedKey='';if(loaded){render();scrollCurrentPage()}});
+  window.addEventListener('weld:progress-page-loaded',event=>{currentPage=Number(event.detail?.page)||Number(pageInput.value)||1;if(selectedKey&&!selectedKey.startsWith(`${currentPage}:`))selectedKey='';if(!loaded)loadList();else{render();if(selectedKey)scrollSelected();else scrollCurrentPage()}});
+  window.addEventListener('weld:progress-saved',event=>{const saved=event.detail||{},matched=matchListItem(saved);if(matched){const key=itemKey(matched),index=allItems.findIndex(item=>itemKey(item)===key);if(index>=0)allItems[index]={...allItems[index],...saved};selectedKey=key}else{selectedKey=''}if(loaded){render();if(selectedKey)scrollSelected();else scrollCurrentPage()}});
   window.addEventListener('resize',syncBottomPaneViewer);
   if(bottomPaneMedia.addEventListener)bottomPaneMedia.addEventListener('change',syncBottomPaneViewer);
   new MutationObserver(syncBottomPaneViewer).observe(document.body,{attributes:true,attributeFilter:['class']});
