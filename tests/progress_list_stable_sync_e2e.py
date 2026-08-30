@@ -1,3 +1,4 @@
+import re
 import sqlite3
 import sys
 import threading
@@ -78,7 +79,7 @@ def main():
 
             # List API center rounds to x=2050, drawing center rounds to x=2051.
             # The row must remain selected despite the 1px drift.
-            expect(r14).to_have_attribute("class",lambda value:"selected" in value,timeout=3000)
+            expect(r14).to_have_attribute("class",re.compile(r".*\bselected\b.*"),timeout=3000)
             assert page.locator(".progress-list-record.selected").count()==1
 
             # Explicitly replay a selection event with a 1px mismatch.
@@ -87,7 +88,7 @@ def main():
                 detail:{pageNumber:3,number:'14',x:2051,y:844}
               }))
             """)
-            expect(r14).to_have_attribute("class",lambda value:"selected" in value,timeout=3000)
+            expect(r14).to_have_attribute("class",re.compile(r".*\bselected\b.*"),timeout=3000)
             assert page.locator(".progress-list-record.selected").count()==1
 
             # Page sync should react at page-changing and remain correct after loaded.
@@ -106,7 +107,7 @@ def main():
             r8=row(page,8,1)
             r11.locator(".progress-list-focus").click()
             r8.locator(".progress-list-focus").click()
-            expect(r8).to_have_attribute("class",lambda value:"selected" in value,timeout=3000)
+            expect(r8).to_have_attribute("class",re.compile(r".*\bselected\b.*"),timeout=3000)
             assert "selected" not in (r11.get_attribute("class") or "")
             assert page.locator(".progress-list-record.selected").count()==1
 
