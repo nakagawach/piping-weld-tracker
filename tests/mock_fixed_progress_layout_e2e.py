@@ -1,0 +1,149 @@
+import sqlite3
+import sys
+import threading
+import time
+from pathlib import Path
+
+ROOT=Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0,str(ROOT))
+
+from playwright.sync_api import expect, sync_playwright
+from werkzeug.serving import make_server
+
+from app import DB_PATH, app
+from tests.ui_shell_e2e import PROJECT_ID, seed_database
+
+BASE="http://127.0.0.1:8781"
+SVG='<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1131"><rect width="1600" height="1131" fill="white"/></svg>'
+
+def seed_mock():
+    seed_database()
+    key=f"project:{PROJECT_ID}"
+    with sqlite3.connect(DB_PATH) as c:
+        c.execute("UPDATE projects SET project_name='初めのサンプルPDF' WHERE id=?",(PROJECT_ID,))
+        c.execute("DELETE FROM number_map WHERE drawing_key=?",(key,))
+        c.execute("DELETE FROM weld_progress WHERE drawing_key=?",(key,))
+        rows=[]
+        for i in range(1,34):
+            page=1 if i<=28 else 2
+            x=500+((i-1)%8)*620
+            y=500+((i-1)//8)*800
+            rows.append((key,page,i-1,str(i),"manual",x,y,120,120,"2026-08-31T00:00:00+00:00"))
+        c.executemany(
+            """INSERT INTO number_map(
+              drawing_key,page_number,item_order,number_text,source,
+              x,y,width,height,saved_at
+            ) VALUES(?,?,?,?,?,?,?,?,?,?)""", rows
+        )
+        c.executemany(
+            """INSERT INTO weld_progress(
+              drawing_key,page_number,position_x,position_y,number_text,status,
+              completed_date,work_detail,updated_at
+            ) VALUES(?,?,?,?,?,?,?,?,?)""",
+            [
+                (key,1,560,560,"1","完了","2026-08-31","確認済み","2026-08-31T00:00:00+00:00"),
+                (key,1,1180,560,"2","施工中","","作業中","2026-08-31T00:00:00+00:00"),
+            ]
+        )
+
+def serve():
+    s=make_server("127.0.0.1",8781,app)
+    t=threading.Thread(target=s.serve_forever,daemon=True);t.start()
+    return s,t
+
+def stub(page):
+    page.route(f"**/projects/{PROJECT_ID}/pdfium-info",lambda r:r.fulfill(status=200,content_type="application/json",body='{"pageCount":2}'))
+    page.route(f"**/projects/{PROJECT_ID}/pdfium-page**",lambda r:r.fulfill(status=200,content_type="image/svg+xml",body=SVG))
+
+def assert_no_body_scroll(page):
+    vals=page.evaluate("()=>({sh:document.documentElement.scrollHeight,ch:document.documentElement.clientHeight,bsh:document.body.scrollHeight,bch:document.body.clientHeight})")
+    assert vals["sh"]<=vals["ch"]+1,vals
+    assert vals["bsh"]<=vals["bch"]+1,vals
+
+def main():
+    seed_mock();s,t=serve();time.sleep(.2)
+    try:
+        with sync_playwright() as p:
+            browser=p.chromium.launch()
+
+            # Landscape iPad: fixed header/thumbs, right sidebar, body does not scroll.
+            ipad=browser.new_page(viewport={"width":1024,"height":768})
+            posts=[];errors=[]
+            ipad.on("request",lambda r:posts.append(r.url) if r.method=="POST" else None)
+            ipad.on("pageerror",lambda e:errors.append(str(e)))
+            stub(ipad)
+            ipad.goto(f"{BASE}/mock/progress-fixed-layout",wait_until="domcontentloaded")
+            expect(ipad.locator("#loading")).not_to_be_visible(timeout=7000)
+            expect(ipad.locator(".row")).to_have_count(33,timeout=7000)
+            assert_no_body_scroll(ipad)
+            header=ipad.locator(".header").bounding_box();thumbs=ipad.locator(".thumbs").bounding_box();panel=ipad.locator("#panel").bounding_box()
+            assert header and 44<=header["height"]<=48,header
+            assert thumbs and 56<=thumbs["height"]<=60,thumbs
+            assert panel and 310<=panel["width"]<=322,panel
+            assert ipad.locator("#mode").text_content()=="FIT"
+
+            # Fit must contain whole page and touch one axis.
+            viewer=ipad.locator("#viewer").bounding_box();stage=ipad.locator("#stage").bounding_box()
+            assert viewer and stage
+            assert stage["width"]<=viewer["width"]+2 and stage["height"]<=viewer["height"]+2,(stage,viewer)
+            assert min(abs(stage["width"]-viewer["width"]),abs(stage["height"]-viewer["height"]))<=3,(stage,viewer)
+
+            # Manual zoom doesn't turn back into FIT after resize.
+            ipad.locator("#zoomIn").click()
+            expect(ipad.locator("#mode")).to_have_text("MANUAL")
+            before=ipad.locator("#stage").get_attribute("style")
+            ipad.set_viewport_size({"width":1100,"height":768})
+            ipad.wait_for_timeout(120)
+            assert ipad.locator("#mode").text_content()=="MANUAL"
+            assert ipad.locator("#stage").get_attribute("style")==before
+
+            # Close sidebar, select via simulated drawing event, reopen -> row selection remains/scrolls.
+            ipad.locator("#closePanel").click()
+            expect(ipad.locator("#panel")).not_to_be_visible()
+            ipad.evaluate("""()=>{const rows=[...document.querySelectorAll('.row')];}""")
+            # Reopen then select a deep row using list, close/reopen to verify persistence.
+            ipad.locator("#toggleList").click()
+            deep=ipad.locator(".row").nth(24)
+            deep.click();expect(deep).to_have_class(__import__("re").compile(r".*selected.*"))
+            ipad.locator("#closePanel").click();ipad.locator("#toggleList").click();ipad.wait_for_timeout(150)
+            expect(ipad.locator(".row.selected")).to_have_count(1)
+            assert ipad.locator("#records").evaluate("el=>el.scrollTop")>0
+
+            assert not posts,posts
+            assert not errors,errors
+            ipad.close()
+
+            # Portrait tablet: vertical split; list gets ~40% of remaining workspace.
+            portrait=browser.new_page(viewport={"width":768,"height":1024})
+            stub(portrait)
+            portrait.goto(f"{BASE}/mock/progress-fixed-layout",wait_until="domcontentloaded")
+            expect(portrait.locator("#loading")).not_to_be_visible(timeout=7000)
+            assert_no_body_scroll(portrait)
+            ws=portrait.locator("#workspace").bounding_box();panel=portrait.locator("#panel").bounding_box()
+            assert ws and panel
+            ratio=panel["height"]/ws["height"]
+            assert .37<=ratio<=.46,(ratio,ws,panel)
+            portrait.close()
+
+            # Phone: still fixed; only records scroll vertically.
+            phone=browser.new_page(viewport={"width":390,"height":844})
+            stub(phone)
+            phone.goto(f"{BASE}/mock/progress-fixed-layout",wait_until="domcontentloaded")
+            expect(phone.locator("#loading")).not_to_be_visible(timeout=7000)
+            assert_no_body_scroll(phone)
+            body_y=phone.evaluate("()=>window.scrollY")
+            phone.locator("#records").evaluate("el=>el.scrollTop=500")
+            phone.wait_for_timeout(50)
+            assert phone.evaluate("()=>window.scrollY")==body_y
+            assert phone.locator("#records").evaluate("el=>el.scrollTop")>0
+            phone.close()
+
+            browser.close()
+    finally:
+        s.shutdown();t.join(timeout=2)
+
+    print("MOCK_FIXED_PROGRESS_LAYOUT_E2E: PASS")
+
+if __name__=="__main__":
+    main()
