@@ -36,3 +36,8 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: python tests/ui_shell_e2e.py
+      - name: Public fullscreen sample PDF 3/8 read-only E2E
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+          PUBLIC_BASE_URL: https://nakagawach.pythonanywhere.com/weld
+        run: python tests/public_fullscreen_3_8_v2.py
