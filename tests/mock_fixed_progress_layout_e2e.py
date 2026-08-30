@@ -67,6 +67,19 @@ def main():
         with sync_playwright() as p:
             browser=p.chromium.launch()
 
+            # Projects screen exposes temporary mock button immediately left of favorites.
+            home=browser.new_page(viewport={"width":1024,"height":768})
+            home.goto(f"{BASE}/projects-screen",wait_until="domcontentloaded")
+            expect(home.locator('[data-progress-mock]')).to_be_visible(timeout=5000)
+            expect(home.locator('[data-ui3-favorites]')).to_be_visible(timeout=5000)
+            mock_box=home.locator('[data-progress-mock]').bounding_box()
+            fav_box=home.locator('[data-ui3-favorites]').bounding_box()
+            assert mock_box and fav_box and mock_box["x"] < fav_box["x"],(mock_box,fav_box)
+            expect(home.locator("#new-project")).to_be_visible()
+            home.locator('[data-progress-mock]').click()
+            expect(home).to_have_url(__import__("re").compile(r"/mock/progress-fixed-layout$"),timeout=5000)
+            home.close()
+
             # Landscape iPad: fixed header/thumbs, right sidebar, body does not scroll.
             ipad=browser.new_page(viewport={"width":1024,"height":768})
             posts=[];errors=[]
@@ -89,14 +102,36 @@ def main():
             assert stage["width"]<=viewer["width"]+2 and stage["height"]<=viewer["height"]+2,(stage,viewer)
             assert min(abs(stage["width"]-viewer["width"]),abs(stage["height"]-viewer["height"]))<=3,(stage,viewer)
 
-            # Manual zoom doesn't turn back into FIT after resize.
+            # Rotate in FIT: each 90deg keeps the complete page fitted.
+            for expected in (90,180,270,0):
+                ipad.locator("#rotate").click()
+                expect(ipad.locator("#rotate")).to_contain_text(f"{expected}°")
+                ipad.wait_for_timeout(60)
+                viewer=ipad.locator("#viewer").bounding_box();stage=ipad.locator("#stage").bounding_box()
+                assert viewer and stage
+                assert stage["width"]<=viewer["width"]+3 and stage["height"]<=viewer["height"]+3,(expected,stage,viewer)
+                assert min(abs(stage["width"]-viewer["width"]),abs(stage["height"]-viewer["height"]))<=4,(expected,stage,viewer)
+                expect(ipad.locator("#mode")).to_have_text("FIT")
+
+            # Manual zoom doesn't turn back into FIT after resize or rotate.
             ipad.locator("#zoomIn").click()
             expect(ipad.locator("#mode")).to_have_text("MANUAL")
             before=ipad.locator("#stage").get_attribute("style")
+            scale_before=ipad.evaluate("()=>getComputedStyle(document.querySelector('#stage')).transform")
             ipad.set_viewport_size({"width":1100,"height":768})
             ipad.wait_for_timeout(120)
             assert ipad.locator("#mode").text_content()=="MANUAL"
             assert ipad.locator("#stage").get_attribute("style")==before
+            style_before_rotate=ipad.locator("#stage").get_attribute("style")
+            ipad.locator("#rotate").click()
+            ipad.wait_for_timeout(80)
+            assert ipad.locator("#mode").text_content()=="MANUAL"
+            style_after_rotate=ipad.locator("#stage").get_attribute("style")
+            import re as _re
+            def scale_of(style):
+                m=_re.search(r"scale\(([^)]+)\)",style or "")
+                return float(m.group(1)) if m else None
+            assert abs(scale_of(style_before_rotate)-scale_of(style_after_rotate))<1e-9,(style_before_rotate,style_after_rotate)
 
             # Close sidebar, select via simulated drawing event, reopen -> row selection remains/scrolls.
             ipad.locator("#closePanel").click()
