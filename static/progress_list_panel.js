@@ -12,7 +12,7 @@
   if(!toggle||!panel||!records||!state||!tabs||!search||!clear||!pageInput||!viewer)return;
   const bottomPaneMedia=window.matchMedia('(max-width:640px), (min-width:641px) and (max-width:900px) and (orientation:portrait)');
   const listUrl=panel.dataset.listUrl;
-  let allItems=[],filter='all',selectedKey='',currentPage=Math.max(1,Number(pageInput.value)||1),loaded=false,loading=false,pendingSelection=null;
+  let allItems=[],filter='all',selectedKey='',currentPage=Math.max(1,Number(pageInput.value)||1),loaded=false,loading=false,pendingSelection=null,bottomPaneFrame=0;
   const itemKey=item=>`${item.pageNumber}:${Math.round(item.x)}:${Math.round(item.y)}`;
   const statusClass=status=>status==='完了'?'done':status==='施工中'?'working':'';
   function matchListItem(detail){
@@ -32,16 +32,24 @@
     if(loaded){render();if(selectedKey)scrollSelected();else scrollCurrentPage()}
   }
   function syncBottomPaneViewer(){
+    if(bottomPaneFrame){cancelAnimationFrame(bottomPaneFrame);bottomPaneFrame=0}
     if(!document.body.classList.contains('progress-list-open')||!bottomPaneMedia.matches){
       viewer.style.removeProperty('height');
       viewer.style.removeProperty('min-height');
       viewer.style.removeProperty('max-height');
       return;
     }
-    requestAnimationFrame(()=>{
+    bottomPaneFrame=requestAnimationFrame(()=>{
+      bottomPaneFrame=0;
+      if(!document.body.classList.contains('progress-list-open')||!bottomPaneMedia.matches){
+        viewer.style.removeProperty('height');
+        viewer.style.removeProperty('min-height');
+        viewer.style.removeProperty('max-height');
+        return;
+      }
       const panelTop=panel.getBoundingClientRect().top;
       const viewerTop=viewer.getBoundingClientRect().top;
-      const height=Math.max(0,Math.floor(panelTop-viewerTop));
+      const height=Math.max(1,Math.floor(panelTop-viewerTop));
       viewer.style.height=`${height}px`;
       viewer.style.minHeight='0px';
       viewer.style.maxHeight=`${height}px`;
