@@ -97,7 +97,7 @@ def main():
 
             row2 = record(desktop, 2)
             row2.locator(".progress-list-focus").click()
-            expect(row2).to_have_class(lambda value: "selected" in value)
+            assert "selected" in (row2.get_attribute("class") or "")
             expect(desktop.locator("#canvas")).to_have_attribute("data-selected-target", "1:3060:1860")
 
             # Panel input uses the existing real progress editor and save route.
@@ -115,15 +115,15 @@ def main():
             row3.locator(".progress-list-focus").click()
             expect(desktop.locator("#page")).to_have_value("2", timeout=7000)
             expect(desktop.locator("#canvas")).to_have_attribute("data-selected-target", "2:2060:1560")
-            expect(record(desktop, 3)).to_have_class(lambda value: "selected" in value)
-            expect(record(desktop, 3)).to_have_class(lambda value: "current-page" in value)
+            assert "selected" in (record(desktop, 3).get_attribute("class") or "")
+            assert "current-page" in (record(desktop, 3).get_attribute("class") or "")
 
             # Ordinary page navigation clears the previous target and re-syncs current-page rows.
             desktop.locator("#prev").click()
             expect(desktop.locator("#page")).to_have_value("1", timeout=7000)
             expect(desktop.locator("#canvas")).not_to_have_attribute("data-selected-target", "2:2060:1560")
-            expect(record(desktop, 1)).to_have_class(lambda value: "current-page" in value)
-            expect(record(desktop, 3)).not_to_have_class(lambda value: "current-page" in value)
+            assert "current-page" in (record(desktop, 1).get_attribute("class") or "")
+            assert "current-page" not in (record(desktop, 3).get_attribute("class") or "")
 
             # Drawing -> list selection, plus persistent blue target state.
             canvas = desktop.locator("#canvas")
@@ -133,7 +133,7 @@ def main():
             y = box["y"] + (1060 * (1600 / 6000) / 1000) * box["height"]
             desktop.mouse.click(x, y)
             expect(desktop.locator("#progressDialog")).to_be_visible()
-            expect(record(desktop, 1)).to_have_class(lambda value: "selected" in value)
+            assert "selected" in (record(desktop, 1).get_attribute("class") or "")
             expect(canvas).to_have_attribute("data-selected-target", "1:960:1060")
             desktop.locator("#closeDialog").click()
 
