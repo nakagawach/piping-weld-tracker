@@ -61,6 +61,11 @@ def main():
             phone.goto(f"{BASE}/projects/{PROJECT_ID}/progress?page=1",wait_until="domcontentloaded")
             phone.locator("#progressListToggle").click()
             expect(phone.locator(".progress-list-record")).to_have_count(3,timeout=7000)
+            normal_panel=phone.locator("#progressListPanel").bounding_box()
+            normal_viewer=phone.locator("#viewer").bounding_box()
+            assert normal_panel and normal_viewer and normal_viewer["y"] + normal_viewer["height"] <= normal_panel["y"] + 2, (normal_viewer,normal_panel)
+            row(phone,3).locator(".progress-list-focus").click()
+            expect(phone.locator("#canvas")).to_have_attribute("data-selected-target","1:1060:960",timeout=7000)
             phone.evaluate("document.body.classList.add('progress-fullscreen')")
             panel=phone.locator("#progressListPanel").bounding_box()
             assert panel and 410<=panel["height"]<=430 and panel["y"]>=410, panel
