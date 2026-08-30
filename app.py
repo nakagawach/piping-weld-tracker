@@ -8,7 +8,6 @@ from urllib import error, request
 from flask import Flask, jsonify, render_template, request as flask_request
 
 from global_favorites import create_global_favorites_blueprint
-from mock_progress import create_mock_progress_blueprint
 from progress import create_progress_blueprint
 from projects import create_projects_blueprint
 from thumbnail_grid import create_thumbnail_grid_blueprint
@@ -27,7 +26,6 @@ app.register_blueprint(create_projects_blueprint(DB_PATH, DATA_DIR))
 app.register_blueprint(create_progress_blueprint(DB_PATH))
 app.register_blueprint(create_thumbnail_grid_blueprint(DB_PATH))
 app.register_blueprint(create_global_favorites_blueprint(DB_PATH))
-app.register_blueprint(create_mock_progress_blueprint())
 app.register_blueprint(create_ui_shell_blueprint())
 app.register_blueprint(create_viewer_mode_blueprint())
 
@@ -178,6 +176,11 @@ def index():
 @app.get("/projects-screen")
 def projects_screen():
     return render_template("projects.html")
+
+
+@app.get("/mock/progress-fixed-layout")
+def mock_progress_fixed_layout():
+    return render_template("mock_progress_fixed_layout.html")
 
 
 @app.get("/number-map")
