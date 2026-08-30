@@ -38,6 +38,45 @@ def main():
             assert_no_body_scroll(page)
             expect(page.locator("#mode")).to_have_text("FIT")
             if name=="ipad-landscape":
+                # Public repeated pinch stability on the deployed mock.
+                cdp=page.context.new_cdp_session(page)
+                vb=page.locator("#viewer").bounding_box()
+                assert vb
+                cx0=vb["x"]+vb["width"]/2;cy0=vb["y"]+vb["height"]/2
+                def touch(kind,pts):
+                    cdp.send("Input.dispatchTouchEvent",{
+                        "type":kind,
+                        "touchPoints":[{"x":x,"y":y,"radiusX":4,"radiusY":4,"force":1,"id":i+1} for i,(x,y) in enumerate(pts)]
+                    })
+                for _ in range(10):
+                    touch("touchStart",[(cx0-45,cy0),(cx0+45,cy0)])
+                    touch("touchMove",[(cx0-95,cy0-5),(cx0+95,cy0+5)])
+                    touch("touchMove",[(cx0-38,cy0),(cx0+38,cy0)])
+                    touch("touchEnd",[])
+                    page.wait_for_timeout(25)
+                    rv=page.locator("#viewer").bounding_box();rs=page.locator("#stage").bounding_box()
+                    assert rv and rs
+                    ox=max(0,min(rv["x"]+rv["width"],rs["x"]+rs["width"])-max(rv["x"],rs["x"]))
+                    oy=max(0,min(rv["y"]+rv["height"],rs["y"]+rs["height"])-max(rv["y"],rs["y"]))
+                    assert ox>20 and oy>20,(rv,rs)
+                touch("touchStart",[(cx0-50,cy0),(cx0+50,cy0)])
+                touch("touchMove",[(cx0-100,cy0),(cx0+100,cy0)])
+                touch("touchEnd",[(cx0-100,cy0)])
+                touch("touchMove",[(cx0-70,cy0+25)])
+                touch("touchEnd",[])
+                page.wait_for_timeout(80)
+                rv=page.locator("#viewer").bounding_box();rs=page.locator("#stage").bounding_box()
+                assert rv and rs
+                ox=max(0,min(rv["x"]+rv["width"],rs["x"]+rs["width"])-max(rv["x"],rs["x"]))
+                oy=max(0,min(rv["y"]+rv["height"],rs["y"]+rs["height"])-max(rv["y"],rs["y"]))
+                assert ox>20 and oy>20,(rv,rs)
+                prevented=page.evaluate("""()=>{
+                  const e=new Event('gesturestart',{bubbles:true,cancelable:true});
+                  document.dispatchEvent(e);return e.defaultPrevented;
+                }""")
+                assert prevented is True,prevented
+                page.locator("#fit").click()
+
                 # Public rotation: 4 quarter-turns keep FIT and return to 0deg.
                 for expected in (90,180,270,0):
                     page.locator("#rotate").click()
