@@ -55,12 +55,20 @@
       viewer.style.maxHeight=`${height}px`;
     });
   }
+  function syncOpenPosition(){
+    if(!loaded)return;
+    render();
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{if(selectedKey)scrollSelected();else scrollCurrentPage()}));
+  }
   function setOpen(open){
     document.body.classList.toggle('progress-list-open',open);
     toggle.classList.toggle('active',open);
     toggle.setAttribute('aria-expanded',open?'true':'false');
     syncBottomPaneViewer();
-    if(open&&!loaded)loadList();
+    if(open){
+      if(!loaded)loadList();
+      else syncOpenPosition();
+    }
   }
   function scrollSelected(){requestAnimationFrame(()=>records.querySelector('.progress-list-record.selected')?.scrollIntoView({block:'nearest',behavior:'auto'}))}
   function scrollCurrentPage(){requestAnimationFrame(()=>records.querySelector('.progress-list-record.current-page')?.scrollIntoView({block:'nearest',behavior:'auto'}))}
