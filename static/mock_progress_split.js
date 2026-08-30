@@ -28,6 +28,7 @@
     if(highlightTimer){clearTimeout(highlightTimer);highlightTimer=0}
     surface.querySelectorAll('.marker.focused').forEach(m=>m.classList.remove('focused'));
   }
+  function clearSelectedTarget(){surface.querySelectorAll('.marker.selected-target').forEach(m=>m.classList.remove('selected-target'))}
   function markerProgress(c){return progressMap.get(keyXY(c.x,c.y))||{status:'未着手',completedDate:'',workDetail:''}}
   function renderMarkers(){
     surface.querySelectorAll('.marker').forEach(el=>el.remove());
@@ -74,20 +75,20 @@
     }catch(e){if(generation!==loadGeneration)return;status.textContent=e.message;candidates=[];progressMap.clear();surface.querySelectorAll('.marker').forEach(el=>el.remove())}
   }
   function focusTarget(item){
-    clearFocus();selectedKey=itemKey(item);renderList();
+    clearFocus();clearSelectedTarget();selectedKey=itemKey(item);renderList();
     const marker=[...surface.querySelectorAll('.marker')].find(m=>Math.abs(Number(m.dataset.x)-item.x)<2&&Math.abs(Number(m.dataset.y)-item.y)<2);
     if(!marker)return;
     const mr=marker.getBoundingClientRect(),vr=viewer.getBoundingClientRect();
     const targetX=viewer.scrollLeft+(mr.left-vr.left)+mr.width/2,targetY=viewer.scrollTop+(mr.top-vr.top)+mr.height/2;
     viewer.scrollTo({left:Math.max(0,targetX-viewer.clientWidth/2),top:Math.max(0,targetY-viewer.clientHeight/2),behavior:'auto'});
-    marker.classList.add('focused');
+    marker.classList.add('selected-target','focused');
     highlightTimer=setTimeout(()=>{marker.classList.remove('focused');highlightTimer=0},1500);
   }
   function chooseRecord(item){
     clearFocus();selectedKey=itemKey(item);renderList();
     if(item.pageNumber!==currentPage){status.textContent=`P${item.pageNumber} の ${item.number} へ移動中…`;void loadPage(item.pageNumber,item)}
     else focusTarget(item);
-    closeDrawer();
+    if(window.innerWidth>600)closeDrawer();
   }
   function renderList(){
     const q=document.getElementById('search').value.trim().toLowerCase();
@@ -113,18 +114,24 @@
     if(updated.pageNumber===currentPage){progressMap.set(keyXY(updated.x,updated.y),updated);renderMarkers()}
     activeDialogItem=updated;selectedKey=key;renderList();dialog.close();status.textContent=`${updated.number} をモック上で「${updated.status}」に変更しました（未保存）`;
   }
-  function openDrawer(){side.classList.add('open');backdrop.classList.add('open')}
-  function closeDrawer(){side.classList.remove('open');backdrop.classList.remove('open')}
+  function openDrawer(){
+    if(window.innerWidth<=600){app.classList.remove('mobile-side-closed');return}
+    side.classList.add('open');backdrop.classList.add('open')
+  }
+  function closeDrawer(){
+    if(window.innerWidth<=600){app.classList.add('mobile-side-closed');return}
+    side.classList.remove('open');backdrop.classList.remove('open')
+  }
   prev.onclick=()=>void loadPage(currentPage-1);next.onclick=()=>void loadPage(currentPage+1);pageInput.onchange=()=>void loadPage(pageInput.value);
   document.getElementById('zoomOut').onclick=()=>applyZoom(zoom-.25);document.getElementById('zoomIn').onclick=()=>applyZoom(zoom+.25);zoomValue.onclick=()=>applyZoom(1);
   rotateButton.onclick=()=>{clearFocus();rotation=(rotation+90)%360;layoutSurface();viewer.scrollTo({left:0,top:0,behavior:'auto'});status.textContent=`P${currentPage} / 回転 ${rotation}°`};
   document.getElementById('resetView').onclick=()=>{clearFocus();applyZoom(1);viewer.scrollTo({left:0,top:0,behavior:'auto'})};
-  document.getElementById('collapseSide').onclick=()=>app.classList.toggle('collapsed');document.getElementById('openSide').onclick=openDrawer;backdrop.onclick=closeDrawer;
+  document.getElementById('collapseSide').onclick=()=>app.classList.toggle('collapsed');document.getElementById('openSide').onclick=openDrawer;document.getElementById('mobileCloseSide').onclick=closeDrawer;backdrop.onclick=closeDrawer;
   document.getElementById('tabs').onclick=e=>{const b=e.target.closest('[data-filter]');if(!b)return;activeFilter=b.dataset.filter;document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===b));renderList()};
   document.getElementById('search').oninput=renderList;document.getElementById('clearSearch').onclick=()=>{document.getElementById('search').value='';renderList()};
   document.getElementById('projectSelect').onchange=e=>location.href=`?project=${encodeURIComponent(e.target.value)}`;
   document.getElementById('closeDialog').onclick=()=>dialog.close();document.getElementById('dialogCloseBottom').onclick=()=>dialog.close();document.getElementById('mockSave').onclick=applyMockEdit;
   dialogStatus.onchange=()=>{if(dialogStatus.value==='完了'&&!dialogDate.value)dialogDate.value=new Date().toISOString().slice(0,10)};
-  window.addEventListener('resize',()=>{if(innerWidth>900)closeDrawer()});
+  window.addEventListener('resize',()=>{if(innerWidth>900){side.classList.remove('open');backdrop.classList.remove('open')}if(innerWidth>600)app.classList.remove('mobile-side-closed')});
   (async()=>{try{const r=await fetch(infoUrl,{cache:'no-store'}),data=await r.json();if(!r.ok)throw new Error(data.error||'PDF情報を取得できませんでした。');pageCount=data.pageCount||1;setPager();await loadPage(1);setTimeout(loadList,0)}catch(e){status.textContent=e.message}})();
 })();
