@@ -48,14 +48,12 @@ def stub(page):
 
 def assert_controls_clear_of_panel(page):
     panel=page.locator("#progressListPanel").bounding_box()
-    fs=page.locator("#fullscreenCompact").bounding_box()
-    rot=page.locator("#rotateCompact").bounding_box()
-    more=page.locator("#moreMenu").bounding_box()
-    assert panel and fs and rot and more
+    fs=page.locator("#fullscreen").bounding_box()
+    rot=page.locator("#rotate").bounding_box()
+    assert panel and fs and rot
     panel_left=panel["x"]
     assert fs["x"]+fs["width"] <= panel_left+1,(fs,panel)
     assert rot["x"]+rot["width"] <= panel_left+1,(rot,panel)
-    assert more["x"]+more["width"] <= panel_left+1,(more,panel)
 
 def main():
     seed_progress()
@@ -71,23 +69,26 @@ def main():
             expect(ipad.locator("#progressListToggle")).to_be_visible(timeout=7000)
             ipad.locator("#progressListToggle").click()
             expect(ipad.locator("#progressListPanel")).to_be_visible()
-            expect(ipad.locator(".desktop-tools")).not_to_be_visible()
-            expect(ipad.locator("#rotateCompact")).to_be_visible()
-            expect(ipad.locator("#fullscreenCompact")).to_be_visible()
-            expect(ipad.locator("#moreMenu")).to_be_visible()
+            expect(ipad.locator(".desktop-tools")).to_be_visible()
+            expect(ipad.locator("#rotate")).to_be_visible()
+            expect(ipad.locator("#fullscreen")).to_be_visible()
+            expect(ipad.locator("#zoomOut")).not_to_be_visible()
+            expect(ipad.locator("#zoomIn")).not_to_be_visible()
+            expect(ipad.locator("#viewReset")).not_to_be_visible()
+            expect(ipad.locator("#reload")).not_to_be_visible()
             assert_controls_clear_of_panel(ipad)
 
             # Fullscreen must remain actionable while right panel is open.
-            ipad.locator("#fullscreenCompact").click()
+            ipad.locator("#fullscreen").click()
             expect(ipad.locator("body")).to_have_class(__import__("re").compile(r".*progress-fullscreen.*"),timeout=3000)
             expect(ipad.locator("#progressListPanel")).to_be_visible()
-            expect(ipad.locator("#fullscreenCompact")).to_be_visible()
+            expect(ipad.locator("#fullscreen")).to_be_visible()
             assert_controls_clear_of_panel(ipad)
 
             # Exit fullscreen and ensure controls remain usable.
-            ipad.locator("#fullscreenCompact").click()
+            ipad.locator("#fullscreen").click()
             expect(ipad.locator("body")).not_to_have_class(__import__("re").compile(r".*progress-fullscreen.*"),timeout=3000)
-            expect(ipad.locator("#rotateCompact")).to_be_visible()
+            expect(ipad.locator("#rotate")).to_be_visible()
             ipad.close()
 
             # Wide desktop keeps the full desktop tool row.
