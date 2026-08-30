@@ -20,6 +20,7 @@
       viewer.style.removeProperty('height');
       viewer.style.removeProperty('min-height');
       viewer.style.removeProperty('max-height');
+      window.dispatchEvent(new CustomEvent('weld:progress-layout-changed'));
       return;
     }
     requestAnimationFrame(()=>{
@@ -29,6 +30,7 @@
       viewer.style.height=`${height}px`;
       viewer.style.minHeight='0px';
       viewer.style.maxHeight=`${height}px`;
+      window.dispatchEvent(new CustomEvent('weld:progress-layout-changed',{detail:{height}}));
     });
   }
   function setOpen(open){
