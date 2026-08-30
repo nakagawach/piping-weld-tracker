@@ -45,3 +45,8 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: python tests/ui_shell_e2e.py
+      - name: Public user-only fit floor verification
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+          PUBLIC_BASE_URL: https://nakagawach.pythonanywhere.com/weld
+        run: python tests/public_user_zoom_fit_floor.py
