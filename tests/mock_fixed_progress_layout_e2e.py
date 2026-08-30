@@ -199,6 +199,36 @@ def main():
             assert rr and dr
             assert dr["y"]>=rr["y"]-1 and dr["y"]+dr["height"]<=rr["y"]+rr["height"]+1,(rr,dr)
 
+            # Minimap background image rotates with the drawing; viewport box logic stays unchanged.
+            ipad.locator("#fit").click()
+            ipad.locator("#zoomIn").click()
+            expect(ipad.locator("#minimap")).to_have_class(__import__("re").compile(r".*show.*"),timeout=2000)
+            expected_map={
+                0:("rotate(0deg)",False),
+                90:("rotate(90deg)",True),
+                180:("rotate(180deg)",False),
+                270:("rotate(270deg)",True),
+            }
+            # Current rotation is 90deg from the earlier MANUAL rotation test; return to 0 first.
+            while "0°" not in ipad.locator("#rotate").text_content():
+                ipad.locator("#rotate").click()
+                ipad.wait_for_timeout(40)
+            for deg in (0,90,180,270):
+                if deg!=0:
+                    ipad.locator("#rotate").click()
+                    ipad.wait_for_timeout(50)
+                style=ipad.locator("#minimapImg").get_attribute("style") or ""
+                assert expected_map[deg][0] in style,(deg,style)
+                mm=ipad.locator("#minimap").bounding_box()
+                mi=ipad.locator("#minimapImg").bounding_box()
+                assert mm and mi
+                if expected_map[deg][1]:
+                    assert mi["height"]<=mm["height"]+2 and mi["width"]<=mm["width"]+2,(deg,mm,mi)
+                else:
+                    assert mi["width"]<=mm["width"]+2 and mi["height"]<=mm["height"]+2,(deg,mm,mi)
+            ipad.locator("#rotate").click()
+            ipad.locator("#fit").click()
+
             # Minimap appears only in MANUAL and follows pan/zoom.
             ipad.locator("#fit").click()
             expect(ipad.locator("#minimap")).not_to_have_class(__import__("re").compile(r".*show.*"))
