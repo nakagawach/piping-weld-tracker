@@ -44,10 +44,16 @@
   function scrollSelectedRecordIntoView(){
     requestAnimationFrame(()=>records.querySelector('.record.selected')?.scrollIntoView({block:'nearest',behavior:'auto'}));
   }
+  function scrollCurrentPageIntoView(){
+    requestAnimationFrame(()=>records.querySelector('.record.current-page')?.scrollIntoView({block:'nearest',behavior:'auto'}));
+  }
   function selectFromDrawing(item){
     const existing=allItems.find(x=>itemKey(x)===itemKey(item));
     const selected=existing||item;
-    selectedKey=itemKey(selected);renderList();scrollSelectedRecordIntoView();openMockInput(selected);
+    clearFocus();clearSelectedTarget();selectedKey=itemKey(selected);
+    const marker=[...surface.querySelectorAll('.marker')].find(m=>Math.abs(Number(m.dataset.x)-selected.x)<2&&Math.abs(Number(m.dataset.y)-selected.y)<2);
+    if(marker)marker.classList.add('selected-target');
+    renderList();scrollSelectedRecordIntoView();openMockInput(selected);
   }
   function openMockInput(item){
     activeDialogItem=item;
@@ -69,7 +75,7 @@
   async function loadPage(n,focus=null){
     const generation=++loadGeneration;
     clearFocus();
-    n=Math.max(1,Math.min(pageCount,Number(n)||1));currentPage=n;setPager();status.textContent=`P${n} を読み込んでいます…`;
+    n=Math.max(1,Math.min(pageCount,Number(n)||1));currentPage=n;setPager();renderList();scrollCurrentPageIntoView();status.textContent=`P${n} を読み込んでいます…`;
     try{
       const [mapRes,progRes]=await Promise.all([fetch(`${mapUrl}?page=${n}`,{cache:'no-store'}),fetch(`${progressUrl}?page=${n}`,{cache:'no-store'})]);
       if(generation!==loadGeneration)return;
@@ -86,6 +92,7 @@
     clearFocus();clearSelectedTarget();selectedKey=itemKey(item);renderList();
     const marker=[...surface.querySelectorAll('.marker')].find(m=>Math.abs(Number(m.dataset.x)-item.x)<2&&Math.abs(Number(m.dataset.y)-item.y)<2);
     if(!marker)return;
+    scrollSelectedRecordIntoView();
     const mr=marker.getBoundingClientRect(),vr=viewer.getBoundingClientRect();
     const targetX=viewer.scrollLeft+(mr.left-vr.left)+mr.width/2,targetY=viewer.scrollTop+(mr.top-vr.top)+mr.height/2;
     viewer.scrollTo({left:Math.max(0,targetX-viewer.clientWidth/2),top:Math.max(0,targetY-viewer.clientHeight/2),behavior:'auto'});
@@ -104,7 +111,7 @@
     if(!filtered.length){records.innerHTML='<div class="empty">条件に一致する項目がありません。</div>';return}
     records.innerHTML='';
     for(const item of filtered){
-      const row=document.createElement('div');row.className='record';if(selectedKey===itemKey(item))row.classList.add('selected');
+      const row=document.createElement('div');row.className='record';if(item.pageNumber===currentPage)row.classList.add('current-page');if(selectedKey===itemKey(item))row.classList.add('selected');
       const focus=document.createElement('button');focus.type='button';focus.className='record-focus';focus.innerHTML=`<span class="number"></span><span class="badge ${statusClass(item.status)}"></span><span class="page">P${item.pageNumber}</span><span class="memo"></span>`;
       focus.querySelector('.number').textContent=item.number;focus.querySelector('.badge').textContent=item.status;focus.querySelector('.memo').textContent=item.workDetail||'—';focus.onclick=()=>chooseRecord(item);
       const input=document.createElement('button');input.type='button';input.className='record-input';input.textContent='進捗入力';input.onclick=e=>{e.stopPropagation();openMockInput(item)};
@@ -113,7 +120,7 @@
   }
   async function loadList(){
     listState.textContent='読込中…';
-    try{const r=await fetch(listUrl,{cache:'no-store'}),data=await r.json();if(!r.ok)throw new Error(data.error||'一覧を取得できませんでした。');allItems=data.items||[];listState.textContent=`${allItems.length}件`;renderList()}catch(e){listState.textContent='取得失敗';records.innerHTML=`<div class="empty">${e.message}</div>`}
+    try{const r=await fetch(listUrl,{cache:'no-store'}),data=await r.json();if(!r.ok)throw new Error(data.error||'一覧を取得できませんでした。');allItems=data.items||[];listState.textContent=`${allItems.length}件`;renderList();scrollCurrentPageIntoView()}catch(e){listState.textContent='取得失敗';records.innerHTML=`<div class="empty">${e.message}</div>`}
   }
   function applyMockEdit(){
     if(!activeDialogItem)return;
