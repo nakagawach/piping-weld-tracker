@@ -210,7 +210,7 @@ def main():
                 270:("rotate(270deg)",True),
             }
             # Current rotation is 90deg from the earlier MANUAL rotation test; return to 0 first.
-            while "0°" not in ipad.locator("#rotate").text_content():
+            while (ipad.locator("#rotate").text_content() or "").strip() != "↻ 0°":
                 ipad.locator("#rotate").click()
                 ipad.wait_for_timeout(40)
             for deg in (0,90,180,270):
