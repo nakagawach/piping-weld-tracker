@@ -82,6 +82,11 @@ def main():
                     page.locator("#rotate").click()
                     expect(page.locator("#rotate")).to_contain_text(f"{expected}°")
                     expect(page.locator("#mode")).to_have_text("FIT")
+                    page.locator("#zoomIn").click()
+                    expect(page.locator("#minimap")).to_have_class(__import__("re").compile(r".*show.*"),timeout=2000)
+                    map_style=page.locator("#minimapImg").get_attribute("style") or ""
+                    assert f"rotate({expected}deg)" in map_style,(expected,map_style)
+                    page.locator("#fit").click()
                     page.wait_for_timeout(80)
                     rv=page.locator("#viewer").bounding_box();rs=page.locator("#stage").bounding_box()
                     assert rv and rs
