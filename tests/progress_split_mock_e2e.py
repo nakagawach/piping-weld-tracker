@@ -107,6 +107,10 @@ def main():
             expect(page.locator(".record.selected .number")).to_have_text("1")
             assert "focused" in (page.locator('.marker[data-number="1"]').get_attribute("class") or "")
             assert "focused" not in (page.locator('.marker[data-number="2"]').get_attribute("class") or "")
+            page.wait_for_timeout(1650)
+            marker1_class = page.locator('.marker[data-number="1"]').get_attribute("class") or ""
+            assert "focused" not in marker1_class
+            assert "selected-target" in marker1_class
 
             # Rotation works without changing zoom.
             page.locator("#rotate").click()
@@ -155,11 +159,17 @@ def main():
             expect(phone.locator("#rotate")).to_be_visible()
             phone.locator("#rotate").click()
             expect(phone.locator("#rotate")).to_have_attribute("aria-label", "図面を90度回転")
-            phone.locator("#openSide").click()
             expect(phone.locator("#side")).to_be_visible()
             box = phone.locator("#side").bounding_box()
             assert box is not None and box["width"] >= 380, box
+            assert 400 <= box["height"] <= 430, box
             expect(phone.locator(".record-input")).to_have_count(3, timeout=5000)
+            expect(phone.locator("#mobileCloseSide")).to_be_visible()
+            phone.locator("#mobileCloseSide").click()
+            assert "mobile-side-closed" in (phone.locator("#mockApp").get_attribute("class") or "")
+            phone.locator("#openSide").click()
+            assert "mobile-side-closed" not in (phone.locator("#mockApp").get_attribute("class") or "")
+            expect(phone.locator("#side")).to_be_visible()
             phone.close()
 
             browser.close()
