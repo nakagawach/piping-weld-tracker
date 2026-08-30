@@ -186,14 +186,6 @@ def create_progress_blueprint(db_path: Path):
             pdf_name=project["original_pdf_name"],
         )
 
-        progress_list_url = url_for("progress.project_progress_list", project_id=project_id)
-        list_button = (
-            f'<a class="button icon-button" href="{progress_list_url}" '
-            'aria-label="進捗一覧" title="進捗一覧" '
-            'style="display:inline-flex;align-items:center;justify-content:center;text-decoration:none">☷</a>'
-        )
-        html = html.replace('<div class="spacer"></div>', f'<div class="spacer"></div>{list_button}', 1)
-
         memo_css = """
 .drawing-memo-launch.active,.drawing-memo-edit.active{border-color:#1967d2;background:#e8f0fe;color:#174ea6}
 .drawing-memo-tools{display:none;gap:6px;align-items:center;padding:6px;border-bottom:1px solid #eee;background:#fff;overflow-x:auto;white-space:nowrap}
@@ -258,18 +250,18 @@ body.progress-fullscreen .progress-thumbs{display:none}
         )
         html = html.replace("function setBusy(v){", thumb_js + "function setBusy(v){", 1)
         html = html.replace(
-            "async function loadPage(n){if(busy||!pageCount)return;n=Math.max(1,Math.min(pageCount,Number(n)||1));pageInput.value=n;setBusy(true);",
-            "async function loadPage(n){if(busy||!pageCount)return;n=Math.max(1,Math.min(pageCount,Number(n)||1));const previousPage=Number(pageInput.value)||1;if(n!==previousPage&&window.__drawingMemoBeforePageChange&&!await window.__drawingMemoBeforePageChange(previousPage,n))return;if(n!==previousPage)window.dispatchEvent(new CustomEvent('weld:progress-page-changing',{detail:{from:previousPage,to:n}}));pageInput.value=n;setBusy(true);",
+            "async function loadPage(n){if(!pageCount)return;n=Math.max(1,Math.min(pageCount,Number(n)||1));if(busy){pendingPage=n;return}pageInput.value=n;setBusy(true);",
+            "async function loadPage(n){if(!pageCount)return;n=Math.max(1,Math.min(pageCount,Number(n)||1));if(busy){pendingPage=n;return}const previousPage=Number(pageInput.value)||1;if(n!==previousPage&&window.__drawingMemoBeforePageChange&&!await window.__drawingMemoBeforePageChange(previousPage,n))return;if(n!==previousPage)window.dispatchEvent(new CustomEvent('weld:progress-page-changing',{detail:{from:previousPage,to:n}}));pageInput.value=n;setBusy(true);",
             1,
         )
         html = html.replace(
-            "}catch(e){status.className='statusline error';status.textContent=e.message}finally{setBusy(false)}}",
-            "}catch(e){status.className='statusline error';status.textContent=e.message}finally{setBusy(false);window.dispatchEvent(new CustomEvent('weld:progress-page-loaded',{detail:{page:n}}))}}",
+            "}catch(e){status.className='statusline error';status.textContent=e.message}finally{setBusy(false);const queued=pendingPage;pendingPage=null;if(queued!==null&&queued!==n)loadPage(queued)}}",
+            "}catch(e){status.className='statusline error';status.textContent=e.message}finally{setBusy(false);window.dispatchEvent(new CustomEvent('weld:progress-page-loaded',{detail:{page:n}}));const queued=pendingPage;pendingPage=null;if(queued!==null&&queued!==n)loadPage(queued)}}",
             1,
         )
 
         old_load_start = "pageInput.value=n;setBusy(true);drawingZoom=1;rotation=0;zoomReset.textContent='100%';rotateButton.textContent='↻ 0°';canvas.style.width='100%';resetPosition();"
-        new_load_start = "pageInput.value=n;updateProgressThumbActive();setBusy(true);drawingZoom=1;zoomReset.textContent='100%';canvas.style.width='100%';resetPosition();"
+        new_load_start = "pageInput.value=n;selectedTarget=null;selectionPulse=false;delete canvas.dataset.selectedTarget;updateProgressThumbActive();setBusy(true);drawingZoom=1;zoomReset.textContent='100%';canvas.style.width='100%';resetPosition();"
         html = html.replace(old_load_start, new_load_start, 1)
         html = html.replace(
             "pageCount=data.pageCount;pageTotal.textContent=`/ ${pageCount}`;setBusy(false);await loadPage(1)",
@@ -288,6 +280,73 @@ body.progress-fullscreen .progress-thumbs{display:none}
             "if(target)openEditor(target)}}",
             1,
         )
+        layout_v5_css = """
+<style data-progress-layout-v5>
+/* Progress screen only. Keep shared ui_shell untouched. */
+body.ui3-progress{--progress-v5-appbar:44px;--progress-v5-toolbar:44px}
+@media(min-width:821px){
+  body.ui3-progress main>.top{display:flex!important;min-height:44px!important;height:44px!important;margin:0!important;padding:4px 8px!important;align-items:center!important;gap:8px!important;border-bottom:1px solid #e5e7eb!important;background:#fff!important}
+  body.ui3-progress main>.top>div{min-width:0;flex:1}
+  body.ui3-progress main>.top .title{margin:0!important;font-size:1rem!important;line-height:1.15!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+  body.ui3-progress main>.top .meta{display:none!important}
+  body.ui3-progress main>.top #back{order:-1!important;min-height:36px!important;height:36px!important;padding:0 10px!important;border:0!important;background:transparent!important;color:#1967d2!important}
+  body.ui3-progress .card{border-radius:0!important;border-left:0!important;border-right:0!important}
+  body.ui3-progress .toolbar{min-height:44px!important;height:44px!important;padding:3px 6px!important;gap:3px!important}
+  body.ui3-progress .toolbar .button{min-height:36px!important;height:36px!important}
+  body.ui3-progress .statusline{min-height:20px!important;height:20px!important;padding:2px 8px!important;font-size:.72rem!important;line-height:16px!important;overflow:hidden!important}
+  body.ui3-progress .summary{height:24px!important;min-height:24px!important;padding:2px 6px!important;gap:4px!important}
+  body.ui3-progress .summary .chip{padding:2px 7px!important;font-size:.7rem!important}
+  body.ui3-progress .progress-thumbs{height:52px!important;min-height:52px!important;padding:2px 4px!important;gap:4px!important}
+  body.ui3-progress .progress-thumb{position:relative!important;flex:0 0 60px!important;height:48px!important;padding:2px!important;border-radius:7px!important}
+  body.ui3-progress .progress-thumb img{height:42px!important;border-radius:4px!important}
+  body.ui3-progress .progress-thumb span{position:absolute!important;left:4px!important;bottom:3px!important;margin:0!important;padding:1px 4px!important;border-radius:5px!important;background:rgba(255,255,255,.88)!important;font-size:.62rem!important;line-height:1.2!important}
+}
+@media(min-width:821px) and (max-width:1200px) and (orientation:landscape){
+  body.progress-list-open main{max-width:none!important;padding-right:320px!important}
+  body.progress-list-open .progress-list-panel{right:0!important;top:44px!important;bottom:0!important;width:312px!important;border-radius:0!important;border-top:0!important;border-bottom:0!important}
+  body.progress-list-open .toolbar .desktop-tools{display:flex!important;align-items:center!important;gap:3px!important}
+  body.progress-list-open .toolbar .desktop-tools>button{display:none!important}
+  body.progress-list-open .toolbar .desktop-tools>#rotate,
+  body.progress-list-open .toolbar .desktop-tools>#fullscreen{display:inline-flex!important}
+}
+@media(min-width:1201px){
+  body.progress-list-open main{max-width:none!important;padding-right:348px!important}
+  body.progress-list-open .progress-list-panel{right:8px!important;top:52px!important;bottom:8px!important;width:340px!important;border-radius:10px!important}
+}
+@media(max-width:820px){
+  body.ui3-progress .ui3-appbar{min-height:44px!important;height:44px!important;padding-top:2px!important;padding-bottom:2px!important}
+  body.ui3-progress .ui3-back,
+  body.ui3-progress .ui3-icon{min-width:40px!important;width:auto!important;height:40px!important;min-height:40px!important}
+  body.ui3-progress .ui3-title strong{font-size:.92rem!important}
+  body.ui3-progress .ui3-title small{display:none!important}
+  body.ui3-progress .ui3-appbar details.more>summary{width:40px!important;height:40px!important;min-width:40px!important;min-height:40px!important}
+  body.ui3-progress .toolbar{top:44px!important;min-height:44px!important;height:44px!important;padding:2px 4px!important;gap:2px!important}
+  body.ui3-progress .toolbar .button{min-height:38px!important;height:38px!important}
+  body.ui3-progress .summary{height:24px!important;min-height:24px!important;padding:2px 5px!important}
+  body.ui3-progress .progress-thumbs{height:52px!important;min-height:52px!important;padding:2px 4px!important;gap:4px!important}
+  body.ui3-progress .progress-thumb{position:relative!important;flex:0 0 58px!important;height:48px!important;padding:2px!important}
+  body.ui3-progress .progress-thumb img{height:42px!important}
+  body.ui3-progress .progress-thumb span{position:absolute!important;left:4px!important;bottom:3px!important;margin:0!important;padding:1px 4px!important;border-radius:5px!important;background:rgba(255,255,255,.88)!important;font-size:.62rem!important;line-height:1.2!important}
+}
+@media(max-width:640px), (min-width:641px) and (max-width:1200px) and (orientation:portrait){
+  body.progress-list-open main{padding-bottom:40dvh!important}
+  body.progress-list-open .progress-list-panel{left:0!important;right:0!important;top:auto!important;bottom:0!important;width:auto!important;max-width:none!important;height:40dvh!important;border-radius:14px 14px 0 0!important}
+  body.progress-fullscreen.progress-list-open main{padding-bottom:40dvh!important}
+  body.progress-fullscreen.progress-list-open .progress-list-panel{top:auto!important;bottom:0!important;height:40dvh!important}
+}
+.progress-list-panel .panel-head{height:42px!important;min-height:42px!important;padding:4px 7px!important}
+.progress-list-panel .panel-close{min-width:36px!important;height:34px!important;min-height:34px!important}
+.progress-list-panel .panel-filters{padding:6px!important}
+.progress-list-panel .panel-tab{min-height:32px!important;height:32px!important;padding:0 9px!important}
+.progress-list-panel .panel-search{margin-top:5px!important}
+.progress-list-panel .panel-search input{height:36px!important}
+.progress-list-panel .panel-search .button{min-height:36px!important;height:36px!important}
+.progress-list-focus{padding-top:8px!important;padding-bottom:8px!important}
+.progress-list-input{min-height:34px!important;height:34px!important}
+</style>
+"""
+        html = html.replace("</body>", layout_v5_css + "</body>", 1)
+
         return html
 
     @blueprint.get("/projects/<int:project_id>/progress-list")
