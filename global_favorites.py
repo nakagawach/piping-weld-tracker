@@ -49,11 +49,16 @@ def create_global_favorites_blueprint(db_path: Path):
   const wrap=document.createElement('div');
   wrap.className='ui3-root-actions';
   wrap.style.cssText='display:flex;gap:8px;align-items:center;flex-wrap:wrap';
+  const mock=document.createElement('button');
+  mock.type='button';mock.className='button';mock.dataset.ui3Mock='1';mock.textContent='モック確認';mock.title='進捗入力2ペインUIの操作モック';mock.setAttribute('aria-label','進捗入力モック確認');
+  mock.style.cssText='border-color:#8ab4f8;color:#174ea6;font-weight:800;background:#f4f8ff';
+  mock.onclick=()=>location.href='mock/progress-split';
   const fav=document.createElement('button');
   fav.type='button';fav.className='button';fav.dataset.ui3Favorites='1';fav.textContent='★ お気に入り';fav.title='工事を横断してお気に入りページを表示';fav.setAttribute('aria-label','お気に入りページ一覧');
   fav.style.cssText='border-color:#f9ab00;color:#8a5a00;font-weight:800;background:#fff8e1';
   fav.onclick=()=>location.href='favorites';
-  newButton.parentNode.insertBefore(wrap,newButton);wrap.appendChild(fav);wrap.appendChild(newButton);
+  const style=document.createElement('style');style.textContent='@media(max-width:820px){.ui3-root-actions [data-ui3-mock]{width:auto!important;min-width:58px!important;padding:0 7px!important;font-size:.68rem!important;color:#174ea6!important}}';document.head.appendChild(style);
+  newButton.parentNode.insertBefore(wrap,newButton);wrap.appendChild(mock);wrap.appendChild(fav);wrap.appendChild(newButton);
 })();
 </script>
 """
