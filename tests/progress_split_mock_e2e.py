@@ -157,7 +157,7 @@ def main():
             expect(tablet_portrait.locator("#side")).to_be_visible()
             tablet_portrait.close()
 
-            narrow = browser.new_page(viewport={"width": 820, "height": 900})
+            narrow = browser.new_page(viewport={"width": 820, "height": 700})
             stub_pdf(narrow)
             narrow.goto(f"{BASE_URL}/mock/progress-split?project={PROJECT_ID}", wait_until="domcontentloaded")
             expect(narrow.locator("#openSide")).to_be_visible()
