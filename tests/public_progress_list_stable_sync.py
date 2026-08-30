@@ -1,4 +1,5 @@
 import json
+import re
 from urllib.request import Request, urlopen
 from playwright.sync_api import expect, sync_playwright
 
@@ -40,7 +41,7 @@ def main():
         r14=row(page,14,3)
         r14.locator(".progress-list-focus").click()
         expect(page.locator("#page")).to_have_value("3",timeout=15000)
-        expect(page.locator("#canvas")).to_have_attribute("data-selected-target",r"3:\d+:\d+",timeout=15000)
+        expect(page.locator("#canvas")).to_have_attribute("data-selected-target",re.compile(r"^3:\d+:\d+$"),timeout=15000)
         page.wait_for_timeout(400)
         assert "selected" in (r14.get_attribute("class") or ""),r14.get_attribute("class")
         assert page.locator(".progress-list-record.selected").count()==1
