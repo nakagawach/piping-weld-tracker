@@ -34,7 +34,7 @@
     surface.querySelectorAll('.marker').forEach(el=>el.remove());
     for(const item of candidates){
       const c=center(item),p=markerProgress(c),m=document.createElement('button');
-      m.type='button';m.className=`marker ${statusClass(p.status)}`;m.dataset.x=String(c.x);m.dataset.y=String(c.y);m.dataset.number=item.number;
+      m.type='button';m.className=`marker ${statusClass(p.status)}`;if(selectedKey===`${currentPage}:${c.x}:${c.y}`)m.classList.add('selected-target');m.dataset.x=String(c.x);m.dataset.y=String(c.y);m.dataset.number=item.number;
       m.style.left=`${(c.x*SCALE/baseW)*100}%`;m.style.top=`${(c.y*SCALE/baseH)*100}%`;
       const label=document.createElement('span');label.textContent=item.number;label.style.display='inline-block';label.style.transform=`rotate(${-rotation}deg)`;m.appendChild(label);
       m.onclick=()=>openMockInput({pageNumber:currentPage,number:item.number,x:c.x,y:c.y,status:p.status||'未着手',completedDate:p.completedDate||'',workDetail:p.workDetail||''});
