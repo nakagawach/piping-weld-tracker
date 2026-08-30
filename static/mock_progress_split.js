@@ -23,7 +23,7 @@
     surface.querySelectorAll('.marker span').forEach(span=>span.style.transform=`rotate(${-rotation}deg)`);
     zoomValue.textContent=`${Math.round(zoom*100)}%`;rotateButton.textContent=`↻ ${rotation}°`;
   }
-  function applyZoom(next){zoom=Math.max(1,Math.min(3,Math.round(next*4)/4));layoutSurface()}
+  function applyZoom(next){const minZoom=window.innerWidth<=600?.5:1;zoom=Math.max(minZoom,Math.min(3,Math.round(next*4)/4));layoutSurface()}
   function clearFocus(){
     if(highlightTimer){clearTimeout(highlightTimer);highlightTimer=0}
     surface.querySelectorAll('.marker.focused').forEach(m=>m.classList.remove('focused'));
@@ -37,9 +37,17 @@
       m.type='button';m.className=`marker ${statusClass(p.status)}`;if(selectedKey===`${currentPage}:${c.x}:${c.y}`)m.classList.add('selected-target');m.dataset.x=String(c.x);m.dataset.y=String(c.y);m.dataset.number=item.number;
       m.style.left=`${(c.x*SCALE/baseW)*100}%`;m.style.top=`${(c.y*SCALE/baseH)*100}%`;
       const label=document.createElement('span');label.textContent=item.number;label.style.display='inline-block';label.style.transform=`rotate(${-rotation}deg)`;m.appendChild(label);
-      m.onclick=()=>openMockInput({pageNumber:currentPage,number:item.number,x:c.x,y:c.y,status:p.status||'未着手',completedDate:p.completedDate||'',workDetail:p.workDetail||''});
+      m.onclick=()=>selectFromDrawing({pageNumber:currentPage,number:item.number,x:c.x,y:c.y,status:p.status||'未着手',completedDate:p.completedDate||'',workDetail:p.workDetail||''});
       surface.appendChild(m);
     }
+  }
+  function scrollSelectedRecordIntoView(){
+    requestAnimationFrame(()=>records.querySelector('.record.selected')?.scrollIntoView({block:'nearest',behavior:'auto'}));
+  }
+  function selectFromDrawing(item){
+    const existing=allItems.find(x=>itemKey(x)===itemKey(item));
+    const selected=existing||item;
+    selectedKey=itemKey(selected);renderList();scrollSelectedRecordIntoView();openMockInput(selected);
   }
   function openMockInput(item){
     activeDialogItem=item;
@@ -132,6 +140,6 @@
   document.getElementById('projectSelect').onchange=e=>location.href=`?project=${encodeURIComponent(e.target.value)}`;
   document.getElementById('closeDialog').onclick=()=>dialog.close();document.getElementById('dialogCloseBottom').onclick=()=>dialog.close();document.getElementById('mockSave').onclick=applyMockEdit;
   dialogStatus.onchange=()=>{if(dialogStatus.value==='完了'&&!dialogDate.value)dialogDate.value=new Date().toISOString().slice(0,10)};
-  window.addEventListener('resize',()=>{if(innerWidth>900){side.classList.remove('open');backdrop.classList.remove('open')}if(innerWidth>600)app.classList.remove('mobile-side-closed')});
+  window.addEventListener('resize',()=>{if(innerWidth>900){side.classList.remove('open');backdrop.classList.remove('open')}if(innerWidth>600){app.classList.remove('mobile-side-closed');if(zoom<1)applyZoom(1)}});
   (async()=>{try{const r=await fetch(infoUrl,{cache:'no-store'}),data=await r.json();if(!r.ok)throw new Error(data.error||'PDF情報を取得できませんでした。');pageCount=data.pageCount||1;setPager();await loadPage(1);setTimeout(loadList,0)}catch(e){status.textContent=e.message}})();
 })();
