@@ -353,7 +353,7 @@ def main():
             phone.wait_for_timeout(140)
             assert phone.evaluate("()=>window.__splitEvents")>before_events
 
-            # Loading another page must hide the old/intermediate canvas before the new draw appears.
+            # Saved-to-saved page changes keep the committed canvas visible until the new page is ready.
             phone.evaluate("""()=>{
               window.__canvasHiddenSeen=false;
               const canvas=document.getElementById('canvas');
@@ -362,7 +362,7 @@ def main():
             phone.locator("#next").click()
             phone.wait_for_function("document.getElementById('page').value === '2'")
             expect(phone.locator("#canvas")).to_be_visible(timeout=5000)
-            assert phone.evaluate("()=>window.__canvasHiddenSeen") is True
+            assert phone.evaluate("()=>window.__canvasHiddenSeen") is False
             phone.locator("#prev").click()
             phone.wait_for_function("document.getElementById('page').value === '1'")
             phone.wait_for_timeout(100)
