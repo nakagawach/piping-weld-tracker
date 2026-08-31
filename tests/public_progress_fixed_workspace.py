@@ -89,6 +89,10 @@ def main():
         mm=page.locator("#progressMinimap").bounding_box()
         vp=page.locator("#progressMinimapViewport").bounding_box()
         assert mm and vp and vp["width"]>5 and vp["height"]>5,(mm,vp)
+        viewer_box=page.locator("#viewer").bounding_box()
+        assert viewer_box
+        assert abs(mm["x"]-(viewer_box["x"]+10))<=2,(mm,viewer_box)
+        assert abs((mm["y"]+mm["height"])-(viewer_box["y"]+viewer_box["height"]-10))<=2,(mm,viewer_box)
         before_mini=page.locator("#progressMinimapCanvas").evaluate("el=>el.toDataURL()")
         page.locator("#rotate").click()
         page.wait_for_timeout(180)
@@ -119,6 +123,16 @@ def main():
         phone.on("pageerror",lambda e:perrors.append(str(e)))
         phone.on("console",lambda m:perrors.append(m.text) if m.type=="error" else None)
         phone.goto(f"{BASE}/projects/{pid}/progress?page=1",wait_until="domcontentloaded",timeout=60000)
+        appbar=phone.locator("[data-ui3-header='progress']")
+        expect(appbar).to_be_visible(timeout=10000)
+        appbar_box=appbar.bounding_box()
+        assert appbar_box and appbar_box["y"]<=1.5,appbar_box
+        more=appbar.locator("details.more")
+        expect(more).to_be_visible()
+        more.locator("summary").click()
+        assert more.evaluate("el=>el.open") is True
+        expect(more.locator(".more-menu")).to_be_visible()
+        more.locator("summary").click()
         expect(phone.locator("#canvas")).to_be_visible(timeout=20000)
         phone.locator("#progressListToggle").click()
         expect(phone.locator("#progressListPanel")).to_be_visible(timeout=10000)
