@@ -388,6 +388,10 @@ body.ui3-progress .progress-list-input{min-height:34px!important;height:34px!imp
 }
 body.ui3-progress.progress-fullscreen{overflow:hidden!important}
 body.ui3-progress.progress-fullscreen main{height:100dvh!important;max-height:100dvh!important}
+body.ui3-progress .progress-minimap{position:absolute;left:10px;bottom:10px;width:118px;height:84px;border:1px solid rgba(15,23,42,.35);border-radius:7px;background:rgba(255,255,255,.9);box-shadow:0 2px 10px rgba(15,23,42,.16);overflow:hidden;pointer-events:none;opacity:0;transition:opacity .12s;z-index:12}
+body.ui3-progress .progress-minimap.show{opacity:1}
+body.ui3-progress .progress-minimap>canvas{position:absolute;inset:0;width:100%;height:100%;margin:0!important}
+body.ui3-progress .progress-minimap-viewport{position:absolute;border:2px solid #ff4fa3;background:rgba(255,79,163,.22);border-radius:2px}
 </style>
 """
         html = html.replace("</body>", layout_v5_css + "</body>", 1)
