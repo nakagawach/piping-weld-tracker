@@ -165,10 +165,20 @@ def main():
                 assert snap["canvasHidden"] is False and snap["emptyHidden"] is True and "全 2" in snap["summary"],snap
             page.wait_for_function("document.getElementById('page').value === '2'",timeout=7000)
             page.wait_for_timeout(100)
-            assert page.locator("#canvas").is_visible()
-            assert page.locator("#empty").is_hidden()
-            assert "全 2" in page.locator("#summary").text_content()
-            assert page.locator('.progress-thumb.active').get_attribute("data-page")=="2"
+            final_state=page.evaluate("""()=>{const c=document.getElementById('canvas'),v=document.getElementById('viewer'),cb=c.getBoundingClientRect(),vb=v.getBoundingClientRect();return{
+              page:document.getElementById('page').value,
+              active:document.querySelector('.progress-thumb.active')?.dataset.page||null,
+              canvasHidden:c.hidden,
+              emptyHidden:document.getElementById('empty').hidden,
+              summary:document.getElementById('summary').textContent,
+              canvas:{w:cb.width,h:cb.height},
+              viewer:{w:vb.width,h:vb.height}
+            }}""")
+            assert final_state["page"]=="2" and final_state["active"]=="2",final_state
+            assert final_state["canvasHidden"] is False and final_state["emptyHidden"] is True,final_state
+            assert "全 2" in final_state["summary"],final_state
+            assert final_state["canvas"]["w"]>10 and final_state["canvas"]["h"]>10,final_state
+            assert final_state["viewer"]["w"]>10 and final_state["viewer"]["h"]>10,final_state
 
             browser.close()
     finally:
