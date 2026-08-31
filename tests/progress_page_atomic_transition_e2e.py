@@ -75,6 +75,7 @@ def main():
             expect(page.locator("#canvas")).to_be_visible(timeout=7000)
             expect(page.locator("#summary")).to_contain_text("全 1")
             expect(page.locator('.progress-thumb[data-page="1"]')).to_be_disabled()
+            expect(page.locator(".progress-list-record.current-page")).to_have_count(1,timeout=7000)
 
             events=[]
             page.expose_function("captureAtomicEvent",lambda name,detail:events.append((name,detail)))
@@ -99,11 +100,11 @@ def main():
             snap=page.evaluate("""()=>({
               page:document.getElementById('page').value,
               active:document.querySelector('.progress-thumb.active')?.dataset.page||null,
-              listPage:document.querySelector('.progress-list-record.current-page')?.dataset.page||null,
+              listPage:document.querySelector('.progress-list-record.current-page .progress-list-page')?.textContent||null,
               canvasHidden:document.getElementById('canvas').hidden,
               summary:document.getElementById('summary').textContent
             })""")
-            assert snap["page"]=="1" and snap["active"]=="1" and snap["listPage"]=="1",snap
+            assert snap["page"]=="1" and snap["active"]=="1" and snap["listPage"]=="P1",snap
             assert snap["canvasHidden"] is False and "全 1" in snap["summary"],snap
             assert page.evaluate("()=>window.__canvasHiddenChanges")==[]
 
