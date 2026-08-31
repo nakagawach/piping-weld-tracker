@@ -280,6 +280,38 @@ def main():
                 assert phone.evaluate("()=>window.scrollY")==body_before
             phone.close()
 
+            # iPhone SE-sized viewport: compact list chrome and fullscreen reclaims app-header height.
+            se=browser.new_page(viewport={"width":375,"height":667})
+            stub(se)
+            se.goto(f"{BASE}/projects/{PROJECT_ID}/progress?page=1",wait_until="domcontentloaded")
+            se.locator("#progressListToggle").click()
+            expect(se.locator("#progressListPanel")).to_be_visible()
+            head_before=se.locator("#progressListPanel .panel-head").bounding_box()
+            tab_before=se.locator("#progressListPanel .panel-tab").first.bounding_box()
+            search_before=se.locator("#progressListPanel .panel-search input").bounding_box()
+            assert head_before and head_before["height"]<=37,head_before
+            assert tab_before and tab_before["height"]<=31,tab_before
+            assert search_before and search_before["height"]<=35,search_before
+            appbar_before=se.locator("[data-ui3-header='progress']").bounding_box()
+            viewer_before=se.locator("#viewer").bounding_box()
+            assert appbar_before and viewer_before
+            se.locator("#fullscreenCompact").click()
+            se.wait_for_timeout(160)
+            expect(se.locator("body")).to_have_class(re.compile(r".*progress-fullscreen.*"))
+            expect(se.locator("[data-ui3-header='progress'] .ui3-back")).not_to_be_visible()
+            expect(se.locator("[data-ui3-header='progress'] .ui3-title")).not_to_be_visible()
+            expect(se.locator("#fullscreenCompact")).to_be_visible()
+            appbar_full=se.locator("[data-ui3-header='progress']").bounding_box()
+            viewer_full=se.locator("#viewer").bounding_box()
+            assert appbar_full and viewer_full
+            assert appbar_full["width"]<=40 and appbar_full["height"]<=40,appbar_full
+            assert viewer_full["y"] < viewer_before["y"]-30,(viewer_before,viewer_full)
+            se.locator("#fullscreenCompact").click()
+            se.wait_for_timeout(160)
+            expect(se.locator("body")).not_to_have_class(re.compile(r".*progress-fullscreen.*"))
+            expect(se.locator("[data-ui3-header='progress'] .ui3-back")).to_be_visible()
+            se.close()
+
             browser.close()
     finally:
         server.shutdown();thread.join(timeout=2)
