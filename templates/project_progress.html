@@ -217,7 +217,7 @@ window.addEventListener('weld:progress-panel-target',event=>{pendingPanelTarget=
   function autoHeight(){
     const lim=limits(),vr=viewer.getBoundingClientRect(),cr=canvas.getBoundingClientRect();
     if(!canvas.width||!canvas.height||canvas.hidden||cr.height<2)return clamp(lim.available*.58,lim.minViewer,lim.maxViewer);
-    return clamp(Math.max(0,cr.bottom-vr.top)+6,lim.minViewer,lim.maxViewer);
+    return clamp(Math.max(0,cr.bottom-vr.top),lim.minViewer,lim.maxViewer);
   }
   function scheduleAuto(){
     if(mode!=='auto'||!isActive())return;
