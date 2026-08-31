@@ -24,7 +24,6 @@ def seed_progress():
     key=f"project:{PROJECT_ID}"
     with sqlite3.connect(DB_PATH) as c:
         c.execute("DELETE FROM number_map WHERE drawing_key=?",(key,))
-        c.execute("DELETE FROM progress WHERE drawing_key=?",(key,))
         for page,count in ((1,1),(2,2),(3,3)):
             for i in range(count):
                 c.execute(
