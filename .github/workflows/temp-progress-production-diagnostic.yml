@@ -1,0 +1,56 @@
+name: Temporary Production Progress Diagnostic
+
+on:
+  push:
+    branches:
+      - feature/progress-fixed-workspace-production
+    paths:
+      - .github/workflows/temp-progress-production-diagnostic.yml
+
+permissions:
+  contents: read
+
+jobs:
+  read-only-diagnostic:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compare production list and page APIs for triangle project P4
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, urllib.request
+
+          origin="https://nakagawach.pythonanywhere.com/weld"
+
+          def get_json(path):
+              req=urllib.request.Request(origin+path,headers={"Cache-Control":"no-cache","Pragma":"no-cache"})
+              with urllib.request.urlopen(req,timeout=30) as r:
+                  body=json.load(r)
+                  headers={k.lower():v for k,v in r.headers.items()}
+              return body,headers
+
+          projects,_=get_json("/projects")
+          matches=[p for p in projects.get("projects",[]) if p.get("projectName")=="△工事" or p.get("project_name")=="△工事"]
+          if len(matches)!=1:
+              safe=[{"id":p.get("id"),"name":p.get("projectName") or p.get("project_name")} for p in projects.get("projects",[])]
+              print("triangle_matches",len(matches))
+              print("project_names",json.dumps(safe,ensure_ascii=False))
+              raise SystemExit(2)
+
+          pid=matches[0]["id"]
+          listing,lh=get_json(f"/projects/{pid}/progress-list-data?_diag=1")
+          page,ph=get_json(f"/projects/{pid}/progress-data?page=4&_diag=1")
+          p4=[x for x in listing.get("items",[]) if int(x.get("pageNumber") or 0)==4]
+          out={
+              "project_id":pid,
+              "list_p4_count":len(p4),
+              "list_p4_numbers":[x.get("number") for x in p4],
+              "page_saved":page.get("saved"),
+              "page_candidate_count":len(page.get("candidates",[])),
+              "page_candidate_numbers":[x.get("number") for x in page.get("candidates",[])],
+              "list_cache_control":lh.get("cache-control"),
+              "page_cache_control":ph.get("cache-control"),
+          }
+          print(json.dumps(out,ensure_ascii=False,sort_keys=True))
+          PY
