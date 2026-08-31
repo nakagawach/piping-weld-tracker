@@ -260,8 +260,8 @@ body.progress-fullscreen .progress-thumbs{display:none}
             1,
         )
 
-        old_load_start = "pageInput.value=n;setBusy(true);desktopFitMode=isWideDesktop();drawingZoom=1;zoomReset.textContent=desktopFitMode?'Fit ⛶':'100%';canvas.style.width='100%';resetPosition();"
-        new_load_start = "pageInput.value=n;selectedTarget=null;selectionPulse=false;delete canvas.dataset.selectedTarget;updateProgressThumbActive();setBusy(true);desktopFitMode=isWideDesktop();drawingZoom=1;zoomReset.textContent=desktopFitMode?'Fit ⛶':'100%';canvas.style.width='100%';resetPosition();"
+        old_load_start = "pageInput.value=n;setBusy(true);lastAutoFitPage=0;desktopFitMode=isWideDesktop();drawingZoom=1;zoomReset.textContent=desktopFitMode?'Fit ⛶':'100%';canvas.style.width='100%';resetPosition();"
+        new_load_start = "pageInput.value=n;selectedTarget=null;selectionPulse=false;delete canvas.dataset.selectedTarget;updateProgressThumbActive();setBusy(true);lastAutoFitPage=0;desktopFitMode=isWideDesktop();drawingZoom=1;zoomReset.textContent=desktopFitMode?'Fit ⛶':'100%';canvas.style.width='100%';resetPosition();"
         html = html.replace(old_load_start, new_load_start, 1)
         html = html.replace(
             "pageCount=data.pageCount;pageTotal.textContent=`/ ${pageCount}`;setBusy(false);await loadPage(1)",
