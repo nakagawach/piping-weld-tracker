@@ -255,8 +255,8 @@ body.progress-fullscreen .progress-thumbs{display:none}
             1,
         )
         html = html.replace(
-            "pageInput.value=n;committedPage=n;lastAutoFitPage=0;",
-            "pageInput.value=n;committedPage=n;selectedTarget=null;selectionPulse=false;delete canvas.dataset.selectedTarget;updateProgressThumbActive();lastAutoFitPage=0;",
+            "pageInput.value=n;committedPage=n;lastAutoFitPage=initialLoad?0:n;",
+            "pageInput.value=n;committedPage=n;selectedTarget=null;selectionPulse=false;delete canvas.dataset.selectedTarget;updateProgressThumbActive();lastAutoFitPage=initialLoad?0:n;",
             1,
         )
         html = html.replace(
