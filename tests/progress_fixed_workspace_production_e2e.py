@@ -165,8 +165,8 @@ def main():
             stub(desktop)
             desktop.goto(f"{BASE}/projects/{PROJECT_ID}/progress?page=1",wait_until="domcontentloaded")
             expect(desktop.locator("#canvas")).to_be_visible(timeout=7000)
-            desktop.locator("#progressListToggle").click()
-            expect(desktop.locator("#progressListPanel")).to_be_visible()
+            expect(desktop.locator("#progressListPanel")).to_be_visible(timeout=5000)
+            expect(desktop.locator("#progressListToggle")).to_have_attribute("aria-expanded","true")
             no_body_scroll(desktop)
             top_box=desktop.locator("main>.top").bounding_box()
             toolbar_box=desktop.locator(".toolbar").bounding_box()
@@ -238,6 +238,19 @@ def main():
             assert .36<=ratio<=.45,(ratio,viewer,panel)
             portrait.close()
 
+            # Tablet follows iPhone-style CSS fullscreen and must not call the native Fullscreen API.
+            tablet_fs=browser.new_page(viewport={"width":1024,"height":768})
+            stub(tablet_fs)
+            tablet_fs.goto(f"{BASE}/projects/{PROJECT_ID}/progress?page=1",wait_until="domcontentloaded")
+            expect(tablet_fs.locator("#fullscreen")).to_be_visible(timeout=5000)
+            tablet_fs.evaluate("""()=>{window.__nativeFsCalls=0;document.documentElement.requestFullscreen=()=>{window.__nativeFsCalls++;return Promise.resolve()}}""")
+            tablet_fs.locator("#fullscreen").click()
+            tablet_fs.wait_for_timeout(100)
+            assert tablet_fs.evaluate("()=>window.__nativeFsCalls") == 0
+            expect(tablet_fs.locator("body")).to_have_class(re.compile(r".*progress-fullscreen.*"))
+            tablet_fs.locator("#fullscreen").click()
+            tablet_fs.close()
+
             # Phone: fixed viewport; list scroll does not move body.
             phone=browser.new_page(viewport={"width":390,"height":844})
             stub(phone)
@@ -289,13 +302,15 @@ def main():
             head_before=se.locator("#progressListPanel .panel-head").bounding_box()
             tab_before=se.locator("#progressListPanel .panel-tab").first.bounding_box()
             search_before=se.locator("#progressListPanel .panel-search input").bounding_box()
-            assert head_before and head_before["height"]<=37,head_before
+            assert head_before and 30<=head_before["height"]<=33,head_before
             assert tab_before and tab_before["height"]<=31,tab_before
             assert search_before and search_before["height"]<=35,search_before
             appbar_before=se.locator("[data-ui3-header='progress']").bounding_box()
             viewer_before=se.locator("#viewer").bounding_box()
             assert appbar_before and viewer_before
+            se.evaluate("""()=>{window.__nativeFsCalls=0;document.documentElement.requestFullscreen=()=>{window.__nativeFsCalls++;return Promise.resolve()}}""")
             se.locator("#fullscreenCompact").click()
+            assert se.evaluate("()=>window.__nativeFsCalls") == 0
             se.wait_for_timeout(160)
             expect(se.locator("body")).to_have_class(re.compile(r".*progress-fullscreen.*"))
             expect(se.locator("[data-ui3-header='progress'] .ui3-back")).not_to_be_visible()
