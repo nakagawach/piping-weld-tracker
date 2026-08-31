@@ -131,8 +131,12 @@ def main():
             expect(land.locator("#dialogTarget")).to_contain_text("2")
             land.locator("#closeDialog").click()
 
-            # Zoom produces minimap; rotation keeps it present and based on rotated canvas.
+            # Zoom produces minimap. The + button is intentionally hidden while the
+            # narrow right panel is open, so zoom once with the panel closed, then reopen.
+            land.locator("#progressListClose").click()
+            expect(land.locator("#zoomIn")).to_be_visible()
             land.locator("#zoomIn").click()
+            land.locator("#progressListToggle").click()
             expect(land.locator("#progressMinimap")).to_have_class(re.compile(r".*show.*"),timeout=3000)
             mm=land.locator("#progressMinimap").bounding_box();vp=land.locator("#progressMinimapViewport").bounding_box()
             assert mm and vp and vp["width"]>5 and vp["height"]>5,(mm,vp)
