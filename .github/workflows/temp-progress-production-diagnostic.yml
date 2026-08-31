@@ -165,3 +165,65 @@ jobs:
               ctx.close()
               browser.close()
           PY
+
+      - name: Verify saved rotation and PC fresh production layout
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, urllib.request
+          from playwright.sync_api import sync_playwright
+
+          origin="https://nakagawach.pythonanywhere.com/weld"
+          with urllib.request.urlopen(origin+"/projects",timeout=30) as r:
+              projects=json.load(r).get("projects",[])
+          def pname(p): return p.get("projectName") or p.get("project_name")
+          sample=next(p for p in projects if pname(p)=="初めのサンプルPDF")
+          sid=sample["id"]
+
+          with sync_playwright() as p:
+              browser=p.chromium.launch()
+
+              # Android-like session with persisted 270deg rotation.
+              device=p.devices.get("Pixel 7")
+              ctx=browser.new_context(**device)
+              page=ctx.new_page()
+              page.goto(origin+"/projects-screen",wait_until="domcontentloaded")
+              page.evaluate(f"localStorage.setItem('weldDrawingRotation:{sid}','270')")
+              page.goto(f"{origin}/projects/{sid}/progress?page=1",wait_until="domcontentloaded")
+              page.locator("#canvas").wait_for(state="visible",timeout=15000)
+              page.wait_for_timeout(1200)
+              rot=page.evaluate("""()=>{const c=document.getElementById('canvas').getBoundingClientRect(),v=document.getElementById('viewer').getBoundingClientRect();return{
+                rotate:document.getElementById('rotate').textContent,
+                minimap:document.getElementById('progressMinimap').classList.contains('show'),
+                emptyHidden:document.getElementById('empty').hidden,
+                canvas:{w:c.width,h:c.height},viewer:{w:v.width,h:v.height}
+              }}""")
+              print("android_saved_rotation",json.dumps(rot,ensure_ascii=False))
+              assert "270" in rot["rotate"]
+              assert rot["minimap"] is False
+              assert rot["emptyHidden"] is True
+              assert rot["canvas"]["w"]<=rot["viewer"]["w"]+3
+              assert rot["canvas"]["h"]<=rot["viewer"]["h"]+3
+              ctx.close()
+
+              # Wide PC fresh production view.
+              pc=browser.new_page(viewport={"width":1440,"height":900})
+              pc.goto(f"{origin}/projects/{sid}/progress?page=1",wait_until="domcontentloaded")
+              pc.locator("#canvas").wait_for(state="visible",timeout=15000)
+              pc.locator("#progressListPanel").wait_for(state="visible",timeout=15000)
+              pc.wait_for_timeout(1000)
+              pd=pc.evaluate("""()=>{const c=document.getElementById('canvas').getBoundingClientRect(),v=document.getElementById('viewer').getBoundingClientRect(),p=document.getElementById('progressListPanel').getBoundingClientRect();return{
+                minimap:document.getElementById('progressMinimap').classList.contains('show'),
+                listOpen:document.body.classList.contains('progress-list-open'),
+                canvas:{w:c.width,h:c.height},viewer:{w:v.width,h:v.height},panel:{w:p.width,h:p.height}
+              }}""")
+              print("pc_initial",json.dumps(pd,ensure_ascii=False))
+              assert pd["minimap"] is False
+              assert pd["listOpen"] is True
+              assert pd["canvas"]["w"]<=pd["viewer"]["w"]+3
+              assert pd["canvas"]["h"]<=pd["viewer"]["h"]+3
+              assert 330<=pd["panel"]["w"]<=350
+              pc.close()
+              browser.close()
+          PY
