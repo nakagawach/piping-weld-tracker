@@ -72,8 +72,8 @@ def main():
             stub(page)
             page.goto(f"{BASE}/projects/{PROJECT_ID}/progress?page=1",wait_until="domcontentloaded")
             expect(page.locator("#progressListToggle")).to_be_visible(timeout=7000)
-            page.locator("#progressListToggle").click()
-            expect(page.locator("#progressListPanel")).to_be_visible()
+            expect(page.locator("#progressListPanel")).to_be_visible(timeout=5000)
+            expect(page.locator("#progressListToggle")).to_have_attribute("aria-expanded","true")
             expect(page.locator("#canvas")).to_be_visible(timeout=7000)
             assert_drawing_visible(page)
 
