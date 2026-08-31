@@ -245,11 +245,15 @@ def main():
             tablet_fs.goto(f"{BASE}/projects/{PROJECT_ID}/progress?page=1",wait_until="domcontentloaded")
             expect(tablet_fs.locator("#fullscreen")).to_be_visible(timeout=5000)
             tablet_fs.evaluate("""()=>{window.__nativeFsCalls=0;document.documentElement.requestFullscreen=()=>{window.__nativeFsCalls++;return Promise.resolve()}}""")
+            expect(tablet_fs.locator("#progressThumbs")).to_be_visible()
             tablet_fs.locator("#fullscreen").click()
             tablet_fs.wait_for_timeout(100)
             assert tablet_fs.evaluate("()=>window.__nativeFsCalls") == 0
             expect(tablet_fs.locator("body")).to_have_class(re.compile(r".*progress-fullscreen.*"))
+            expect(tablet_fs.locator("#progressThumbs")).not_to_be_visible()
             tablet_fs.locator("#fullscreen").click()
+            tablet_fs.wait_for_timeout(100)
+            expect(tablet_fs.locator("#progressThumbs")).to_be_visible()
             tablet_fs.close()
 
             # Phone: fixed viewport; list scroll does not move body.
@@ -358,6 +362,7 @@ def main():
             assert search_before and search_before["height"]<=35,search_before
             appbar_before=se.locator("[data-ui3-header='progress']").bounding_box()
             viewer_before=se.locator("#viewer").bounding_box()
+            expect(se.locator("#progressThumbs")).to_be_visible()
             assert appbar_before and viewer_before
             se.evaluate("""()=>{window.__nativeFsCalls=0;document.documentElement.requestFullscreen=()=>{window.__nativeFsCalls++;return Promise.resolve()}}""")
             se.locator("#fullscreenCompact").click()
@@ -366,6 +371,7 @@ def main():
             expect(se.locator("body")).to_have_class(re.compile(r".*progress-fullscreen.*"))
             expect(se.locator("[data-ui3-header='progress'] .ui3-back")).not_to_be_visible()
             expect(se.locator("[data-ui3-header='progress'] .ui3-title")).not_to_be_visible()
+            expect(se.locator("#progressThumbs")).not_to_be_visible()
             expect(se.locator("#fullscreenCompact")).to_be_visible()
             appbar_full=se.locator("[data-ui3-header='progress']").bounding_box()
             viewer_full=se.locator("#viewer").bounding_box()
@@ -376,6 +382,7 @@ def main():
             se.wait_for_timeout(160)
             expect(se.locator("body")).not_to_have_class(re.compile(r".*progress-fullscreen.*"))
             expect(se.locator("[data-ui3-header='progress'] .ui3-back")).to_be_visible()
+            expect(se.locator("#progressThumbs")).to_be_visible()
             se.close()
 
             browser.close()
