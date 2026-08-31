@@ -27,6 +27,8 @@
 body.progress-list-open .progress-list-panel{display:flex;flex-direction:column}
 .progress-list-panel .panel-head{height:48px;display:flex;align-items:center;gap:8px;padding:7px 9px;border-bottom:1px solid var(--border)}
 .progress-list-panel .panel-head strong{flex:1}.progress-list-panel .panel-state{font-size:.7rem;color:var(--gray)}
+.progress-list-panel .panel-collapse{min-width:40px;padding:0;font-size:1.05rem;font-weight:900}
+.progress-list-panel.filters-collapsed .panel-filters{display:none}
 .progress-list-panel .panel-close{min-width:40px;padding:0;font-size:1.1rem}
 .progress-list-panel .panel-filters{padding:8px;border-bottom:1px solid #eee}.progress-list-panel .panel-tabs{display:flex;gap:5px;overflow-x:auto}
 .progress-list-panel .panel-tab{min-height:36px;padding:0 10px;border:1px solid #bdc1c6;border-radius:999px;background:#fff;font-weight:800;white-space:nowrap}
@@ -78,8 +80,8 @@ body.progress-list-open .progress-list-panel{display:flex;flex-direction:column}
     <div class="statusline" id="status">図面を読み込んでいます…</div><div class="summary" id="summary" hidden></div>
     <div class="viewer" id="viewer"><canvas id="canvas"></canvas><div class="empty" id="empty" hidden></div><div class="progress-minimap" id="progressMinimap" aria-hidden="true"><canvas id="progressMinimapCanvas"></canvas><div class="progress-minimap-viewport" id="progressMinimapViewport"></div></div></div>
     <div class="progress-splitter" id="progressSplitter" role="separator" aria-orientation="horizontal" aria-label="図面と進捗一覧の高さを調整" tabindex="0"><span aria-hidden="true"></span></div>
-    <aside class="progress-list-panel" id="progressListPanel" data-list-url="{{ url_for('progress.get_project_progress_list', project_id=project_id) }}" aria-label="進捗一覧パネル">
-      <div class="panel-head"><strong>進捗一覧</strong><span class="panel-state" id="progressListState">非同期読込</span><button class="button panel-close" id="progressListClose" type="button" aria-label="進捗一覧を閉じる">×</button></div>
+    <aside class="progress-list-panel filters-collapsed" id="progressListPanel" data-list-url="{{ url_for('progress.get_project_progress_list', project_id=project_id) }}" aria-label="進捗一覧パネル">
+      <div class="panel-head"><strong>進捗一覧</strong><span class="panel-state" id="progressListState">非同期読込</span><button class="button panel-collapse" id="progressListHeaderToggle" type="button" aria-label="絞り込みを開く" aria-expanded="false">∨</button><button class="button panel-close" id="progressListClose" type="button" aria-label="進捗一覧を閉じる">×</button></div>
       <div class="panel-filters"><div class="panel-tabs" id="progressListTabs"><button class="panel-tab active" data-filter="all" type="button">すべて</button><button class="panel-tab" data-filter="未着手" type="button">未着手</button><button class="panel-tab" data-filter="施工中" type="button">施工中</button><button class="panel-tab" data-filter="完了" type="button">完了</button></div><div class="panel-search"><input id="progressListSearch" type="search" placeholder="番号・メモで検索"><button class="button" id="progressListSearchClear" type="button">×</button></div></div>
       <div class="progress-list-records" id="progressListRecords"><div class="progress-list-empty">図面表示後に一覧を読み込みます…</div></div>
       <div class="progress-list-foot">行クリック＝図面位置へ移動・選択。右端「進捗入力」＝そのまま入力。</div>
