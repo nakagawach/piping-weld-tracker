@@ -143,7 +143,7 @@ def main():
             page.wait_for_timeout(80)
             assert page.locator("#canvas").is_hidden()
             assert page.locator("#empty").is_visible()
-            assert page.locator("#summary").is_hidden()
+            assert page.locator("#summary").evaluate("el=>el.hidden") is True
             assert page.locator("#summary").inner_html()==""
             assert page.locator('.progress-thumb.active').get_attribute("data-page")=="4"
 
