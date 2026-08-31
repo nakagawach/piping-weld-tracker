@@ -96,10 +96,15 @@ def main():
             page.wait_for_timeout(60)
 
             # Until the latest page is ready, the committed P1 view stays coherent.
-            assert page.locator("#page").input_value()=="1"
-            assert page.locator('.progress-thumb.active').get_attribute("data-page")=="1"
-            assert page.locator("#canvas").is_visible()
-            assert "全 1" in page.locator("#summary").text_content()
+            snap=page.evaluate("""()=>({
+              page:document.getElementById('page').value,
+              active:document.querySelector('.progress-thumb.active')?.dataset.page||null,
+              listPage:document.querySelector('.progress-list-record.current-page')?.dataset.page||null,
+              canvasHidden:document.getElementById('canvas').hidden,
+              summary:document.getElementById('summary').textContent
+            })""")
+            assert snap["page"]=="1" and snap["active"]=="1" and snap["listPage"]=="1",snap
+            assert snap["canvasHidden"] is False and "全 1" in snap["summary"],snap
             assert page.evaluate("()=>window.__canvasHiddenChanges")==[]
 
             # P2 must never commit; only the latest P3 may replace P1.
