@@ -33,27 +33,9 @@
   }
   function syncBottomPaneViewer(){
     if(bottomPaneFrame){cancelAnimationFrame(bottomPaneFrame);bottomPaneFrame=0}
-    if(!document.body.classList.contains('progress-list-open')||!bottomPaneMedia.matches){
-      viewer.style.removeProperty('height');
-      viewer.style.removeProperty('min-height');
-      viewer.style.removeProperty('max-height');
-      return;
-    }
-    bottomPaneFrame=requestAnimationFrame(()=>{
-      bottomPaneFrame=0;
-      if(!document.body.classList.contains('progress-list-open')||!bottomPaneMedia.matches){
-        viewer.style.removeProperty('height');
-        viewer.style.removeProperty('min-height');
-        viewer.style.removeProperty('max-height');
-        return;
-      }
-      const panelTop=panel.getBoundingClientRect().top;
-      const viewerTop=viewer.getBoundingClientRect().top;
-      const height=Math.max(1,Math.floor(panelTop-viewerTop));
-      viewer.style.height=`${height}px`;
-      viewer.style.minHeight='0px';
-      viewer.style.maxHeight=`${height}px`;
-    });
+    viewer.style.removeProperty('height');
+    viewer.style.removeProperty('min-height');
+    viewer.style.removeProperty('max-height');
   }
   function syncOpenPosition(){
     if(!loaded)return;
@@ -71,8 +53,17 @@
       requestAnimationFrame(()=>requestAnimationFrame(()=>window.dispatchEvent(new CustomEvent('weld:progress-fit-request'))));
     }
   }
-  function scrollSelected(){requestAnimationFrame(()=>records.querySelector('.progress-list-record.selected')?.scrollIntoView({block:'nearest',behavior:'auto'}))}
-  function scrollCurrentPage(){requestAnimationFrame(()=>records.querySelector('.progress-list-record.current-page')?.scrollIntoView({block:'nearest',behavior:'auto'}))}
+  function revealRow(selector){
+    requestAnimationFrame(()=>{
+      const row=records.querySelector(selector);
+      if(!row)return;
+      const rr=records.getBoundingClientRect(),er=row.getBoundingClientRect();
+      if(er.top>=rr.top&&er.bottom<=rr.bottom)return;
+      row.scrollIntoView({block:'nearest',behavior:'auto'});
+    });
+  }
+  function scrollSelected(){revealRow('.progress-list-record.selected')}
+  function scrollCurrentPage(){revealRow('.progress-list-record.current-page')}
   function render(){
     const q=search.value.trim().toLowerCase();
     const filtered=allItems.filter(item=>(filter==='all'||item.status===filter)&&(!q||String(item.number).toLowerCase().includes(q)||String(item.workDetail||'').toLowerCase().includes(q)));
