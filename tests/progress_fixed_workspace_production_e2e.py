@@ -288,7 +288,10 @@ def main():
             assert viewer_auto and canvas_auto and split_auto and panel_auto
             assert abs(split_auto["y"]-(viewer_auto["y"]+viewer_auto["height"]))<=2,(viewer_auto,split_auto)
             auto_gap=split_auto["y"]-(canvas_auto["y"]+canvas_auto["height"])
-            assert -2<=auto_gap<=12,(auto_gap,canvas_auto,split_auto)
+            # Never leave avoidable positive blank space. A negative gap is valid when
+            # the flexible minimum list height clamps the splitter above the canvas bottom.
+            assert auto_gap<=12,(auto_gap,canvas_auto,split_auto)
+            assert panel_auto["height"]>=165,panel_auto
             assert phone.locator("#progressSplitter").get_attribute("data-mode")=="auto"
 
             # AUTO split must ignore viewer pan/scroll and react only to zoom changes.
