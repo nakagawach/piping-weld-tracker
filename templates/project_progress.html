@@ -76,7 +76,7 @@ body.progress-list-open .progress-list-panel{display:flex;flex-direction:column}
       <details class="more" id="moreMenu"><summary aria-label="その他の操作">⋯</summary><div class="more-menu"><button class="button" id="zoomResetCompact" type="button">100%に戻す</button><button class="button" id="viewResetCompact" type="button">位置リセット</button><button class="button" id="reloadCompact" type="button">再読込</button><button class="button" id="backCompact" type="button">工事一覧へ</button></div></details>
     </div>
     <div class="statusline" id="status">図面を読み込んでいます…</div><div class="summary" id="summary" hidden></div>
-    <div class="viewer" id="viewer"><canvas id="canvas"></canvas><div class="empty" id="empty" hidden></div></div>
+    <div class="viewer" id="viewer"><canvas id="canvas"></canvas><div class="empty" id="empty" hidden></div><div class="progress-minimap" id="progressMinimap" aria-hidden="true"><canvas id="progressMinimapCanvas"></canvas><div class="progress-minimap-viewport" id="progressMinimapViewport"></div></div></div>
     <aside class="progress-list-panel" id="progressListPanel" data-list-url="{{ url_for('progress.get_project_progress_list', project_id=project_id) }}" aria-label="進捗一覧パネル">
       <div class="panel-head"><strong>進捗一覧</strong><span class="panel-state" id="progressListState">非同期読込</span><button class="button panel-close" id="progressListClose" type="button" aria-label="進捗一覧を閉じる">×</button></div>
       <div class="panel-filters"><div class="panel-tabs" id="progressListTabs"><button class="panel-tab active" data-filter="all" type="button">すべて</button><button class="panel-tab" data-filter="未着手" type="button">未着手</button><button class="panel-tab" data-filter="施工中" type="button">施工中</button><button class="panel-tab" data-filter="完了" type="button">完了</button></div><div class="panel-search"><input id="progressListSearch" type="search" placeholder="番号・メモで検索"><button class="button" id="progressListSearchClear" type="button">×</button></div></div>
@@ -164,5 +164,42 @@ window.addEventListener('weld:progress-panel-target',event=>{pendingPanelTarget=
   if(rotateButton)readyObserver.observe(rotateButton,{attributes:true,attributeFilter:['disabled']});
 })();
 </script>
-<script src="{{ url_for('static', filename='progress_list_panel.js') }}"></script></body>
+<script src="{{ url_for('static', filename='progress_list_panel.js') }}"></script>
+<script>
+(() => {
+  const viewer=document.getElementById('viewer'),canvas=document.getElementById('canvas');
+  const box=document.getElementById('progressMinimap'),mini=document.getElementById('progressMinimapCanvas'),viewport=document.getElementById('progressMinimapViewport');
+  if(!viewer||!canvas||!box||!mini||!viewport)return;
+  let queued=0;
+  function refresh(){
+    queued=0;
+    if(!canvas.width||!canvas.height||canvas.hidden){box.classList.remove('show');return}
+    const cr=canvas.getBoundingClientRect(),vw=viewer.clientWidth,vh=viewer.clientHeight;
+    const zoomed=cr.width>vw+2||cr.height>vh+2||viewer.scrollWidth>vw+2||viewer.scrollHeight>vh+2;
+    if(!zoomed){box.classList.remove('show');return}
+    box.classList.add('show');
+    const mw=Math.max(1,box.clientWidth),mh=Math.max(1,box.clientHeight),dpr=Math.min(2,window.devicePixelRatio||1);
+    mini.width=Math.round(mw*dpr);mini.height=Math.round(mh*dpr);
+    const ctx=mini.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,mw,mh);
+    const fit=Math.min(mw/canvas.width,mh/canvas.height),dw=canvas.width*fit,dh=canvas.height*fit,ox=(mw-dw)/2,oy=(mh-dh)/2;
+    ctx.drawImage(canvas,ox,oy,dw,dh);
+    const renderedW=Math.max(1,cr.width),renderedH=Math.max(1,cr.height);
+    const visibleLeft=Math.max(0,viewer.scrollLeft),visibleTop=Math.max(0,viewer.scrollTop);
+    const rx=ox+Math.min(dw,visibleLeft/renderedW*dw),ry=oy+Math.min(dh,visibleTop/renderedH*dh);
+    const rw=Math.min(dw,vw/renderedW*dw),rh=Math.min(dh,vh/renderedH*dh);
+    viewport.style.left=Math.max(ox,Math.min(ox+dw-rw,rx))+'px';
+    viewport.style.top=Math.max(oy,Math.min(oy+dh-rh,ry))+'px';
+    viewport.style.width=Math.max(8,rw)+'px';viewport.style.height=Math.max(8,rh)+'px';
+  }
+  function schedule(){if(queued)return;queued=requestAnimationFrame(refresh)}
+  viewer.addEventListener('scroll',schedule,{passive:true});
+  window.addEventListener('resize',schedule);
+  ['zoomOut','zoomReset','zoomIn','rotate','rotateCompact','viewReset','viewResetCompact','progressListToggle','progressListClose'].forEach(id=>document.getElementById(id)?.addEventListener('click',()=>setTimeout(schedule,30)));
+  window.addEventListener('weld:progress-selection',()=>setTimeout(schedule,30));
+  window.addEventListener('weld:progress-saved',()=>setTimeout(schedule,30));
+  window.addEventListener('weld:progress-page-loaded',()=>setTimeout(schedule,60));
+  new MutationObserver(schedule).observe(canvas,{attributes:true,attributeFilter:['width','height','style','hidden']});
+  setTimeout(schedule,100);
+})();
+</script></body>
 </html>
