@@ -190,6 +190,35 @@ def main():
             assert abs(summary_box["y"]-panel_box["y"])<=2,(summary_box,panel_box)
             assert abs(viewer_box["y"]-(summary_box["y"]+summary_box["height"]))<=2,(summary_box,viewer_box)
             assert abs((viewer_box["x"]+viewer_box["width"])-panel_box["x"])<=2,(viewer_box,panel_box)
+            expect(desktop.locator("#zoomReset")).to_contain_text("Fit")
+            fit_metrics=desktop.locator("#viewer").evaluate("""el=>({
+              sw:el.scrollWidth,cw:el.clientWidth,sh:el.scrollHeight,ch:el.clientHeight,
+              sl:el.scrollLeft,st:el.scrollTop
+            })""")
+            assert fit_metrics["sw"]<=fit_metrics["cw"]+2,fit_metrics
+            assert fit_metrics["sh"]<=fit_metrics["ch"]+2,fit_metrics
+            fit_canvas=desktop.locator("#canvas").bounding_box()
+            assert fit_canvas
+            assert fit_canvas["width"]<=viewer_box["width"]+2,(fit_canvas,viewer_box)
+            assert fit_canvas["height"]<=viewer_box["height"]+2,(fit_canvas,viewer_box)
+
+            # Manual zoom may overflow the viewer; Fit must restore a no-scroll whole-page view.
+            desktop.locator("#zoomIn").click()
+            desktop.wait_for_timeout(120)
+            expect(desktop.locator("#zoomReset")).not_to_contain_text("Fit")
+            desktop.locator("#zoomReset").click()
+            desktop.wait_for_timeout(140)
+            expect(desktop.locator("#zoomReset")).to_contain_text("Fit")
+            refit=desktop.locator("#viewer").evaluate("el=>({sw:el.scrollWidth,cw:el.clientWidth,sh:el.scrollHeight,ch:el.clientHeight})")
+            assert refit["sw"]<=refit["cw"]+2,refit
+            assert refit["sh"]<=refit["ch"]+2,refit
+
+            # Closing the right list changes viewer width; FIT mode must recalculate and stay fully contained.
+            desktop.locator("#progressListClose").click()
+            desktop.wait_for_timeout(180)
+            closed_fit=desktop.locator("#viewer").evaluate("el=>({sw:el.scrollWidth,cw:el.clientWidth,sh:el.scrollHeight,ch:el.clientHeight})")
+            assert closed_fit["sw"]<=closed_fit["cw"]+2,closed_fit
+            assert closed_fit["sh"]<=closed_fit["ch"]+2,closed_fit
             desktop.close()
 
             # Portrait tablet: list is below drawing; 60/40 split of remaining card area.
