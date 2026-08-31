@@ -159,6 +159,39 @@ def main():
             no_body_scroll(land)
             land.close()
 
+            # Wide PC matches approved mock structure: one header row, thumbnails,
+            # then drawing summary/viewer on the left and progress list on the right.
+            desktop=browser.new_page(viewport={"width":1440,"height":900})
+            stub(desktop)
+            desktop.goto(f"{BASE}/projects/{PROJECT_ID}/progress?page=1",wait_until="domcontentloaded")
+            expect(desktop.locator("#canvas")).to_be_visible(timeout=7000)
+            desktop.locator("#progressListToggle").click()
+            expect(desktop.locator("#progressListPanel")).to_be_visible()
+            no_body_scroll(desktop)
+            top_box=desktop.locator("main>.top").bounding_box()
+            toolbar_box=desktop.locator(".toolbar").bounding_box()
+            thumbs_box=desktop.locator("#progressThumbs").bounding_box()
+            summary_box=desktop.locator("#summary").bounding_box()
+            viewer_box=desktop.locator("#viewer").bounding_box()
+            panel_box=desktop.locator("#progressListPanel").bounding_box()
+            assert top_box and toolbar_box and thumbs_box and summary_box and viewer_box and panel_box
+            assert 44<=top_box["height"]<=48,top_box
+            assert toolbar_box["y"]<=1.5 and toolbar_box["y"]+toolbar_box["height"]<=top_box["height"]+2,(toolbar_box,top_box)
+            expect(desktop.locator("#prev")).to_be_visible()
+            expect(desktop.locator("#next")).to_be_visible()
+            expect(desktop.locator("#zoomOut")).to_be_visible()
+            expect(desktop.locator("#zoomIn")).to_be_visible()
+            expect(desktop.locator("#rotate")).to_be_visible()
+            expect(desktop.locator("#progressListToggle")).to_be_visible()
+            assert abs(thumbs_box["y"]-(top_box["y"]+top_box["height"]))<=2,(top_box,thumbs_box)
+            assert 54<=thumbs_box["height"]<=62,thumbs_box
+            assert abs(panel_box["y"]-(thumbs_box["y"]+thumbs_box["height"]))<=2,(thumbs_box,panel_box)
+            assert 335<=panel_box["width"]<=345,panel_box
+            assert abs(summary_box["y"]-panel_box["y"])<=2,(summary_box,panel_box)
+            assert abs(viewer_box["y"]-(summary_box["y"]+summary_box["height"]))<=2,(summary_box,viewer_box)
+            assert abs((viewer_box["x"]+viewer_box["width"])-panel_box["x"])<=2,(viewer_box,panel_box)
+            desktop.close()
+
             # Portrait tablet: list is below drawing; 60/40 split of remaining card area.
             portrait=browser.new_page(viewport={"width":768,"height":1024})
             stub(portrait)
