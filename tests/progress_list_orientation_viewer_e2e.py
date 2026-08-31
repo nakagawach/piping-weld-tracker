@@ -29,6 +29,13 @@ def seed_progress():
             ) VALUES(?,?,?,?,?,?,?,?,?,?)""",
             (key,1,0,"1","manual",1000,900,120,120,"2026-08-30T00:00:00+00:00"),
         )
+        c.execute(
+            """INSERT INTO number_map(
+              drawing_key,page_number,item_order,number_text,source,
+              x,y,width,height,saved_at
+            ) VALUES(?,?,?,?,?,?,?,?,?,?)""",
+            (key,2,0,"2","manual",1200,1000,120,120,"2026-08-30T00:00:00+00:00"),
+        )
 
 def run_server():
     server=make_server("127.0.0.1",8778,app)
@@ -39,7 +46,7 @@ def run_server():
 def stub(page):
     page.route(
         f"**/projects/{PROJECT_ID}/pdfium-info",
-        lambda r:r.fulfill(status=200,content_type="application/json",body='{"pageCount":1}'),
+        lambda r:r.fulfill(status=200,content_type="application/json",body='{"pageCount":2}'),
     )
     page.route(
         f"**/projects/{PROJECT_ID}/pdfium-page**",
@@ -86,6 +93,19 @@ def main():
                 assert_drawing_visible(page)
                 panel=page.locator("#progressListPanel").bounding_box()
                 assert panel and panel["y"] > 450, panel
+
+            # Rotation must survive progress page changes.
+            page.locator("#rotate").click()
+            page.wait_for_timeout(120)
+            assert "90°" in page.locator("#rotate").text_content()
+            page.locator("#next").click()
+            page.wait_for_function("document.getElementById('page').value === '2'")
+            page.wait_for_timeout(120)
+            assert "90°" in page.locator("#rotate").text_content()
+            page.locator("#prev").click()
+            page.wait_for_function("document.getElementById('page').value === '1'")
+            page.wait_for_timeout(120)
+            assert "90°" in page.locator("#rotate").text_content()
 
             # Fast orientation change immediately after opening the panel.
             page.locator("#progressListClose").click()
