@@ -2,6 +2,7 @@
   const toggle=document.getElementById('progressListToggle');
   const panel=document.getElementById('progressListPanel');
   const close=document.getElementById('progressListClose');
+  const headerToggle=document.getElementById('progressListHeaderToggle');
   const records=document.getElementById('progressListRecords');
   const state=document.getElementById('progressListState');
   const tabs=document.getElementById('progressListTabs');
@@ -9,7 +10,7 @@
   const clear=document.getElementById('progressListSearchClear');
   const pageInput=document.getElementById('page');
   const viewer=document.getElementById('viewer');
-  if(!toggle||!panel||!records||!state||!tabs||!search||!clear||!pageInput||!viewer)return;
+  if(!toggle||!panel||!close||!headerToggle||!records||!state||!tabs||!search||!clear||!pageInput||!viewer)return;
   const bottomPaneMedia=window.matchMedia('(max-width:640px), (min-width:641px) and (max-width:1200px) and (orientation:portrait)');
   const listUrl=panel.dataset.listUrl;
   let allItems=[],filter='all',selectedKey='',currentPage=Math.max(1,Number(pageInput.value)||1),loaded=false,loading=false,pendingSelection=null,bottomPaneFrame=0;
@@ -54,6 +55,12 @@
       requestAnimationFrame(()=>requestAnimationFrame(()=>window.dispatchEvent(new CustomEvent('weld:progress-fit-request'))));
     }
   }
+  function setFiltersExpanded(expanded){
+    panel.classList.toggle('filters-collapsed',!expanded);
+    headerToggle.textContent=expanded?'∧':'∨';
+    headerToggle.setAttribute('aria-expanded',expanded?'true':'false');
+    headerToggle.setAttribute('aria-label',expanded?'絞り込みを閉じる':'絞り込みを開く');
+  }
   function revealRow(selector){
     requestAnimationFrame(()=>{
       const row=records.querySelector(selector);
@@ -97,6 +104,7 @@
   toggle.setAttribute('aria-expanded','false');
   toggle.onclick=()=>setOpen(!document.body.classList.contains('progress-list-open'));
   close.onclick=()=>setOpen(false);
+  headerToggle.onclick=()=>setFiltersExpanded(headerToggle.getAttribute('aria-expanded')!=='true');
   tabs.onclick=event=>{const button=event.target.closest('[data-filter]');if(!button)return;filter=button.dataset.filter;tabs.querySelectorAll('[data-filter]').forEach(item=>item.classList.toggle('active',item===button));render()};
   search.oninput=render;clear.onclick=()=>{search.value='';render();search.focus()};
   window.addEventListener('weld:progress-selection',event=>{const detail=event.detail||{};if(!loaded){pendingSelection=detail;currentPage=Number(detail.pageNumber)||currentPage;return}applySelectionDetail(detail)});
@@ -105,6 +113,7 @@
   window.addEventListener('resize',syncBottomPaneViewer);
   if(bottomPaneMedia.addEventListener)bottomPaneMedia.addEventListener('change',syncBottomPaneViewer);
   new MutationObserver(syncBottomPaneViewer).observe(document.body,{attributes:true,attributeFilter:['class']});
+  setFiltersExpanded(false);
   setOpen(true);
   setTimeout(()=>{currentPage=Number(pageInput.value)||1;if(!loaded)loadList();syncBottomPaneViewer()},0);
 })();
