@@ -77,8 +77,12 @@ def main():
               document.querySelector('.progress-thumb[data-page="3"]').click();
             }""")
             page.wait_for_timeout(60)
-            assert page.locator("#page").input_value()=="1"
-            assert page.locator('.progress-thumb.active').get_attribute("data-page")=="1"
+            snap=page.evaluate("""()=>({
+              page:document.getElementById('page').value,
+              active:document.querySelector('.progress-thumb.active')?.dataset.page||null,
+              listPage:document.querySelector('.progress-list-record.current-page')?.dataset.page||null
+            })""")
+            assert snap["page"]=="1" and snap["active"]=="1" and snap["listPage"]=="1",snap
 
             expect(page.locator("#page")).to_have_value("3",timeout=7000)
             page.wait_for_timeout(250)
@@ -95,8 +99,12 @@ def main():
               document.querySelector('.progress-thumb[data-page="1"]').click();
             }""")
             page.wait_for_timeout(60)
-            assert page.locator("#page").input_value()=="3"
-            assert page.locator('.progress-thumb.active').get_attribute("data-page")=="3"
+            snap=page.evaluate("""()=>({
+              page:document.getElementById('page').value,
+              active:document.querySelector('.progress-thumb.active')?.dataset.page||null,
+              listPage:document.querySelector('.progress-list-record.current-page')?.dataset.page||null
+            })""")
+            assert snap["page"]=="3" and snap["active"]=="3" and snap["listPage"]=="3",snap
             expect(page.locator("#page")).to_have_value("1",timeout=7000)
             page.wait_for_timeout(250)
             loaded=[d.get("page") for n,d in events if n=="weld:progress-page-loaded"]
