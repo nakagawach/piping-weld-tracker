@@ -17,7 +17,8 @@ from tests.ui_shell_e2e import PROJECT_ID, seed_database
 BASE="http://127.0.0.1:8782"
 
 def svg(page):
-    return f'<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000"><rect width="1600" height="1000" fill="white"/><text x="100" y="150" font-size="90">P{page}</text></svg>'
+    height=1400 if page==3 else 1000
+    return f'<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="{height}"><rect width="1600" height="{height}" fill="white"/><text x="100" y="150" font-size="90">P{page}</text></svg>'
 
 def seed_progress():
     seed_database()
@@ -176,6 +177,7 @@ def main():
             }}""")
             assert final_state["page"]=="2" and final_state["active"]=="2",final_state
             assert final_state["canvasHidden"] is False and final_state["emptyHidden"] is True,final_state
+            assert page.locator("#empty").evaluate("el=>getComputedStyle(el).display")=="none"
             assert "全 2" in final_state["summary"],final_state
             assert final_state["canvas"]["w"]>10 and final_state["canvas"]["h"]>10,final_state
             assert final_state["viewer"]["w"]>10 and final_state["viewer"]["h"]>10,final_state
@@ -206,8 +208,13 @@ def main():
             assert after["page"]=="3",after
             assert after["zoom"]==before["zoom"],(before,after)
             assert after["width"]==before["width"],(before,after)
-            assert abs(after["viewerH"]-before["viewerH"])<=2,(before,after)
-            assert abs(after["splitY"]-before["splitY"])<=2,(before,after)
+            assert page.locator("#progressSplitter").get_attribute("data-mode")=="auto"
+            assert after["viewerH"]>before["viewerH"]+20,(before,after)
+            assert after["splitY"]>before["splitY"]+20,(before,after)
+            canvas_bottom=page.locator("#canvas").bounding_box()
+            split_box=page.locator("#progressSplitter").bounding_box()
+            assert canvas_bottom and split_box
+            assert split_box["y"]-(canvas_bottom["y"]+canvas_bottom["height"])<=12,(canvas_bottom,split_box)
             assert after["canvasH"]>0,after
 
             browser.close()
