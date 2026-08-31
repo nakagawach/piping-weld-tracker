@@ -4,7 +4,7 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-from flask import Blueprint, jsonify, render_template, request, url_for
+from flask import Blueprint, jsonify, make_response, render_template, request, url_for
 
 from project_render import normalize_label
 
@@ -496,7 +496,10 @@ body.ui3-progress .progress-minimap-viewport{position:absolute;border:2px solid 
 """
         html = html.replace("</body>", layout_v5_css + "</body>", 1)
 
-        return html
+        response = make_response(html)
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        return response
 
     @blueprint.get("/projects/<int:project_id>/progress-list")
     def project_progress_list(project_id):
@@ -571,12 +574,15 @@ body.ui3-progress .progress-minimap-viewport{position:absolute;border:2px solid 
                 "y": round(row["y"] + row["height"] / 2.0),
             })
 
-        return jsonify({
+        response = jsonify({
             "drawingKey": key,
             "counts": counts,
             "completionRate": round((counts["done"] / counts["total"] * 100), 1) if counts["total"] else 0,
             "items": items,
         })
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        return response
 
     @blueprint.get("/projects/<int:project_id>/progress-data")
     def get_project_progress(project_id):
@@ -609,7 +615,7 @@ body.ui3-progress .progress-minimap-viewport{position:absolute;border:2px solid 
                 (key, page_number),
             ).fetchall()
 
-        return jsonify({
+        response = jsonify({
             "drawingKey": key,
             "pageNumber": page_number,
             "saved": bool(number_rows),
@@ -640,6 +646,9 @@ body.ui3-progress .progress-minimap-viewport{position:absolute;border:2px solid 
                 for row in progress_rows
             ],
         })
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        return response
 
     @blueprint.post("/projects/<int:project_id>/progress-data")
     def save_project_progress(project_id):
