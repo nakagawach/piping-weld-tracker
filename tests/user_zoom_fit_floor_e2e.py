@@ -81,8 +81,8 @@ def main():
             phone=browser.new_page(viewport={"width":390,"height":844})
             stub(phone)
             phone.goto(f"{BASE}/projects/{PROJECT_ID}/progress?page=1",wait_until="domcontentloaded")
-            phone.locator("#progressListToggle").click()
-            expect(phone.locator("#progressListPanel")).to_be_visible()
+            expect(phone.locator("#progressListPanel")).to_be_visible(timeout=5000)
+            expect(phone.locator("#progressListToggle")).to_have_attribute("aria-expanded","true")
             zoom_to_floor(phone)
 
             # Browser/UI viewport changes must not alter zoom by themselves.
@@ -119,8 +119,8 @@ def main():
             ipad=browser.new_page(viewport={"width":768,"height":1024})
             stub(ipad)
             ipad.goto(f"{BASE}/projects/{PROJECT_ID}/progress?page=1",wait_until="domcontentloaded")
-            ipad.locator("#progressListToggle").click()
-            expect(ipad.locator("#progressListPanel")).to_be_visible()
+            expect(ipad.locator("#progressListPanel")).to_be_visible(timeout=5000)
+            expect(ipad.locator("#progressListToggle")).to_have_attribute("aria-expanded","true")
             zoom_to_floor(ipad)
             ipad_before=ipad.locator("#canvas").get_attribute("style") or ""
             ipad.set_viewport_size({"width":768,"height":900})
