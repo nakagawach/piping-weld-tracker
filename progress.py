@@ -329,6 +329,9 @@ body.ui3-progress .progress-list-panel{
 }
 body.ui3-progress.progress-list-open .progress-list-panel{display:flex!important;flex-direction:column!important}
 body.ui3-progress .progress-list-records{min-height:0!important;overflow-y:auto!important;overflow-x:hidden!important;overscroll-behavior:contain!important;touch-action:pan-y!important}
+body.ui3-progress .progress-splitter{display:none;position:relative;min-height:8px;height:8px;cursor:row-resize;touch-action:none;user-select:none;background:#f8fafc;border-top:1px solid #d9dee5;border-bottom:1px solid #d9dee5;z-index:14}
+body.ui3-progress .progress-splitter>span{position:absolute;left:50%;top:50%;width:42px;height:3px;transform:translate(-50%,-50%);border-radius:999px;background:#9aa0a6}
+body.ui3-progress .progress-splitter:focus-visible{outline:2px solid #1967d2;outline-offset:-2px}
 body.ui3-progress .progress-list-panel .panel-head{height:42px!important;min-height:42px!important;padding:4px 7px!important}
 body.ui3-progress .progress-list-panel .panel-close{min-width:36px!important;height:34px!important;min-height:34px!important}
 body.ui3-progress .progress-list-panel .panel-filters{padding:6px!important}
@@ -423,9 +426,10 @@ body.ui3-progress .progress-list-input{min-height:34px!important;height:34px!imp
   body.ui3-progress .progress-thumb{flex-basis:58px!important}
   body.ui3-progress.progress-list-open .card{
     grid-template-columns:minmax(0,1fr)!important;
-    grid-template-rows:var(--pw-header) var(--pw-toolbar) var(--pw-summary) var(--pw-thumbs) minmax(0,3fr) minmax(230px,2fr)!important
+    grid-template-rows:var(--pw-header) var(--pw-toolbar) var(--pw-summary) var(--pw-thumbs) var(--pw-bottom-viewer,minmax(0,3fr)) 8px minmax(170px,1fr)!important
   }
-  body.ui3-progress.progress-list-open .progress-list-panel{grid-column:1!important;grid-row:6!important;border-left:0!important;border-top:1px solid #dfe3e8!important}
+  body.ui3-progress.progress-list-open .progress-splitter{display:block!important;grid-column:1!important;grid-row:6!important}
+  body.ui3-progress.progress-list-open .progress-list-panel{grid-column:1!important;grid-row:7!important;border-left:0!important;border-top:0!important}
   body.ui3-progress.progress-list-open .viewer{grid-row:5!important}
 
   /* Phone fullscreen: reclaim the app header height but keep one obvious exit control. */
@@ -433,7 +437,7 @@ body.ui3-progress .progress-list-input{min-height:34px!important;height:34px!imp
     grid-template-rows:0 var(--pw-toolbar) var(--pw-summary) var(--pw-thumbs) minmax(0,1fr)!important
   }
   body.ui3-progress.progress-fullscreen.progress-list-open .card{
-    grid-template-rows:0 var(--pw-toolbar) var(--pw-summary) var(--pw-thumbs) minmax(0,3fr) minmax(230px,2fr)!important
+    grid-template-rows:0 var(--pw-toolbar) var(--pw-summary) var(--pw-thumbs) var(--pw-bottom-viewer,minmax(0,3fr)) 8px minmax(170px,1fr)!important
   }
   body.ui3-progress.progress-fullscreen .ui3-appbar{
     position:fixed!important;top:max(4px,env(safe-area-inset-top))!important;right:max(4px,env(safe-area-inset-right))!important;
@@ -470,8 +474,9 @@ body.ui3-progress .progress-list-input{min-height:34px!important;height:34px!imp
   body.ui3-progress .summary{grid-row:3!important}
   body.ui3-progress .progress-thumbs{grid-row:4!important}
   body.ui3-progress .viewer{grid-row:5!important}
-  body.ui3-progress.progress-list-open .card{grid-template-rows:44px var(--pw-toolbar) var(--pw-summary) var(--pw-thumbs) minmax(0,3fr) minmax(230px,2fr)!important}
-  body.ui3-progress.progress-list-open .progress-list-panel{grid-column:1!important;grid-row:6!important;border-left:0!important;border-top:1px solid #dfe3e8!important}
+  body.ui3-progress.progress-list-open .card{grid-template-rows:44px var(--pw-toolbar) var(--pw-summary) var(--pw-thumbs) var(--pw-bottom-viewer,minmax(0,3fr)) 8px minmax(190px,1fr)!important}
+  body.ui3-progress.progress-list-open .progress-splitter{display:block!important;grid-column:1!important;grid-row:6!important}
+  body.ui3-progress.progress-list-open .progress-list-panel{grid-column:1!important;grid-row:7!important;border-left:0!important;border-top:0!important}
 }
 body.ui3-progress.progress-fullscreen{overflow:hidden!important}
 body.ui3-progress.progress-fullscreen main{height:100dvh!important;max-height:100dvh!important}
