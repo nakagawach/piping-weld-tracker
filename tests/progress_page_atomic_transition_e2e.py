@@ -180,6 +180,36 @@ def main():
             assert final_state["canvas"]["w"]>10 and final_state["canvas"]["h"]>10,final_state
             assert final_state["viewer"]["w"]>10 and final_state["viewer"]["h"]>10,final_state
 
+            # Fullscreen + zoomed page change must preserve zoom and viewer/splitter geometry.
+            page.locator("#fullscreen").click()
+            page.wait_for_timeout(120)
+            page.locator("#zoomIn").click()
+            page.wait_for_timeout(120)
+            before=page.evaluate("""()=>({
+              page:document.getElementById('page').value,
+              zoom:document.getElementById('zoomReset').textContent,
+              width:document.getElementById('canvas').style.width,
+              viewerH:document.getElementById('viewer').getBoundingClientRect().height,
+              splitY:document.getElementById('progressSplitter').getBoundingClientRect().y
+            })""")
+            page.locator("#next").click()
+            page.wait_for_function("document.getElementById('page').value === '3'",timeout=7000)
+            page.wait_for_timeout(120)
+            after=page.evaluate("""()=>({
+              page:document.getElementById('page').value,
+              zoom:document.getElementById('zoomReset').textContent,
+              width:document.getElementById('canvas').style.width,
+              viewerH:document.getElementById('viewer').getBoundingClientRect().height,
+              splitY:document.getElementById('progressSplitter').getBoundingClientRect().y,
+              canvasH:document.getElementById('canvas').getBoundingClientRect().height
+            })""")
+            assert after["page"]=="3",after
+            assert after["zoom"]==before["zoom"],(before,after)
+            assert after["width"]==before["width"],(before,after)
+            assert abs(after["viewerH"]-before["viewerH"])<=2,(before,after)
+            assert abs(after["splitY"]-before["splitY"])<=2,(before,after)
+            assert after["canvasH"]>0,after
+
             browser.close()
     finally:
         server.shutdown()
