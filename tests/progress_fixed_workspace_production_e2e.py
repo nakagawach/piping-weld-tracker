@@ -204,6 +204,8 @@ def main():
                 arg=records.element_handle(),
                 timeout=5000,
             )
+            # Let the one-shot current-page reveal finish before testing independent list scrolling.
+            phone.wait_for_timeout(250)
             records.evaluate("el=>{el.scrollTop=Math.min(500,el.scrollHeight-el.clientHeight)}")
             phone.wait_for_timeout(80)
             assert records.evaluate("el=>el.scrollTop")>0
