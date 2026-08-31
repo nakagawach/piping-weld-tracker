@@ -452,6 +452,15 @@ def main():
             expect(se.locator("[data-ui3-header='progress'] .ui3-title")).not_to_be_visible()
             expect(se.locator("#progressThumbs")).not_to_be_visible()
             expect(se.locator("#fullscreenCompact")).to_be_visible()
+            expect(se.locator("#drawingMemoEdit")).to_be_visible()
+            se.locator("#drawingMemoEdit").click()
+            expect(se.locator("#drawingMemoTools")).to_be_visible(timeout=3000)
+            memo_tools_full=se.locator("#drawingMemoTools").bounding_box()
+            viewer_with_memo=se.locator("#viewer").bounding_box()
+            assert memo_tools_full and viewer_with_memo
+            assert memo_tools_full["y"]+memo_tools_full["height"]<=viewer_with_memo["y"]+2,(memo_tools_full,viewer_with_memo)
+            se.locator("#drawingMemoEdit").click()
+            expect(se.locator("#drawingMemoTools")).not_to_be_visible()
             appbar_full=se.locator("[data-ui3-header='progress']").bounding_box()
             viewer_full=se.locator("#viewer").bounding_box()
             assert appbar_full and viewer_full
