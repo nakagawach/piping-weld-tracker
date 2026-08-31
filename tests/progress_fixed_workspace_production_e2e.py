@@ -451,12 +451,21 @@ def main():
             se.goto(f"{BASE}/projects/{PROJECT_ID}/progress?page=1",wait_until="domcontentloaded")
             expect(se.locator("#progressListPanel")).to_be_visible(timeout=5000)
             expect(se.locator("#progressListToggle")).to_have_attribute("aria-expanded","true")
+            se_header_toggle=se.locator("#progressListHeaderToggle")
+            expect(se_header_toggle).to_have_text("∨")
+            expect(se.locator("#progressListPanel .panel-filters")).not_to_be_visible()
             head_before=se.locator("#progressListPanel .panel-head").bounding_box()
+            assert head_before and 30<=head_before["height"]<=33,head_before
+            se_header_toggle.click()
+            expect(se_header_toggle).to_have_text("∧")
+            expect(se.locator("#progressListPanel .panel-filters")).to_be_visible()
             tab_before=se.locator("#progressListPanel .panel-tab").first.bounding_box()
             search_before=se.locator("#progressListPanel .panel-search input").bounding_box()
-            assert head_before and 30<=head_before["height"]<=33,head_before
             assert tab_before and tab_before["height"]<=31,tab_before
             assert search_before and search_before["height"]<=35,search_before
+            se_header_toggle.click()
+            expect(se_header_toggle).to_have_text("∨")
+            expect(se.locator("#progressListPanel .panel-filters")).not_to_be_visible()
             appbar_before=se.locator("[data-ui3-header='progress']").bounding_box()
             viewer_before=se.locator("#viewer").bounding_box()
             expect(se.locator("#progressThumbs")).to_be_visible()
