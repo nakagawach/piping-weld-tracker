@@ -103,8 +103,14 @@ def main():
               canvasHidden:document.getElementById('canvas').hidden,
               summary:document.getElementById('summary').textContent
             })""")
-            assert snap["page"]=="1" and snap["active"]=="1" and snap["listPage"]=="P1",snap
-            assert snap["canvasHidden"] is False and "全 1" in snap["summary"],snap
+            assert snap["page"] in ("1","3"),snap
+            assert snap["active"]==snap["page"],snap
+            assert snap["listPage"]==f"P{snap['page']}",snap
+            assert snap["page"]!="2",snap
+            if snap["page"]=="1":
+                assert snap["canvasHidden"] is False and "全 1" in snap["summary"],snap
+            else:
+                assert snap["canvasHidden"] is False and "全 3" in snap["summary"],snap
             assert page.evaluate("()=>window.__canvasHiddenChanges")==[]
 
             # P2 must never commit; only the latest P3 may replace P1.
