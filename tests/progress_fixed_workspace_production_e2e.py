@@ -301,17 +301,16 @@ def main():
             phone.wait_for_timeout(140)
             assert phone.evaluate("()=>window.__splitEvents")>before_events
 
-            # Loading another page must hide the old/intermediate canvas until draw completes.
-            phone.unroute(f"**/projects/{PROJECT_ID}/pdfium-page**")
-            def delayed_pdf(route):
-                if "page=2" in route.request.url:
-                    time.sleep(.25)
-                route.fulfill(status=200,content_type="image/svg+xml",body=SVG)
-            phone.route(f"**/projects/{PROJECT_ID}/pdfium-page**",delayed_pdf)
+            # Loading another page must hide the old/intermediate canvas before the new draw appears.
+            phone.evaluate("""()=>{
+              window.__canvasHiddenSeen=false;
+              const canvas=document.getElementById('canvas');
+              new MutationObserver(()=>{if(canvas.hidden)window.__canvasHiddenSeen=true}).observe(canvas,{attributes:true,attributeFilter:['hidden']});
+            }""")
             phone.locator("#next").click()
-            phone.wait_for_timeout(50)
-            expect(phone.locator("#canvas")).to_be_hidden()
+            phone.wait_for_function("document.getElementById('page').value === '2'")
             expect(phone.locator("#canvas")).to_be_visible(timeout=5000)
+            assert phone.evaluate("()=>window.__canvasHiddenSeen") is True
             phone.locator("#prev").click()
             phone.wait_for_function("document.getElementById('page').value === '1'")
             phone.wait_for_timeout(100)
