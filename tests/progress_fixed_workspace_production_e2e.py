@@ -171,11 +171,19 @@ def main():
             phone.goto(f"{BASE}/projects/{PROJECT_ID}/progress?page=1",wait_until="domcontentloaded")
             phone.locator("#progressListToggle").click()
             expect(phone.locator("#progressListPanel")).to_be_visible()
+            expect(phone.locator("#progressListState")).to_have_text(re.compile(r"34件"),timeout=5000)
+            expect(phone.locator(".progress-list-record")).to_have_count(34,timeout=5000)
             no_body_scroll(phone)
             body_before=phone.evaluate("()=>window.scrollY")
-            phone.locator("#progressListRecords").evaluate("el=>el.scrollTop=500")
-            phone.wait_for_timeout(60)
-            assert phone.locator("#progressListRecords").evaluate("el=>el.scrollTop")>0
+            records=phone.locator("#progressListRecords")
+            phone.wait_for_function(
+                "el=>el.scrollHeight>el.clientHeight",
+                arg=records.element_handle(),
+                timeout=5000,
+            )
+            records.evaluate("el=>{el.scrollTop=Math.min(500,el.scrollHeight-el.clientHeight)}")
+            phone.wait_for_timeout(80)
+            assert records.evaluate("el=>el.scrollTop")>0
             assert phone.evaluate("()=>window.scrollY")==body_before
             # Thumbnail strip scroll is independent.
             thumbs=phone.locator("#progressThumbs")
