@@ -131,6 +131,15 @@ def main():
             expect(land.locator("#dialogTarget")).to_contain_text("2")
             land.locator("#closeDialog").click()
 
+            # The list and drawing API read the same number_map: a listed P2 must render as saved.
+            expect(row(land,29,2)).to_be_visible(timeout=3000)
+            land.locator('.progress-thumb[data-page="2"]').click()
+            expect(land.locator("#page")).to_have_value("2",timeout=5000)
+            expect(land.locator("#canvas")).to_be_visible(timeout=5000)
+            expect(land.locator("#empty")).to_be_hidden()
+            land.locator('.progress-thumb[data-page="1"]').click()
+            expect(land.locator("#page")).to_have_value("1",timeout=5000)
+
             # Zoom produces minimap. The + button is intentionally hidden while the
             # narrow right panel is open, so zoom once with the panel closed, then reopen.
             land.locator("#progressListClose").click()
@@ -299,8 +308,26 @@ def main():
             expect(phone.locator("#progressSplitter")).to_be_visible()
             expect(phone.locator("#progressListState")).to_have_text(re.compile(r"34件"),timeout=5000)
             expect(phone.locator(".progress-list-record")).to_have_count(34,timeout=5000)
-            phone.wait_for_timeout(220)
+            phone.wait_for_timeout(260)
             no_body_scroll(phone)
+
+            # Initial OPEN must wait for the real canvas before consuming the one-time FIT.
+            initial_viewer=phone.locator("#viewer").bounding_box()
+            initial_canvas=phone.locator("#canvas").bounding_box()
+            assert initial_viewer and initial_canvas
+            assert initial_canvas["width"]<=initial_viewer["width"]+2,(initial_canvas,initial_viewer)
+            assert initial_canvas["height"]<=initial_viewer["height"]+2,(initial_canvas,initial_viewer)
+            expect(phone.locator("#progressMinimap")).not_to_have_class(re.compile(r".*show.*"))
+            assert "cache:'no-store'" in phone.content()
+            assert "_fresh=" in phone.content()
+
+            # Dynamic progress responses must also forbid HTTP/proxy caching.
+            data_response=phone.request.get(f"{BASE}/projects/{PROJECT_ID}/progress-data?page=1")
+            list_response=phone.request.get(f"{BASE}/projects/{PROJECT_ID}/progress-list-data")
+            html_response=phone.request.get(f"{BASE}/projects/{PROJECT_ID}/progress?page=1")
+            assert "no-store" in data_response.headers.get("cache-control","").lower(),data_response.headers
+            assert "no-store" in list_response.headers.get("cache-control","").lower(),list_response.headers
+            assert "no-store" in html_response.headers.get("cache-control","").lower(),html_response.headers
 
             # AUTO split removes avoidable blank space below the fitted drawing.
             viewer_auto=phone.locator("#viewer").bounding_box()
