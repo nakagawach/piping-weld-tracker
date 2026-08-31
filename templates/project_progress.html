@@ -77,6 +77,7 @@ body.progress-list-open .progress-list-panel{display:flex;flex-direction:column}
     </div>
     <div class="statusline" id="status">図面を読み込んでいます…</div><div class="summary" id="summary" hidden></div>
     <div class="viewer" id="viewer"><canvas id="canvas"></canvas><div class="empty" id="empty" hidden></div><div class="progress-minimap" id="progressMinimap" aria-hidden="true"><canvas id="progressMinimapCanvas"></canvas><div class="progress-minimap-viewport" id="progressMinimapViewport"></div></div></div>
+    <div class="progress-splitter" id="progressSplitter" role="separator" aria-orientation="horizontal" aria-label="図面と進捗一覧の高さを調整" tabindex="0"><span aria-hidden="true"></span></div>
     <aside class="progress-list-panel" id="progressListPanel" data-list-url="{{ url_for('progress.get_project_progress_list', project_id=project_id) }}" aria-label="進捗一覧パネル">
       <div class="panel-head"><strong>進捗一覧</strong><span class="panel-state" id="progressListState">非同期読込</span><button class="button panel-close" id="progressListClose" type="button" aria-label="進捗一覧を閉じる">×</button></div>
       <div class="panel-filters"><div class="panel-tabs" id="progressListTabs"><button class="panel-tab active" data-filter="all" type="button">すべて</button><button class="panel-tab" data-filter="未着手" type="button">未着手</button><button class="panel-tab" data-filter="施工中" type="button">施工中</button><button class="panel-tab" data-filter="完了" type="button">完了</button></div><div class="panel-search"><input id="progressListSearch" type="search" placeholder="番号・メモで検索"><button class="button" id="progressListSearchClear" type="button">×</button></div></div>
@@ -177,6 +178,92 @@ window.addEventListener('weld:progress-panel-target',event=>{pendingPanelTarget=
 <script src="{{ url_for('static', filename='progress_list_panel.js') }}"></script>
 <script>
 (() => {
+  const card=document.querySelector('.card'),viewer=document.getElementById('viewer'),canvas=document.getElementById('canvas'),panel=document.getElementById('progressListPanel'),splitter=document.getElementById('progressSplitter');
+  if(!card||!viewer||!canvas||!panel||!splitter)return;
+  const bottomPaneMedia=window.matchMedia('(max-width:820px), (min-width:821px) and (max-width:1200px) and (orientation:portrait)');
+  let mode='auto',manualHeight=null,raf=0,dragging=false,startY=0,startHeight=0;
+  const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
+  function isActive(){return bottomPaneMedia.matches&&document.body.classList.contains('progress-list-open')}
+  function fixedHeight(){
+    let total=splitter.getBoundingClientRect().height||8;
+    for(const selector of ['.ui3-appbar','.toolbar','.summary','.progress-thumbs']){
+      const el=card.querySelector(selector);
+      if(el&&getComputedStyle(el).display!=='none')total+=el.getBoundingClientRect().height;
+    }
+    return total;
+  }
+  function limits(){
+    const available=Math.max(0,card.clientHeight-fixedHeight());
+    const compact=window.innerWidth<=520;
+    let minViewer=Math.max(compact?150:180,available*(compact?.34:.36));
+    let minPanel=Math.max(compact?170:190,available*(compact?.30:.27));
+    if(minViewer+minPanel>available&&available>0){
+      const scale=available/(minViewer+minPanel);
+      minViewer*=scale;minPanel*=scale;
+    }
+    return{available,minViewer,maxViewer:Math.max(minViewer,available-minPanel),minPanel};
+  }
+  function applyHeight(value){
+    if(!isActive()){card.style.removeProperty('--pw-bottom-viewer');return}
+    const lim=limits(),height=clamp(value,lim.minViewer,lim.maxViewer);
+    card.style.setProperty('--pw-bottom-viewer',Math.round(height)+'px');
+    splitter.dataset.mode=mode;
+    splitter.setAttribute('aria-valuemin',String(Math.round(lim.minViewer)));
+    splitter.setAttribute('aria-valuemax',String(Math.round(lim.maxViewer)));
+    splitter.setAttribute('aria-valuenow',String(Math.round(height)));
+    window.dispatchEvent(new CustomEvent('weld:progress-split-changed',{detail:{mode,height}}));
+  }
+  function autoHeight(){
+    const lim=limits(),vr=viewer.getBoundingClientRect(),cr=canvas.getBoundingClientRect();
+    if(!canvas.width||!canvas.height||canvas.hidden||cr.height<2)return clamp(lim.available*.58,lim.minViewer,lim.maxViewer);
+    return clamp(Math.max(0,cr.bottom-vr.top)+6,lim.minViewer,lim.maxViewer);
+  }
+  function scheduleAuto(){
+    if(mode!=='auto'||!isActive())return;
+    if(raf)cancelAnimationFrame(raf);
+    raf=requestAnimationFrame(()=>{raf=requestAnimationFrame(()=>{raf=0;applyHeight(autoHeight())})});
+  }
+  function sync(){
+    if(!isActive()){card.style.removeProperty('--pw-bottom-viewer');return}
+    if(mode==='auto')scheduleAuto();
+    else if(manualHeight!==null)applyHeight(manualHeight);
+  }
+  splitter.addEventListener('pointerdown',event=>{
+    if(!isActive())return;
+    event.preventDefault();event.stopPropagation();
+    mode='manual';dragging=true;startY=event.clientY;startHeight=viewer.getBoundingClientRect().height;manualHeight=startHeight;
+    try{splitter.setPointerCapture(event.pointerId)}catch(_e){}
+  });
+  splitter.addEventListener('pointermove',event=>{
+    if(!dragging)return;
+    event.preventDefault();event.stopPropagation();
+    manualHeight=startHeight+(event.clientY-startY);applyHeight(manualHeight);
+  });
+  const endDrag=event=>{
+    if(!dragging)return;
+    event.preventDefault();event.stopPropagation();dragging=false;
+    manualHeight=viewer.getBoundingClientRect().height;applyHeight(manualHeight);
+    try{splitter.releasePointerCapture(event.pointerId)}catch(_e){}
+  };
+  splitter.addEventListener('pointerup',endDrag);splitter.addEventListener('pointercancel',endDrag);
+  splitter.addEventListener('keydown',event=>{
+    if(!isActive()||!['ArrowUp','ArrowDown','Home'].includes(event.key))return;
+    event.preventDefault();event.stopPropagation();
+    if(event.key==='Home'){mode='auto';manualHeight=null;scheduleAuto();return}
+    mode='manual';manualHeight=viewer.getBoundingClientRect().height+(event.key==='ArrowDown'?24:-24);applyHeight(manualHeight);
+  });
+  window.addEventListener('weld:progress-list-open-changed',sync);
+  window.addEventListener('weld:progress-page-loaded',()=>{if(mode==='auto')setTimeout(scheduleAuto,40)});
+  window.addEventListener('weld:progress-fit-request',()=>{if(mode==='auto')setTimeout(scheduleAuto,40)});
+  window.addEventListener('resize',sync);
+  window.addEventListener('orientationchange',()=>setTimeout(sync,80));
+  if(bottomPaneMedia.addEventListener)bottomPaneMedia.addEventListener('change',sync);
+  new MutationObserver(()=>{if(mode==='auto')scheduleAuto()}).observe(canvas,{attributes:true,attributeFilter:['width','height','style','hidden']});
+  setTimeout(sync,0);
+})();
+</script>
+<script>
+(() => {
   const viewer=document.getElementById('viewer'),canvas=document.getElementById('canvas');
   const box=document.getElementById('progressMinimap'),mini=document.getElementById('progressMinimapCanvas'),viewport=document.getElementById('progressMinimapViewport');
   if(!viewer||!canvas||!box||!mini||!viewport)return;
@@ -207,6 +294,7 @@ window.addEventListener('weld:progress-panel-target',event=>{pendingPanelTarget=
   function schedule(){if(queued)return;queued=requestAnimationFrame(refresh)}
   viewer.addEventListener('scroll',schedule,{passive:true});
   window.addEventListener('resize',schedule);
+  window.addEventListener('weld:progress-split-changed',schedule);
   ['zoomOut','zoomReset','zoomIn','rotate','rotateCompact','viewReset','viewResetCompact','progressListToggle','progressListClose'].forEach(id=>document.getElementById(id)?.addEventListener('click',()=>setTimeout(schedule,30)));
   window.addEventListener('weld:progress-selection',()=>setTimeout(schedule,30));
   window.addEventListener('weld:progress-saved',()=>setTimeout(schedule,30));
