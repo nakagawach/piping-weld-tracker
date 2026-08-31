@@ -105,5 +105,6 @@
   window.addEventListener('resize',syncBottomPaneViewer);
   if(bottomPaneMedia.addEventListener)bottomPaneMedia.addEventListener('change',syncBottomPaneViewer);
   new MutationObserver(syncBottomPaneViewer).observe(document.body,{attributes:true,attributeFilter:['class']});
+  if(window.matchMedia('(min-width:1201px)').matches)setOpen(true);
   setTimeout(()=>{currentPage=Number(pageInput.value)||1;if(!loaded)loadList();syncBottomPaneViewer()},0);
 })();
