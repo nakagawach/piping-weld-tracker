@@ -324,7 +324,7 @@ body.ui3-progress .viewer{
 }
 body.ui3-progress .viewer>#canvas{display:block}
 body.ui3-progress .progress-list-panel{
-  min-width:0!important;min-height:0!important;height:auto!important;max-height:none!important;position:static!important;inset:auto!important;
+  min-width:0!important;min-height:0!important;width:100%!important;max-width:none!important;height:auto!important;max-height:none!important;position:static!important;inset:auto!important;
   margin:0!important;border:0!important;border-left:1px solid #dfe3e8!important;border-radius:0!important;box-shadow:none!important;overflow:hidden!important;background:#fff!important
 }
 body.ui3-progress.progress-list-open .progress-list-panel{display:flex!important;flex-direction:column!important}
