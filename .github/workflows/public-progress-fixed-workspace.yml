@@ -1,9 +1,7 @@
 name: Public Progress Fixed Workspace Verification
 
 on:
-  push:
-    branches:
-      - feature/progress-fixed-workspace-production
+  workflow_dispatch:
 
 permissions:
   contents: read
