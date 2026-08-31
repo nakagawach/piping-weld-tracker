@@ -45,6 +45,10 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: python tests/progress_page_latest_wins_e2e.py
+      - name: Atomic page transition regression
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python tests/progress_page_atomic_transition_e2e.py
       - name: Stable selection regression
         env:
           PYTHONPATH: ${{ github.workspace }}
