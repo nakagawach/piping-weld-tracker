@@ -71,31 +71,35 @@ def main():
               }
             """)
 
-            # Start P2, then request P3 and finally P1 before P2 finishes.
+            # Start P2, then request P3 before P2 finishes.
             page.locator('.progress-thumb[data-page="2"]').click(no_wait_after=True)
-            expect(page.locator("#page")).to_have_value("2",timeout=2000)
+            page.wait_for_timeout(40)
             page.locator('.progress-thumb[data-page="3"]').click(no_wait_after=True,force=True)
-            page.locator('.progress-thumb[data-page="1"]').click(no_wait_after=True,force=True)
-
-            expect(page.locator("#page")).to_have_value("1",timeout=7000)
-            expect(page.locator('.progress-thumb[data-page="1"]')).to_be_disabled(timeout=3000)
-            page.wait_for_timeout(250)
+            page.wait_for_timeout(100)
             assert page.locator("#page").input_value()=="1"
-            assert page.locator(".progress-list-record.current-page").count()>=1
+            assert page.locator('.progress-thumb.active').get_attribute("data-page")=="1"
 
-            # Last loaded event must correspond to the latest requested page.
-            loaded=[d.get("page") for n,d in events if n=="weld:progress-page-loaded"]
-            assert loaded,events
-            assert loaded[-1]==1,events
-
-            # Repeat with a different latest target.
-            page.locator('.progress-thumb[data-page="2"]').click(no_wait_after=True)
-            expect(page.locator("#page")).to_have_value("2",timeout=2000)
-            page.locator('.progress-thumb[data-page="1"]').click(no_wait_after=True,force=True)
-            page.locator('.progress-thumb[data-page="3"]').click(no_wait_after=True,force=True)
             expect(page.locator("#page")).to_have_value("3",timeout=7000)
             page.wait_for_timeout(250)
             assert page.locator("#page").input_value()=="3"
+            assert page.locator(".progress-list-record.current-page").count()>=1
+            loaded=[d.get("page") for n,d in events if n=="weld:progress-page-loaded"]
+            assert 2 not in loaded,events
+            assert loaded and loaded[-1]==3,events
+
+            # Repeat in the other direction: stale P2 must not commit before the latest P1.
+            events.clear()
+            page.locator('.progress-thumb[data-page="2"]').click(no_wait_after=True)
+            page.wait_for_timeout(40)
+            page.locator('.progress-thumb[data-page="1"]').click(no_wait_after=True,force=True)
+            page.wait_for_timeout(100)
+            assert page.locator("#page").input_value()=="3"
+            assert page.locator('.progress-thumb.active').get_attribute("data-page")=="3"
+            expect(page.locator("#page")).to_have_value("1",timeout=7000)
+            page.wait_for_timeout(250)
+            loaded=[d.get("page") for n,d in events if n=="weld:progress-page-loaded"]
+            assert 2 not in loaded,events
+            assert loaded and loaded[-1]==1,events
 
             browser.close()
     finally:
