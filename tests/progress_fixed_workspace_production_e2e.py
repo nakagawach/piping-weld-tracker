@@ -239,6 +239,31 @@ def main():
             assert panel["height"]>=185,panel
             portrait.close()
 
+            # Saved rotation must settle before the initial AUTO splitter height is finalized.
+            rotated=browser.new_page(viewport={"width":390,"height":844})
+            stub(rotated)
+            rotated.add_init_script("""()=>{
+              try{localStorage.setItem('weldDrawingRotation:999','90')}catch(_e){}
+              window.__rotationSettledSeen=false;
+              window.addEventListener('weld:progress-initial-rotation-settled',()=>window.__rotationSettledSeen=true);
+            }""")
+            rotated.goto(f"{BASE}/projects/{PROJECT_ID}/progress?page=1",wait_until="domcontentloaded")
+            expect(rotated.locator("#canvas")).to_be_visible(timeout=7000)
+            rotated.wait_for_function("window.__rotationSettledSeen === true")
+            expect(rotated.locator("#rotate")).to_contain_text("90")
+            rotated.wait_for_timeout(160)
+            rviewer=rotated.locator("#viewer").bounding_box()
+            rcanvas=rotated.locator("#canvas").bounding_box()
+            rsplit=rotated.locator("#progressSplitter").bounding_box()
+            rpanel=rotated.locator("#progressListPanel").bounding_box()
+            assert rviewer and rcanvas and rsplit and rpanel
+            assert abs(rsplit["y"]-(rviewer["y"]+rviewer["height"]))<=2,(rviewer,rsplit)
+            rgap=rsplit["y"]-(rcanvas["y"]+rcanvas["height"])
+            assert rgap<=12,(rgap,rcanvas,rsplit)
+            assert rpanel["height"]>=165,rpanel
+            assert rotated.locator("#progressSplitter").get_attribute("data-mode")=="auto"
+            rotated.close()
+
             # Tablet follows iPhone-style CSS fullscreen and must not call the native Fullscreen API.
             tablet_fs=browser.new_page(viewport={"width":1024,"height":768})
             stub(tablet_fs)
