@@ -171,7 +171,7 @@ def main():
               canvasHidden:c.hidden,
               emptyHidden:document.getElementById('empty').hidden,
               summary:document.getElementById('summary').textContent,
-              canvas:{w:cb.width,h:cb.height},
+              canvas:{w:cb.width,h:cb.height,intrinsicW:c.width,intrinsicH:c.height,offsetW:c.offsetWidth,offsetH:c.offsetHeight,display:getComputedStyle(c).display,visibility:getComputedStyle(c).visibility,styleWidth:c.style.width},
               viewer:{w:vb.width,h:vb.height}
             }}""")
             assert final_state["page"]=="2" and final_state["active"]=="2",final_state
