@@ -250,19 +250,20 @@ body.progress-fullscreen .progress-thumbs{display:none}
         )
         html = html.replace("function setBusy(v){", thumb_js + "function setBusy(v){", 1)
         html = html.replace(
-            "async function loadPage(n){if(!pageCount)return;n=Math.max(1,Math.min(pageCount,Number(n)||1));if(busy){pendingPage=n;return}pageInput.value=n;setBusy(true);",
-            "async function loadPage(n){if(!pageCount)return;n=Math.max(1,Math.min(pageCount,Number(n)||1));if(busy){pendingPage=n;return}const previousPage=Number(pageInput.value)||1;if(n!==previousPage&&window.__drawingMemoBeforePageChange&&!await window.__drawingMemoBeforePageChange(previousPage,n))return;if(n!==previousPage)window.dispatchEvent(new CustomEvent('weld:progress-page-changing',{detail:{from:previousPage,to:n}}));pageInput.value=n;setBusy(true);",
+            "const previousPage=committedPage||Number(pageInput.value)||1;setBusy(true);",
+            "const previousPage=committedPage||Number(pageInput.value)||1;if(committedPage&&n!==previousPage&&window.__drawingMemoBeforePageChange&&!await window.__drawingMemoBeforePageChange(previousPage,n)){requestedPage=previousPage;return}if(committedPage&&n!==previousPage)window.dispatchEvent(new CustomEvent('weld:progress-page-changing',{detail:{from:previousPage,to:n}}));setBusy(true);",
             1,
         )
         html = html.replace(
-            "}catch(e){status.className='statusline error';status.textContent=e.message}finally{setBusy(false);const queued=pendingPage;pendingPage=null;if(queued!==null&&queued!==n)loadPage(queued)}}",
-            "}catch(e){status.className='statusline error';status.textContent=e.message}finally{setBusy(false);window.dispatchEvent(new CustomEvent('weld:progress-page-loaded',{detail:{page:n}}));const queued=pendingPage;pendingPage=null;if(queued!==null&&queued!==n)loadPage(queued)}}",
+            "pageInput.value=n;committedPage=n;lastAutoFitPage=0;",
+            "pageInput.value=n;committedPage=n;selectedTarget=null;selectionPulse=false;delete canvas.dataset.selectedTarget;updateProgressThumbActive();lastAutoFitPage=0;",
             1,
         )
-
-        old_load_start = "pageInput.value=n;setBusy(true);lastAutoFitPage=0;desktopFitMode=isWideDesktop();drawingZoom=1;zoomReset.textContent=desktopFitMode?'Fit ⛶':'100%';canvas.style.width='100%';resetPosition();"
-        new_load_start = "pageInput.value=n;selectedTarget=null;selectionPulse=false;delete canvas.dataset.selectedTarget;updateProgressThumbActive();setBusy(true);lastAutoFitPage=0;desktopFitMode=isWideDesktop();drawingZoom=1;zoomReset.textContent=desktopFitMode?'Fit ⛶':'100%';canvas.style.width='100%';resetPosition();"
-        html = html.replace(old_load_start, new_load_start, 1)
+        html = html.replace(
+            "}finally{setBusy(false);const queued=pendingPage;pendingPage=null;if(queued!==null&&queued!==n)loadPage(queued)}}",
+            "}finally{setBusy(false);if(committed)window.dispatchEvent(new CustomEvent('weld:progress-page-loaded',{detail:{page:n}}));const queued=pendingPage;pendingPage=null;if(queued!==null&&queued!==n)loadPage(queued)}}",
+            1,
+        )
         html = html.replace(
             "pageCount=data.pageCount;pageTotal.textContent=`/ ${pageCount}`;setBusy(false);await loadPage(1)",
             "pageCount=data.pageCount;pageTotal.textContent=`/ ${pageCount}`;setupProgressThumbnails();setBusy(false);await loadPage(1)",
