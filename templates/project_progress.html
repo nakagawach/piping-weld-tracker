@@ -195,8 +195,8 @@ window.addEventListener('weld:progress-panel-target',event=>{pendingPanelTarget=
   function limits(){
     const available=Math.max(0,card.clientHeight-fixedHeight());
     const compact=window.innerWidth<=520;
-    let minViewer=Math.max(compact?150:180,available*(compact?.34:.36));
-    let minPanel=Math.max(compact?170:190,available*(compact?.30:.27));
+    let minViewer=Math.max(compact?150:180,available*(compact ? .34 : .36));
+    let minPanel=Math.max(compact?170:190,available*(compact ? .30 : .27));
     if(minViewer+minPanel>available&&available>0){
       const scale=available/(minViewer+minPanel);
       minViewer*=scale;minPanel*=scale;
