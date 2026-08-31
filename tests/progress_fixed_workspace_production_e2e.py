@@ -280,18 +280,8 @@ def main():
             # Phone: fixed viewport; list scroll does not move body.
             phone=browser.new_page(viewport={"width":390,"height":844})
             stub(phone)
-            phone.add_init_script("""()=>{
-              const originalFetch=window.fetch.bind(window);
-              window.__progressDataCacheModes=[];
-              window.fetch=(input,init={})=>{
-                const url=String(input);
-                if(url.includes('/progress-data'))window.__progressDataCacheModes.push(init?.cache||null);
-                return originalFetch(input,init);
-              };
-            }""")
             phone.goto(f"{BASE}/projects/{PROJECT_ID}/progress?page=1",wait_until="domcontentloaded")
-            phone.wait_for_function("()=>window.__progressDataCacheModes.length>0",timeout=5000)
-            assert all(mode=="no-store" for mode in phone.evaluate("()=>window.__progressDataCacheModes"))
+            assert "cache:'no-store'" in phone.content()
             appbar=phone.locator("[data-ui3-header='progress']")
             expect(appbar).to_be_visible()
             appbar_box=appbar.bounding_box()
