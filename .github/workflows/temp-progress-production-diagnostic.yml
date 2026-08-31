@@ -96,3 +96,72 @@ jobs:
               print("browser_progress_responses",json.dumps(seen,ensure_ascii=False))
               browser.close()
           PY
+
+      - name: Verify Android-like fresh session and initial production layout
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, urllib.request
+          from playwright.sync_api import sync_playwright
+
+          origin="https://nakagawach.pythonanywhere.com/weld"
+          with urllib.request.urlopen(origin+"/projects",timeout=30) as r:
+              projects=json.load(r).get("projects",[])
+          def pname(p):
+              return p.get("projectName") or p.get("project_name")
+          sample=next(p for p in projects if pname(p)=="初めのサンプルPDF")
+          triangle=next(p for p in projects if pname(p)=="△工事")
+
+          with sync_playwright() as p:
+              device=p.devices.get("Pixel 7")
+              browser=p.chromium.launch()
+              ctx=browser.new_context(**device)
+              page=ctx.new_page()
+
+              # Fresh production initial view.
+              page.goto(f"{origin}/projects/{sample['id']}/progress?page=1",wait_until="domcontentloaded")
+              page.locator("#canvas").wait_for(state="visible",timeout=15000)
+              page.locator("#progressListPanel").wait_for(state="visible",timeout=15000)
+              page.wait_for_timeout(1200)
+              initial=page.evaluate("""()=>{const c=document.getElementById('canvas').getBoundingClientRect(),v=document.getElementById('viewer').getBoundingClientRect(),s=document.getElementById('progressSplitter').getBoundingClientRect();return{
+                page:document.getElementById('page').value,
+                canvasHidden:document.getElementById('canvas').hidden,
+                emptyHidden:document.getElementById('empty').hidden,
+                minimap:document.getElementById('progressMinimap').classList.contains('show'),
+                listOpen:document.body.classList.contains('progress-list-open'),
+                canvas:{x:c.x,y:c.y,w:c.width,h:c.height},
+                viewer:{x:v.x,y:v.y,w:v.width,h:v.height},
+                splitter:{x:s.x,y:s.y,w:s.width,h:s.height}
+              }}""")
+              print("android_initial",json.dumps(initial,ensure_ascii=False))
+              assert initial["page"]=="1"
+              assert initial["canvasHidden"] is False
+              assert initial["emptyHidden"] is True
+              assert initial["minimap"] is False
+              assert initial["listOpen"] is True
+              assert initial["canvas"]["w"] <= initial["viewer"]["w"]+3
+              assert initial["canvas"]["h"] <= initial["viewer"]["h"]+3
+
+              # Fresh Android-like triangle P4.
+              page.goto(f"{origin}/projects/{triangle['id']}/progress?page=1",wait_until="domcontentloaded")
+              page.locator("#progressThumbs .progress-thumb[data-page='4']").click()
+              page.wait_for_function("document.getElementById('page').value === '4'",timeout=15000)
+              page.wait_for_timeout(1200)
+              tri=page.evaluate("""()=>({
+                page:document.getElementById('page').value,
+                canvasHidden:document.getElementById('canvas').hidden,
+                emptyHidden:document.getElementById('empty').hidden,
+                summary:document.getElementById('summary').textContent,
+                activeThumb:document.querySelector('.progress-thumb.active')?.dataset.page||null
+              })""")
+              print("android_triangle_p4",json.dumps(tri,ensure_ascii=False))
+              assert tri["page"]=="4"
+              assert tri["canvasHidden"] is False
+              assert tri["emptyHidden"] is True
+              assert tri["activeThumb"]=="4"
+              assert "全 11" in tri["summary"]
+
+              ctx.close()
+              browser.close()
+          PY
