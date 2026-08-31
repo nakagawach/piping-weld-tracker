@@ -181,7 +181,7 @@ def main():
             assert final_state["viewer"]["w"]>10 and final_state["viewer"]["h"]>10,final_state
 
             # Fullscreen + zoomed page change must preserve zoom and viewer/splitter geometry.
-            page.locator("#fullscreen").click()
+            page.locator("#fullscreenCompact").click()
             page.wait_for_timeout(120)
             page.locator("#zoomIn").click()
             page.wait_for_timeout(120)
