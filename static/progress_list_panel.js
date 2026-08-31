@@ -47,6 +47,7 @@
     toggle.classList.toggle('active',open);
     toggle.setAttribute('aria-expanded',open?'true':'false');
     syncBottomPaneViewer();
+    window.dispatchEvent(new CustomEvent('weld:progress-list-open-changed',{detail:{open}}));
     if(open){
       if(!loaded)loadList();
       else syncOpenPosition();
@@ -105,6 +106,6 @@
   window.addEventListener('resize',syncBottomPaneViewer);
   if(bottomPaneMedia.addEventListener)bottomPaneMedia.addEventListener('change',syncBottomPaneViewer);
   new MutationObserver(syncBottomPaneViewer).observe(document.body,{attributes:true,attributeFilter:['class']});
-  if(window.matchMedia('(min-width:1201px)').matches)setOpen(true);
+  setOpen(true);
   setTimeout(()=>{currentPage=Number(pageInput.value)||1;if(!loaded)loadList();syncBottomPaneViewer()},0);
 })();
