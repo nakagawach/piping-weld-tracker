@@ -72,10 +72,11 @@ def main():
             """)
 
             # Start P2, then request P3 before P2 finishes.
-            page.locator('.progress-thumb[data-page="2"]').click(no_wait_after=True)
-            page.wait_for_timeout(40)
-            page.locator('.progress-thumb[data-page="3"]').click(no_wait_after=True,force=True)
-            page.wait_for_timeout(100)
+            page.evaluate("""()=>{
+              document.querySelector('.progress-thumb[data-page="2"]').click();
+              document.querySelector('.progress-thumb[data-page="3"]').click();
+            }""")
+            page.wait_for_timeout(60)
             assert page.locator("#page").input_value()=="1"
             assert page.locator('.progress-thumb.active').get_attribute("data-page")=="1"
 
@@ -89,10 +90,11 @@ def main():
 
             # Repeat in the other direction: stale P2 must not commit before the latest P1.
             events.clear()
-            page.locator('.progress-thumb[data-page="2"]').click(no_wait_after=True)
-            page.wait_for_timeout(40)
-            page.locator('.progress-thumb[data-page="1"]').click(no_wait_after=True,force=True)
-            page.wait_for_timeout(100)
+            page.evaluate("""()=>{
+              document.querySelector('.progress-thumb[data-page="2"]').click();
+              document.querySelector('.progress-thumb[data-page="1"]').click();
+            }""")
+            page.wait_for_timeout(60)
             assert page.locator("#page").input_value()=="3"
             assert page.locator('.progress-thumb.active').get_attribute("data-page")=="3"
             expect(page.locator("#page")).to_have_value("1",timeout=7000)
