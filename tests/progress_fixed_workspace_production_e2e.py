@@ -316,8 +316,11 @@ def main():
             phone.wait_for_timeout(100)
 
             # Dragging the independent splitter enters MANUAL mode and preserves the chosen height.
-            start_h=viewer_auto["height"]
-            sb=split_auto
+            current_viewer=phone.locator("#viewer").bounding_box()
+            assert current_viewer
+            start_h=current_viewer["height"]
+            sb=phone.locator("#progressSplitter").bounding_box()
+            assert sb
             phone.mouse.move(sb["x"]+sb["width"]/2,sb["y"]+sb["height"]/2)
             phone.mouse.down()
             phone.mouse.move(sb["x"]+sb["width"]/2,sb["y"]+70,steps=5)
