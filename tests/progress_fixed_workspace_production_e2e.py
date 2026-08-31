@@ -291,6 +291,31 @@ def main():
             assert -2<=auto_gap<=12,(auto_gap,canvas_auto,split_auto)
             assert phone.locator("#progressSplitter").get_attribute("data-mode")=="auto"
 
+            # AUTO split must ignore viewer pan/scroll and react only to zoom changes.
+            phone.evaluate("""()=>{window.__splitEvents=0;window.addEventListener('weld:progress-split-changed',()=>window.__splitEvents++)}""")
+            before_events=phone.evaluate("()=>window.__splitEvents")
+            phone.locator("#viewer").evaluate("el=>{el.scrollTop=Math.min(80,Math.max(0,el.scrollHeight-el.clientHeight));el.scrollLeft=Math.min(80,Math.max(0,el.scrollWidth-el.clientWidth))}")
+            phone.wait_for_timeout(120)
+            assert phone.evaluate("()=>window.__splitEvents")==before_events
+            phone.locator("#zoomIn").evaluate("el=>el.click()")
+            phone.wait_for_timeout(140)
+            assert phone.evaluate("()=>window.__splitEvents")>before_events
+
+            # Loading another page must hide the old/intermediate canvas until draw completes.
+            phone.unroute(f"**/projects/{PROJECT_ID}/pdfium-page**")
+            def delayed_pdf(route):
+                if "page=2" in route.request.url:
+                    time.sleep(.25)
+                route.fulfill(status=200,content_type="image/svg+xml",body=SVG)
+            phone.route(f"**/projects/{PROJECT_ID}/pdfium-page**",delayed_pdf)
+            phone.locator("#next").click()
+            phone.wait_for_timeout(50)
+            expect(phone.locator("#canvas")).to_be_hidden()
+            expect(phone.locator("#canvas")).to_be_visible(timeout=5000)
+            phone.locator("#prev").click()
+            phone.wait_for_function("document.getElementById('page').value === '1'")
+            phone.wait_for_timeout(100)
+
             # Dragging the independent splitter enters MANUAL mode and preserves the chosen height.
             start_h=viewer_auto["height"]
             sb=split_auto
