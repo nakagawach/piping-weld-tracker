@@ -136,6 +136,10 @@ def main():
         assert 335<=panel_box["width"]<=345,panel_box
         assert abs(summary_box["y"]-panel_box["y"])<=2,(summary_box,panel_box)
         assert abs(viewer_box["y"]-(summary_box["y"]+summary_box["height"]))<=2,(summary_box,viewer_box)
+        expect(desktop.locator("#zoomReset")).to_contain_text("Fit")
+        fit_metrics=desktop.locator("#viewer").evaluate("el=>({sw:el.scrollWidth,cw:el.clientWidth,sh:el.scrollHeight,ch:el.clientHeight})")
+        assert fit_metrics["sw"]<=fit_metrics["cw"]+2,fit_metrics
+        assert fit_metrics["sh"]<=fit_metrics["ch"]+2,fit_metrics
         no_body_scroll(desktop)
         desktop.close()
 
