@@ -68,7 +68,8 @@ def main():
             page=browser.new_page(viewport={"width":390,"height":844})
             stub(page)
             page.goto(f"{BASE}/projects/{PROJECT_ID}/progress?page=1",wait_until="domcontentloaded")
-            page.locator("#progressListToggle").click()
+            expect(page.locator("#progressListPanel")).to_be_visible(timeout=5000)
+            expect(page.locator("#progressListToggle")).to_have_attribute("aria-expanded","true")
             expect(page.locator(".progress-list-record")).to_have_count(4,timeout=7000)
 
             # Baseline row selection.
