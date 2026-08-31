@@ -62,6 +62,7 @@ def main():
             stub(page)
             page.goto(f"{BASE}/projects/{PROJECT_ID}/progress?page=1",wait_until="domcontentloaded")
             expect(page.locator('.progress-thumb[data-page="1"]')).to_be_visible(timeout=7000)
+            expect(page.locator(".progress-list-record.current-page")).to_have_count(1,timeout=7000)
 
             events=[]
             page.expose_function("capturePageEvent",lambda name,detail: events.append((name,detail)))
@@ -80,9 +81,9 @@ def main():
             snap=page.evaluate("""()=>({
               page:document.getElementById('page').value,
               active:document.querySelector('.progress-thumb.active')?.dataset.page||null,
-              listPage:document.querySelector('.progress-list-record.current-page')?.dataset.page||null
+              listPage:document.querySelector('.progress-list-record.current-page .progress-list-page')?.textContent||null
             })""")
-            assert snap["page"]=="1" and snap["active"]=="1" and snap["listPage"]=="1",snap
+            assert snap["page"]=="1" and snap["active"]=="1" and snap["listPage"]=="P1",snap
 
             expect(page.locator("#page")).to_have_value("3",timeout=7000)
             page.wait_for_timeout(250)
@@ -102,9 +103,9 @@ def main():
             snap=page.evaluate("""()=>({
               page:document.getElementById('page').value,
               active:document.querySelector('.progress-thumb.active')?.dataset.page||null,
-              listPage:document.querySelector('.progress-list-record.current-page')?.dataset.page||null
+              listPage:document.querySelector('.progress-list-record.current-page .progress-list-page')?.textContent||null
             })""")
-            assert snap["page"]=="3" and snap["active"]=="3" and snap["listPage"]=="3",snap
+            assert snap["page"]=="3" and snap["active"]=="3" and snap["listPage"]=="P3",snap
             expect(page.locator("#page")).to_have_value("1",timeout=7000)
             page.wait_for_timeout(250)
             loaded=[d.get("page") for n,d in events if n=="weld:progress-page-loaded"]
