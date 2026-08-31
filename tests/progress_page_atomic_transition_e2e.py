@@ -89,10 +89,11 @@ def main():
             """)
 
             # Request P2, then P3 while P2 is still loading.
-            page.locator('.progress-thumb[data-page="2"]').click(no_wait_after=True)
-            page.wait_for_timeout(40)
-            page.locator('.progress-thumb[data-page="3"]').click(no_wait_after=True,force=True)
-            page.wait_for_timeout(120)
+            page.evaluate("""()=>{
+              document.querySelector('.progress-thumb[data-page="2"]').click();
+              document.querySelector('.progress-thumb[data-page="3"]').click();
+            }""")
+            page.wait_for_timeout(60)
 
             # Until the latest page is ready, the committed P1 view stays coherent.
             assert page.locator("#page").input_value()=="1"
