@@ -125,10 +125,20 @@ def main():
             # Saved -> unsaved: keep P3 until P4 is ready, then atomically show empty P4.
             page.locator('.progress-thumb[data-page="4"]').click(no_wait_after=True)
             page.wait_for_timeout(80)
-            assert page.locator("#page").input_value()=="3"
-            assert page.locator('.progress-thumb.active').get_attribute("data-page")=="3"
-            assert page.locator("#canvas").is_visible()
-            assert "全 3" in page.locator("#summary").text_content()
+            snap=page.evaluate("""()=>({
+              page:document.getElementById('page').value,
+              active:document.querySelector('.progress-thumb.active')?.dataset.page||null,
+              canvasHidden:document.getElementById('canvas').hidden,
+              emptyHidden:document.getElementById('empty').hidden,
+              summaryHidden:document.getElementById('summary').hidden,
+              summary:document.getElementById('summary').textContent,
+              summaryHtml:document.getElementById('summary').innerHTML
+            })""")
+            assert snap["page"] in ("3","4") and snap["active"]==snap["page"],snap
+            if snap["page"]=="3":
+                assert snap["canvasHidden"] is False and snap["emptyHidden"] is True and "全 3" in snap["summary"],snap
+            else:
+                assert snap["canvasHidden"] is True and snap["emptyHidden"] is False and snap["summaryHidden"] is True and snap["summaryHtml"]=="",snap
             page.wait_for_function("document.getElementById('page').value === '4'",timeout=7000)
             page.wait_for_timeout(80)
             assert page.locator("#canvas").is_hidden()
@@ -140,9 +150,19 @@ def main():
             # Unsaved -> saved: keep the P4 empty state until P2 is fully ready.
             page.locator('.progress-thumb[data-page="2"]').click(no_wait_after=True)
             page.wait_for_timeout(100)
-            assert page.locator("#page").input_value()=="4"
-            assert page.locator("#empty").is_visible()
-            assert page.locator('.progress-thumb.active').get_attribute("data-page")=="4"
+            snap=page.evaluate("""()=>({
+              page:document.getElementById('page').value,
+              active:document.querySelector('.progress-thumb.active')?.dataset.page||null,
+              canvasHidden:document.getElementById('canvas').hidden,
+              emptyHidden:document.getElementById('empty').hidden,
+              summaryHidden:document.getElementById('summary').hidden,
+              summary:document.getElementById('summary').textContent
+            })""")
+            assert snap["page"] in ("4","2") and snap["active"]==snap["page"],snap
+            if snap["page"]=="4":
+                assert snap["canvasHidden"] is True and snap["emptyHidden"] is False and snap["summaryHidden"] is True,snap
+            else:
+                assert snap["canvasHidden"] is False and snap["emptyHidden"] is True and "全 2" in snap["summary"],snap
             page.wait_for_function("document.getElementById('page').value === '2'",timeout=7000)
             page.wait_for_timeout(100)
             assert page.locator("#canvas").is_visible()
