@@ -493,6 +493,73 @@ body.ui3-progress .progress-minimap{position:fixed;left:0;top:0;bottom:auto;widt
 body.ui3-progress .progress-minimap.show{opacity:1}
 body.ui3-progress .progress-minimap>canvas{position:absolute;inset:0;width:100%;height:100%;margin:0!important}
 body.ui3-progress .progress-minimap-viewport{position:absolute;border:2px solid #ff4fa3;background:rgba(255,79,163,.22);border-radius:2px}
+
+/* Keep handwritten memo tools directly above drawing content when editing. */
+body.ui3-progress .drawing-memo-tools{min-width:0!important;z-index:18!important}
+body.ui3-progress:has(.drawing-memo-tools.open) .card{
+  grid-template-rows:var(--pw-toolbar) auto var(--pw-summary) var(--pw-thumbs) minmax(0,1fr)!important
+}
+body.ui3-progress:has(.drawing-memo-tools.open) .drawing-memo-tools{grid-column:1!important;grid-row:2!important}
+body.ui3-progress:has(.drawing-memo-tools.open) .summary{grid-row:3!important}
+body.ui3-progress:has(.drawing-memo-tools.open) .progress-thumbs{grid-row:4!important}
+body.ui3-progress:has(.drawing-memo-tools.open) .viewer{grid-row:5!important}
+@media(min-width:1201px){
+  body.ui3-progress:has(.drawing-memo-tools.open) .card{
+    grid-template-rows:var(--pw-thumbs) auto var(--pw-summary) minmax(0,1fr)!important
+  }
+  body.ui3-progress:has(.drawing-memo-tools.open) .progress-thumbs{grid-row:1!important}
+  body.ui3-progress:has(.drawing-memo-tools.open) .drawing-memo-tools{grid-row:2!important}
+  body.ui3-progress:has(.drawing-memo-tools.open) .summary{grid-row:3!important}
+  body.ui3-progress:has(.drawing-memo-tools.open) .viewer{grid-row:4!important}
+  body.ui3-progress.progress-list-open:has(.drawing-memo-tools.open) .progress-list-panel{grid-row:2 / 5!important}
+}
+@media(max-width:820px){
+  body.ui3-progress:has(.drawing-memo-tools.open) .card{
+    grid-template-rows:var(--pw-header) var(--pw-toolbar) auto var(--pw-summary) var(--pw-thumbs) minmax(0,1fr)!important
+  }
+  body.ui3-progress:has(.drawing-memo-tools.open) .toolbar{grid-row:2!important}
+  body.ui3-progress:has(.drawing-memo-tools.open) .drawing-memo-tools{grid-row:3!important}
+  body.ui3-progress:has(.drawing-memo-tools.open) .summary{grid-row:4!important}
+  body.ui3-progress:has(.drawing-memo-tools.open) .progress-thumbs{grid-row:5!important}
+  body.ui3-progress:has(.drawing-memo-tools.open) .viewer{grid-row:6!important}
+  body.ui3-progress.progress-list-open:has(.drawing-memo-tools.open) .card{
+    grid-template-rows:var(--pw-header) var(--pw-toolbar) auto var(--pw-summary) var(--pw-thumbs) var(--pw-bottom-viewer,minmax(0,3fr)) 8px minmax(170px,1fr)!important
+  }
+  body.ui3-progress.progress-list-open:has(.drawing-memo-tools.open) .progress-splitter{grid-row:7!important}
+  body.ui3-progress.progress-list-open:has(.drawing-memo-tools.open) .progress-list-panel{grid-row:8!important}
+  body.ui3-progress.progress-fullscreen:has(.drawing-memo-tools.open) .card{
+    grid-template-rows:0 var(--pw-toolbar) auto var(--pw-summary) 0 minmax(0,1fr)!important
+  }
+  body.ui3-progress.progress-fullscreen.progress-list-open:has(.drawing-memo-tools.open) .card{
+    grid-template-rows:0 var(--pw-toolbar) auto var(--pw-summary) 0 var(--pw-bottom-viewer,minmax(0,3fr)) 8px minmax(170px,1fr)!important
+  }
+}
+@media(min-width:821px) and (max-width:1200px) and (orientation:portrait){
+  body.ui3-progress:has(.drawing-memo-tools.open) .card{
+    grid-template-rows:44px var(--pw-toolbar) auto var(--pw-summary) var(--pw-thumbs) minmax(0,1fr)!important
+  }
+  body.ui3-progress:has(.drawing-memo-tools.open) .toolbar{grid-row:2!important}
+  body.ui3-progress:has(.drawing-memo-tools.open) .drawing-memo-tools{grid-row:3!important}
+  body.ui3-progress:has(.drawing-memo-tools.open) .summary{grid-row:4!important}
+  body.ui3-progress:has(.drawing-memo-tools.open) .progress-thumbs{grid-row:5!important}
+  body.ui3-progress:has(.drawing-memo-tools.open) .viewer{grid-row:6!important}
+  body.ui3-progress.progress-list-open:has(.drawing-memo-tools.open) .card{
+    grid-template-rows:44px var(--pw-toolbar) auto var(--pw-summary) var(--pw-thumbs) var(--pw-bottom-viewer,minmax(0,3fr)) 8px minmax(190px,1fr)!important
+  }
+  body.ui3-progress.progress-list-open:has(.drawing-memo-tools.open) .progress-splitter{grid-row:7!important}
+  body.ui3-progress.progress-list-open:has(.drawing-memo-tools.open) .progress-list-panel{grid-row:8!important}
+  body.ui3-progress.progress-fullscreen:has(.drawing-memo-tools.open) .card{
+    grid-template-rows:44px var(--pw-toolbar) auto var(--pw-summary) 0 minmax(0,1fr)!important
+  }
+  body.ui3-progress.progress-fullscreen.progress-list-open:has(.drawing-memo-tools.open) .card{
+    grid-template-rows:44px var(--pw-toolbar) auto var(--pw-summary) 0 var(--pw-bottom-viewer,minmax(0,3fr)) 8px minmax(190px,1fr)!important
+  }
+}
+@media(min-width:821px) and (max-width:1200px) and (orientation:landscape){
+  body.ui3-progress.progress-fullscreen:has(.drawing-memo-tools.open) .card{
+    grid-template-rows:var(--pw-toolbar) auto var(--pw-summary) 0 minmax(0,1fr)!important
+  }
+}
 </style>
 """
         html = html.replace("</body>", layout_v5_css + "</body>", 1)
