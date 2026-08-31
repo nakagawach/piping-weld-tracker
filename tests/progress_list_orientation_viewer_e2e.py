@@ -95,7 +95,8 @@ def main():
                 assert panel and panel["y"] > 450, panel
 
             # Rotation must survive progress page changes.
-            page.locator("#rotate").click()
+            expect(page.locator("#rotateCompact")).to_be_visible()
+            page.locator("#rotateCompact").click()
             page.wait_for_timeout(120)
             assert "90°" in page.locator("#rotate").text_content()
             page.locator("#next").click()
