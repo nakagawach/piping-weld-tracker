@@ -183,7 +183,7 @@ def main():
             # Fullscreen + zoomed page change must preserve zoom and viewer/splitter geometry.
             page.locator("#fullscreenCompact").click()
             page.wait_for_timeout(120)
-            page.locator("#zoomIn").click()
+            page.evaluate("document.getElementById('zoomIn').click()")
             page.wait_for_timeout(120)
             before=page.evaluate("""()=>({
               page:document.getElementById('page').value,
