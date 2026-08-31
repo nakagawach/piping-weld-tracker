@@ -347,7 +347,12 @@ body.ui3-progress .progress-list-input{min-height:34px!important;height:34px!imp
   body.ui3-progress.progress-list-open .viewer{grid-column:1!important}
   body.ui3-progress.progress-list-open .progress-list-panel{grid-column:2!important;grid-row:1 / -1!important}
   body.ui3-progress.progress-list-open .toolbar .desktop-tools{display:flex!important;align-items:center!important;gap:3px!important}
-  body.ui3-progress.progress-list-open .toolbar .desktop-tools>button{display:inline-flex!important;align-items:center!important;justify-content:center!important}
+  body.ui3-progress.progress-list-open .toolbar .desktop-tools>button{display:none!important}
+  body.ui3-progress.progress-list-open .toolbar .desktop-tools>#zoomOut,
+  body.ui3-progress.progress-list-open .toolbar .desktop-tools>#zoomReset,
+  body.ui3-progress.progress-list-open .toolbar .desktop-tools>#zoomIn,
+  body.ui3-progress.progress-list-open .toolbar .desktop-tools>#rotate,
+  body.ui3-progress.progress-list-open .toolbar .desktop-tools>#fullscreen{display:inline-flex!important;align-items:center!important;justify-content:center!important}
 }
 @media(min-width:1201px){
   body.ui3-progress{--pw-panel:340px}
