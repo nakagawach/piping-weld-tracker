@@ -178,7 +178,10 @@ window.addEventListener('weld:progress-panel-target',event=>{pendingPanelTarget=
     const zoomed=cr.width>vw+2||cr.height>vh+2||viewer.scrollWidth>vw+2||viewer.scrollHeight>vh+2;
     if(!zoomed){box.classList.remove('show');return}
     box.classList.add('show');
+    const vr=viewer.getBoundingClientRect();
     const mw=Math.max(1,box.clientWidth),mh=Math.max(1,box.clientHeight),dpr=Math.min(2,window.devicePixelRatio||1);
+    box.style.left=Math.round(vr.left+10)+'px';
+    box.style.top=Math.round(Math.max(vr.top+10,vr.bottom-mh-10))+'px';
     mini.width=Math.round(mw*dpr);mini.height=Math.round(mh*dpr);
     const ctx=mini.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,mw,mh);
     const fit=Math.min(mw/canvas.width,mh/canvas.height),dw=canvas.width*fit,dh=canvas.height*fit,ox=(mw-dw)/2,oy=(mh-dh)/2;
