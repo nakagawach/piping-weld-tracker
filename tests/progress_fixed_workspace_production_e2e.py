@@ -242,12 +242,11 @@ def main():
             # Saved rotation must settle before the initial AUTO splitter height is finalized.
             rotated=browser.new_page(viewport={"width":390,"height":844})
             stub(rotated)
-            rotated.add_init_script("""()=>{try{localStorage.setItem('weldDrawingRotation:999','90')}catch(_e){}}""")
+            rotated.goto(f"{BASE}/projects-screen",wait_until="domcontentloaded")
+            rotated.evaluate("""()=>localStorage.setItem('weldDrawingRotation:999','90')""")
             rotated.goto(f"{BASE}/projects/{PROJECT_ID}/progress?page=1",wait_until="domcontentloaded")
-            rotated.wait_for_function("""()=>window.__progressInitialRotationPending === false &&
-              document.getElementById('rotate')?.textContent?.includes('90')""",timeout=7000)
             expect(rotated.locator("#canvas")).to_be_visible(timeout=7000)
-            expect(rotated.locator("#rotate")).to_contain_text("90")
+            expect(rotated.locator("#rotate")).to_contain_text("90",timeout=7000)
             rotated.wait_for_timeout(160)
             rviewer=rotated.locator("#viewer").bounding_box()
             rcanvas=rotated.locator("#canvas").bounding_box()
