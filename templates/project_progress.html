@@ -96,6 +96,10 @@ body.progress-list-open .progress-list-panel{display:flex;flex-direction:column}
 (() => {
   const DISPLAY_LONG_EDGE=1600,SCALE=DISPLAY_LONG_EDGE/6000,HIT_CSS_PX=56;
   const projectId={{ project_id | tojson }};
+  const rotationKey=`weldDrawingRotation:${projectId}`;
+  let initialRotation=0;
+  try{initialRotation=Number(localStorage.getItem(rotationKey)||0)}catch(_e){}
+  if(![0,90,180,270].includes(initialRotation))initialRotation=0;
   const progressUrl={{ url_for('progress.get_project_progress', project_id=project_id) | tojson }};
   const saveProgressUrl={{ url_for('progress.save_project_progress', project_id=project_id) | tojson }};
   const pdfiumInfoUrl={{ url_for('projects.pdfium_info', project_id=project_id) | tojson }};
@@ -106,8 +110,9 @@ body.progress-list-open .progress-list-panel{display:flex;flex-direction:column}
   const status=document.getElementById('status'),summary=document.getElementById('summary'),viewer=document.getElementById('viewer'),canvas=document.getElementById('canvas'),empty=document.getElementById('empty');
   const dialog=document.getElementById('progressDialog'),form=document.getElementById('progressForm'),dialogTarget=document.getElementById('dialogTarget');
   const dateInput=document.getElementById('completedDate'),detailInput=document.getElementById('workDetail'),updated=document.getElementById('updated'),saveButton=document.getElementById('save'),source=document.createElement('canvas');
-  let pageCount=0,candidates=[],progressMap=new Map(),active=null,busy=false,selectedStatus='未着手',drawingZoom=1,rotation=0,cssFullscreen=false,selectedTarget=null,selectionPulse=false,selectionPulseToken=0,pendingPanelTarget=null,panelHandling=false,pendingPage=null,lastAutoFitPage=0,desktopFitMode=false;
+  let pageCount=0,candidates=[],progressMap=new Map(),active=null,busy=false,selectedStatus='未着手',drawingZoom=1,rotation=initialRotation,cssFullscreen=false,selectedTarget=null,selectionPulse=false,selectionPulseToken=0,pendingPanelTarget=null,panelHandling=false,pendingPage=null,lastAutoFitPage=0,desktopFitMode=false;
   let touchMode='',touchMoved=false,touchStartX=0,touchStartY=0,touchStartScrollLeft=0,touchStartScrollTop=0,pinchStartDistance=0,pinchStartZoom=1,suppressClick=false;
+  rotateButton.textContent=`↻ ${rotation}°`;
   const goBack=()=>location.href=projectsScreenUrl;document.getElementById('back').onclick=goBack;document.getElementById('backCompact').onclick=goBack;document.getElementById('closeDialog').onclick=()=>dialog.close();document.getElementById('cancel').onclick=()=>dialog.close();
   function center(item){return{x:Math.round(item.bbox.x+item.bbox.w/2),y:Math.round(item.bbox.y+item.bbox.h/2)}}function keyFromXY(x,y){return `${Math.round(x)}:${Math.round(y)}`}function key(item){const c=center(item);return keyFromXY(c.x,c.y)}function toDisplayBox(b){return{x:b.x*SCALE,y:b.y*SCALE,w:b.w*SCALE,h:b.h*SCALE}}function statusLabel(v){return v==='施工中'?'作業中':v}
   function markerColor(v){if(v==='完了')return '#188038';if(v==='施工中')return '#e37400';return '#5f6368'}function markerFill(v){if(v==='完了')return 'rgba(24,128,56,.24)';if(v==='施工中')return 'rgba(227,116,0,.25)';return 'rgba(95,99,104,.20)'}
@@ -166,23 +171,8 @@ window.addEventListener('weld:progress-panel-target',event=>{pendingPanelTarget=
   normalizeThumbs();
   const saveRotation=()=>{const match=rotateButton?.textContent?.match(/(0|90|180|270)/);if(match){try{localStorage.setItem(rotationKey,match[1]);}catch(_e){}}};
   [rotateButton,rotateCompact].filter(Boolean).forEach(button=>button.addEventListener('click',saveRotation));
-  let stored=0;try{stored=Number(localStorage.getItem(rotationKey)||0);}catch(_e){}
-  if(![0,90,180,270].includes(stored))stored=0;
-  window.__progressInitialRotationPending=stored!==0;
-  if(stored!==0&&canvas)canvas.style.visibility='hidden';
-  const settle=()=>{
-    window.__progressInitialRotationPending=false;
-    requestAnimationFrame(()=>requestAnimationFrame(()=>{
-      if(canvas)canvas.style.visibility='';
-      window.dispatchEvent(new CustomEvent('weld:progress-initial-rotation-settled',{detail:{rotation:stored}}));
-    }));
-  };
-  if(stored===0){settle();return}
-  const apply=()=>{if(!canvas||canvas.width<=0||!rotateButton||rotateButton.disabled)return false;for(let i=0;i<stored/90;i++)rotateButton.click();settle();return true;};
-  if(apply())return;
-  const readyObserver=new MutationObserver(()=>{if(apply())readyObserver.disconnect();});
-  if(canvas)readyObserver.observe(canvas,{attributes:true,attributeFilter:['width','height']});
-  if(rotateButton)readyObserver.observe(rotateButton,{attributes:true,attributeFilter:['disabled']});
+  // Rotation is restored by the main drawing state before the first draw.
+  // This block only persists later user-triggered rotations.
 })();
 </script>
 <script src="{{ url_for('static', filename='progress_list_panel.js') }}"></script>
@@ -230,7 +220,7 @@ window.addEventListener('weld:progress-panel-target',event=>{pendingPanelTarget=
     return clamp(Math.max(0,cr.bottom-vr.top)+6,lim.minViewer,lim.maxViewer);
   }
   function scheduleAuto(){
-    if(mode!=='auto'||!isActive()||window.__progressInitialRotationPending)return;
+    if(mode!=='auto'||!isActive())return;
     if(raf)cancelAnimationFrame(raf);
     raf=requestAnimationFrame(()=>{raf=requestAnimationFrame(()=>{raf=0;applyHeight(autoHeight())})});
   }
@@ -265,7 +255,6 @@ window.addEventListener('weld:progress-panel-target',event=>{pendingPanelTarget=
   });
   window.addEventListener('weld:progress-list-open-changed',sync);
   window.addEventListener('weld:progress-page-loaded',()=>{if(mode==='auto'&&initialAutoPending)setTimeout(scheduleAuto,40)});
-  window.addEventListener('weld:progress-initial-rotation-settled',()=>{if(mode==='auto'&&initialAutoPending)setTimeout(scheduleAuto,0)});
   window.addEventListener('weld:progress-zoom-changed',()=>{if(mode==='auto')setTimeout(scheduleAuto,0)});
   setTimeout(sync,0);
 })();
