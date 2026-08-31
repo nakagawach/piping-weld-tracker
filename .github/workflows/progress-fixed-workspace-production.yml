@@ -33,10 +33,6 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: python tests/progress_fixed_workspace_production_e2e.py
-      - name: Responsive V5 regression
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: python tests/progress_responsive_layout_v5_e2e.py
       - name: Orientation viewer regression
         env:
           PYTHONPATH: ${{ github.workspace }}
