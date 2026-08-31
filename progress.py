@@ -450,10 +450,10 @@ body.ui3-progress .progress-list-input{min-height:34px!important;height:34px!imp
   }
 }
 @media(max-width:520px){
-  body.ui3-progress .progress-list-panel .panel-head{height:36px!important;min-height:36px!important;padding:2px 6px!important}
-  body.ui3-progress .progress-list-panel .panel-head strong{font-size:.95rem!important}
-  body.ui3-progress .progress-list-panel .panel-state{font-size:.68rem!important}
-  body.ui3-progress .progress-list-panel .panel-close{min-width:34px!important;width:34px!important;height:32px!important;min-height:32px!important;padding:0!important}
+  body.ui3-progress .progress-list-panel .panel-head{height:32px!important;min-height:32px!important;padding:1px 5px!important;gap:5px!important}
+  body.ui3-progress .progress-list-panel .panel-head strong{font-size:.9rem!important;line-height:1!important}
+  body.ui3-progress .progress-list-panel .panel-state{font-size:.64rem!important;line-height:1!important}
+  body.ui3-progress .progress-list-panel .panel-close{min-width:28px!important;width:28px!important;height:28px!important;min-height:28px!important;padding:0!important;border-radius:7px!important}
   body.ui3-progress .progress-list-panel .panel-filters{padding:4px 5px!important}
   body.ui3-progress .progress-list-panel .panel-tabs{gap:4px!important}
   body.ui3-progress .progress-list-panel .panel-tab{min-height:30px!important;height:30px!important;padding:0 9px!important;font-size:.86rem!important}
