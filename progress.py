@@ -433,11 +433,12 @@ body.ui3-progress .progress-list-input{min-height:34px!important;height:34px!imp
   body.ui3-progress.progress-list-open .viewer{grid-row:5!important}
 
   /* Phone fullscreen: reclaim the app header height but keep one obvious exit control. */
+  body.ui3-progress.progress-fullscreen .progress-thumbs{display:none!important}
   body.ui3-progress.progress-fullscreen .card{
-    grid-template-rows:0 var(--pw-toolbar) var(--pw-summary) var(--pw-thumbs) minmax(0,1fr)!important
+    grid-template-rows:0 var(--pw-toolbar) var(--pw-summary) 0 minmax(0,1fr)!important
   }
   body.ui3-progress.progress-fullscreen.progress-list-open .card{
-    grid-template-rows:0 var(--pw-toolbar) var(--pw-summary) var(--pw-thumbs) var(--pw-bottom-viewer,minmax(0,3fr)) 8px minmax(170px,1fr)!important
+    grid-template-rows:0 var(--pw-toolbar) var(--pw-summary) 0 var(--pw-bottom-viewer,minmax(0,3fr)) 8px minmax(170px,1fr)!important
   }
   body.ui3-progress.progress-fullscreen .ui3-appbar{
     position:fixed!important;top:max(4px,env(safe-area-inset-top))!important;right:max(4px,env(safe-area-inset-right))!important;
@@ -477,6 +478,13 @@ body.ui3-progress .progress-list-input{min-height:34px!important;height:34px!imp
   body.ui3-progress.progress-list-open .card{grid-template-rows:44px var(--pw-toolbar) var(--pw-summary) var(--pw-thumbs) var(--pw-bottom-viewer,minmax(0,3fr)) 8px minmax(190px,1fr)!important}
   body.ui3-progress.progress-list-open .progress-splitter{display:block!important;grid-column:1!important;grid-row:6!important}
   body.ui3-progress.progress-list-open .progress-list-panel{grid-column:1!important;grid-row:7!important;border-left:0!important;border-top:0!important}
+  body.ui3-progress.progress-fullscreen .progress-thumbs{display:none!important}
+  body.ui3-progress.progress-fullscreen .card{grid-template-rows:44px var(--pw-toolbar) var(--pw-summary) 0 minmax(0,1fr)!important}
+  body.ui3-progress.progress-fullscreen.progress-list-open .card{grid-template-rows:44px var(--pw-toolbar) var(--pw-summary) 0 var(--pw-bottom-viewer,minmax(0,3fr)) 8px minmax(190px,1fr)!important}
+}
+@media(min-width:821px) and (max-width:1200px) and (orientation:landscape){
+  body.ui3-progress.progress-fullscreen .progress-thumbs{display:none!important}
+  body.ui3-progress.progress-fullscreen .card{grid-template-rows:var(--pw-toolbar) var(--pw-summary) 0 minmax(0,1fr)!important}
 }
 body.ui3-progress.progress-fullscreen{overflow:hidden!important}
 body.ui3-progress.progress-fullscreen main{height:100dvh!important;max-height:100dvh!important}
