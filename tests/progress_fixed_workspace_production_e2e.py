@@ -229,10 +229,42 @@ def main():
             assert fit_canvas["width"]<=viewer_box["width"]+2,(fit_canvas,viewer_box)
             assert fit_canvas["height"]<=viewer_box["height"]+2,(fit_canvas,viewer_box)
 
-            # Manual zoom may overflow the viewer; Fit must restore a no-scroll whole-page view.
+            # Manual zoom may overflow the viewer. PC mouse drag pans only the drawing
+            # and must not be mistaken for a weld-point click.
+            desktop.locator("#zoomIn").click()
             desktop.locator("#zoomIn").click()
             desktop.wait_for_timeout(120)
             expect(desktop.locator("#zoomReset")).not_to_contain_text("Fit")
+            desktop.locator("#viewer").evaluate("el=>{el.scrollLeft=Math.min(120,Math.max(0,el.scrollWidth-el.clientWidth));el.scrollTop=Math.min(120,Math.max(0,el.scrollHeight-el.clientHeight))}")
+            pan_before=desktop.locator("#viewer").evaluate("el=>({sl:el.scrollLeft,st:el.scrollTop,sw:el.scrollWidth,cw:el.clientWidth,sh:el.scrollHeight,ch:el.clientHeight})")
+            assert pan_before["sw"]>pan_before["cw"]+5 or pan_before["sh"]>pan_before["ch"]+5,pan_before
+            vb=desktop.locator("#viewer").bounding_box();assert vb
+            start_x=vb["x"]+vb["width"]*.62;start_y=vb["y"]+vb["height"]*.62
+            desktop.mouse.move(start_x,start_y)
+            desktop.mouse.down()
+            desktop.mouse.move(start_x-90,start_y-70,steps=6)
+            desktop.mouse.up()
+            desktop.wait_for_timeout(80)
+            pan_after=desktop.locator("#viewer").evaluate("el=>({sl:el.scrollLeft,st:el.scrollTop})")
+            assert pan_after["sl"]>pan_before["sl"]+20 or pan_after["st"]>pan_before["st"]+20,(pan_before,pan_after)
+            expect(desktop.locator("#progressDialog")).not_to_be_visible()
+
+            # Ctrl+wheel inside the drawing zooms the drawing and cancels the browser's
+            # default wheel action. Plain wheel behavior outside this condition is untouched.
+            ctrl_result=desktop.locator("#viewer").evaluate("""el=>{
+              window.__ctrlWheelPrevented=false;
+              el.addEventListener('wheel',e=>{window.__ctrlWheelPrevented=e.defaultPrevented},{once:true});
+              const r=el.getBoundingClientRect(),before=document.getElementById('zoomReset').textContent;
+              const dispatched=el.dispatchEvent(new WheelEvent('wheel',{
+                bubbles:true,cancelable:true,ctrlKey:true,deltaY:-120,
+                clientX:r.left+r.width/2,clientY:r.top+r.height/2
+              }));
+              return {before,after:document.getElementById('zoomReset').textContent,prevented:window.__ctrlWheelPrevented,dispatched};
+            }""")
+            assert ctrl_result["prevented"] is True,ctrl_result
+            assert ctrl_result["dispatched"] is False,ctrl_result
+            assert ctrl_result["after"]!=ctrl_result["before"],ctrl_result
+
             desktop.locator("#zoomReset").click()
             desktop.wait_for_timeout(140)
             expect(desktop.locator("#zoomReset")).to_contain_text("Fit")
