@@ -152,7 +152,7 @@ def main():
             assert blue_ring_stays[2] > blue_ring_stays[0]+40,blue_ring_stays
             landscape.close()
 
-            # Large portrait tablet: bottom 40%, one-shot A4 landscape fit.
+            # Large portrait tablet: bounded bottom panel, one-shot A4 landscape fit.
             portrait=browser.new_page(viewport={"width":1024,"height":1366})
             stub(portrait)
             portrait.goto(f"{BASE}/projects/{PROJECT_ID}/progress?page=1",wait_until="domcontentloaded")
@@ -175,7 +175,7 @@ def main():
             assert portrait.locator("#canvas").evaluate("el=>el.style.width")==width_after_fit
             portrait.close()
 
-            # 768px portrait iPad/tablet: low mobile appbar + bottom 40%.
+            # 768px portrait iPad/tablet: low mobile appbar + bounded bottom panel.
             tablet=browser.new_page(viewport={"width":768,"height":1024})
             stub(tablet)
             tablet.goto(f"{BASE}/projects/{PROJECT_ID}/progress?page=1",wait_until="domcontentloaded")
@@ -191,7 +191,7 @@ def main():
             assert_fit(tablet)
             tablet.close()
 
-            # Phone: bottom 40%. Hidden selection/page state must sync on reopen.
+            # Phone: bounded bottom panel. Hidden selection/page state must sync on reopen.
             phone=browser.new_page(viewport={"width":390,"height":844})
             stub(phone)
             phone.goto(f"{BASE}/projects/{PROJECT_ID}/progress?page=1",wait_until="domcontentloaded")
@@ -227,7 +227,7 @@ def main():
 
             # Saved 90-degree rotation: initial fit uses rotated dimensions and anchors at viewer top-left.
             rotated=browser.new_page(viewport={"width":390,"height":844})
-            rotated.add_init_script("localStorage.setItem('weldDrawingRotation:${PROJECT_ID}','90')")
+            rotated.add_init_script(f"localStorage.setItem('weldDrawingRotation:{PROJECT_ID}','90')")
             stub(rotated)
             rotated.goto(f"{BASE}/projects/{PROJECT_ID}/progress?page=1",wait_until="domcontentloaded")
             expect(rotated.locator("#progressListPanel")).to_be_visible(timeout=5000)
