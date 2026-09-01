@@ -160,7 +160,7 @@ def main():
             expect(portrait.locator("#progressListPanel")).to_be_visible()
             portrait.wait_for_timeout(180)
             pp=portrait.locator("#progressListPanel").bounding_box()
-            assert pp and 540<=pp["height"]<=552,pp
+            assert pp and 414<=pp["height"]<=426,pp
             assert pp["x"]<=1 and pp["width"]>=1020,pp
             assert_fit(portrait)
             zoom_after_fit=portrait.locator("#zoomReset").text_content()
@@ -187,7 +187,7 @@ def main():
             panel=tablet.locator("#progressListPanel").bounding_box()
             assert appbar and 42<=appbar["height"]<=46,appbar
             assert toolbar and 42<=toolbar["height"]<=46,toolbar
-            assert panel and 405<=panel["height"]<=414,panel
+            assert panel and 302<=panel["height"]<=316,panel
             assert_fit(tablet)
             tablet.close()
 
@@ -207,7 +207,7 @@ def main():
             expect(phone.locator("#progressListPanel")).to_be_visible()
             phone.wait_for_timeout(180)
             panel=phone.locator("#progressListPanel").bounding_box()
-            assert panel and 333<=panel["height"]<=342,panel
+            assert panel and 314<=panel["height"]<=326,panel
             r25=row(phone,25,1)
             expect(r25).to_have_attribute("class",re.compile(r".*\bselected\b.*"),timeout=3000)
             scroll_top=phone.locator("#progressListRecords").evaluate("el=>el.scrollTop")
@@ -224,6 +224,23 @@ def main():
             for i in range(current.count()):
                 assert current.nth(i).locator(".progress-list-page").text_content()=="P2"
             phone.close()
+
+            # Saved 90-degree rotation: initial fit uses rotated dimensions and anchors at viewer top-left.
+            rotated=browser.new_page(viewport={"width":390,"height":844})
+            rotated.add_init_script("localStorage.setItem('weldDrawingRotation:${PROJECT_ID}','90')")
+            stub(rotated)
+            rotated.goto(f"{BASE}/projects/{PROJECT_ID}/progress?page=1",wait_until="domcontentloaded")
+            expect(rotated.locator("#progressListPanel")).to_be_visible(timeout=5000)
+            rotated.wait_for_timeout(220)
+            assert_fit(rotated)
+            rv=rotated.locator("#viewer").bounding_box()
+            rc=rotated.locator("#canvas").bounding_box()
+            rp=rotated.locator("#progressListPanel").bounding_box()
+            assert rv and rc and rp
+            assert abs(rc["x"]-rv["x"])<=2,(rc,rv)
+            assert abs(rc["y"]-rv["y"])<=2,(rc,rv)
+            assert 170<=rp["height"]<=322,rp
+            rotated.close()
 
             browser.close()
     finally:
