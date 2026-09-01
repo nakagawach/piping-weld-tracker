@@ -125,7 +125,7 @@ body.progress-list-open .progress-list-panel{display:flex;flex-direction:column}
   function fitScale(){if(!canvas.width||!canvas.height||!viewer.clientWidth||!viewer.clientHeight)return 1;const baseHeight=viewer.clientWidth*(canvas.height/canvas.width);if(!baseHeight)return 1;return Math.max(.1,Math.min(1,viewer.clientHeight/baseHeight))}
   function applyDesktopFit(){if(!isWideDesktop()||!canvas.width||!canvas.height||!viewer.clientWidth||!viewer.clientHeight)return;const fit=fitScale();drawingZoom=fit;canvas.style.width=`${fit*100}%`;zoomReset.textContent='Fit ⛶';requestAnimationFrame(resetPosition)}
   function userFitFloor(){const portraitLayout=window.innerWidth<=640||(window.innerWidth<=1200&&window.innerHeight>window.innerWidth);if(!(portraitLayout||isWideDesktop()))return 1;return fitScale()}
-  function fitPanelViewOnce(){if(isWideDesktop()){if(desktopFitMode)applyDesktopFit();return}const page=Number(pageInput.value)||1;if(lastAutoFitPage===page||Math.abs(drawingZoom-1)>.001)return;if(!canvas.width||!canvas.height||canvas.hidden||!viewer.clientWidth||!viewer.clientHeight)return;const fit=userFitFloor();lastAutoFitPage=page;if(fit<.999)setZoom(fit)}
+  function fitPanelViewOnce(){if(isWideDesktop()){if(desktopFitMode)applyDesktopFit();return}const page=Number(pageInput.value)||1;if(lastAutoFitPage===page||Math.abs(drawingZoom-1)>.001)return;if(!canvas.width||!canvas.height||canvas.hidden||!viewer.clientWidth||!viewer.clientHeight)return;const fit=fitScale();lastAutoFitPage=page;if(fit<.999){drawingZoom=fit;canvas.style.width=`${fit*100}%`;zoomReset.textContent=`${Math.round(fit*100)}%`;resetPosition();window.dispatchEvent(new CustomEvent('weld:progress-zoom-changed',{detail:{zoom:drawingZoom}}))}}
   window.addEventListener('weld:progress-fit-request',()=>requestAnimationFrame(fitPanelViewOnce));
   function setZoom(nextZoom,focalX=null,focalY=null){let next=Math.min(4,nextZoom);if(next<drawingZoom){const floor=Math.min(drawingZoom,userFitFloor());next=Math.max(floor,next)}else{next=Math.max(.1,next)}if(Math.abs(next-drawingZoom)<.001)return;if(isWideDesktop())desktopFitMode=false;const rect=viewer.getBoundingClientRect(),localX=focalX===null?viewer.clientWidth/2:focalX-rect.left,localY=focalY===null?viewer.clientHeight/2:focalY-rect.top,contentX=viewer.scrollLeft+localX,contentY=viewer.scrollTop+localY,ratio=next/drawingZoom;drawingZoom=next;canvas.style.width=`${drawingZoom*100}%`;zoomReset.textContent=`${Math.round(drawingZoom*100)}%`;window.dispatchEvent(new CustomEvent('weld:progress-zoom-changed',{detail:{zoom:drawingZoom}}));requestAnimationFrame(()=>{viewer.scrollLeft=Math.max(0,contentX*ratio-localX);viewer.scrollTop=Math.max(0,contentY*ratio-localY)})}
   function resetPosition(){viewer.scrollLeft=0;viewer.scrollTop=0}
@@ -209,11 +209,14 @@ window.addEventListener('weld:progress-panel-target',event=>{pendingPanelTarget=
     const compact=window.innerWidth<=520;
     let minViewer=Math.max(compact?150:180,available*(compact ? .34 : .36));
     let minPanel=Math.max(compact?170:190,available*(compact ? .30 : .27));
+    let maxPanel=Math.min(compact?320:420,available);
+    if(maxPanel<minPanel)maxPanel=minPanel;
+    minViewer=Math.max(minViewer,available-maxPanel);
     if(minViewer+minPanel>available&&available>0){
       const scale=available/(minViewer+minPanel);
       minViewer*=scale;minPanel*=scale;
     }
-    return{available,minViewer,maxViewer:Math.max(minViewer,available-minPanel),minPanel};
+    return{available,minViewer,maxViewer:Math.max(minViewer,available-minPanel),minPanel,maxPanel};
   }
   function applyHeight(value){
     if(!isActive()){card.style.removeProperty('--pw-bottom-viewer');return}
@@ -229,6 +232,10 @@ window.addEventListener('weld:progress-panel-target',event=>{pendingPanelTarget=
   function autoHeight(){
     const lim=limits(),vr=viewer.getBoundingClientRect(),cr=canvas.getBoundingClientRect();
     if(!canvas.width||!canvas.height||canvas.hidden||cr.height<2)return clamp(lim.available*.58,lim.minViewer,lim.maxViewer);
+    if(initialAutoPending){
+      const intrinsicHeight=viewer.clientWidth*(canvas.height/canvas.width);
+      return clamp(intrinsicHeight,lim.minViewer,lim.maxViewer);
+    }
     return clamp(Math.max(0,cr.bottom-vr.top),lim.minViewer,lim.maxViewer);
   }
   function scheduleAuto(){
