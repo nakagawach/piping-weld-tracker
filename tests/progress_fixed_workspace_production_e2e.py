@@ -229,6 +229,16 @@ def main():
             assert fit_canvas["width"]<=viewer_box["width"]+2,(fit_canvas,viewer_box)
             assert fit_canvas["height"]<=viewer_box["height"]+2,(fit_canvas,viewer_box)
 
+            # A normal PC click on an existing weld marker must still open progress input.
+            # Candidate 1 center is OCR (560,560) => display-source approx (149.3,149.3).
+            canvas_box=desktop.locator("#canvas").bounding_box();assert canvas_box
+            click_x=canvas_box["x"]+canvas_box["width"]*(560/6000)
+            click_y=canvas_box["y"]+canvas_box["height"]*(560/4241.25)
+            desktop.mouse.click(click_x,click_y)
+            expect(desktop.locator("#progressDialog")).to_be_visible(timeout=3000)
+            expect(desktop.locator("#dialogTarget")).to_contain_text("1")
+            desktop.locator("#closeDialog").click()
+
             # Manual zoom may overflow the viewer. PC mouse drag pans only the drawing
             # and must not be mistaken for a weld-point click.
             desktop.locator("#zoomIn").click()
