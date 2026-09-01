@@ -542,6 +542,61 @@ def main():
             expect(se.locator("#progressThumbs")).to_be_visible()
             se.close()
 
+            # Entry regression: Shift+drag bulk select remains available, and the restored
+            # PC bbox editor moves/resizes both OCR/manual number-map boxes.
+            entry=browser.new_page(viewport={"width":1440,"height":900})
+            stub(entry)
+            entry.goto(f"{BASE}/projects/{PROJECT_ID}/entry",wait_until="domcontentloaded")
+            expect(entry.locator("#canvas")).to_be_visible(timeout=7000)
+            expect(entry.locator("#bboxEdit")).to_be_visible(timeout=5000)
+            cb=entry.locator("#canvas").bounding_box();assert cb
+            page_ocr_h=1131/(1600/6000)
+            def entry_xy(x,y):
+                return (
+                    cb["x"]+cb["width"]*(x/6000),
+                    cb["y"]+cb["height"]*(y/page_ocr_h),
+                )
+
+            # Existing Shift+drag selection: candidates 1 and 2 are both inside this box.
+            sx,sy=entry_xy(430,430);ex,ey=entry_xy(1300,700)
+            entry.keyboard.down("Shift")
+            entry.mouse.move(sx,sy);entry.mouse.down();entry.mouse.move(ex,ey,steps=6);entry.mouse.up()
+            entry.keyboard.up("Shift")
+            expect(entry.locator("#bulkDelete")).to_be_enabled()
+            expect(entry.locator("#bulkDelete")).to_contain_text("(2)")
+
+            before_map=entry.request.get(f"{BASE}/projects/{PROJECT_ID}/number-map?page=1").json()
+            before_one=next(x for x in before_map["candidates"] if str(x["number"])=="1")
+            before_box=dict(before_one["bbox"])
+
+            # Turn on bbox edit: selecting and dragging the center moves the box.
+            entry.locator("#bboxEdit").click()
+            expect(entry.locator("#bboxEdit")).to_have_class(re.compile(r".*active.*"))
+            cx,cy=entry_xy(before_box["x"]+before_box["w"]/2,before_box["y"]+before_box["h"]/2)
+            entry.mouse.move(cx,cy);entry.mouse.down();entry.mouse.move(cx+70,cy+45,steps=6);entry.mouse.up()
+            expect(entry.locator("#status")).to_contain_text("枠位置/サイズを変更しました")
+            entry.locator("#save").click()
+            expect(entry.locator("#status")).to_contain_text("番号配置を保存しました",timeout=5000)
+            moved_map=entry.request.get(f"{BASE}/projects/{PROJECT_ID}/number-map?page=1").json()
+            moved_one=next(x for x in moved_map["candidates"] if str(x["number"])=="1")
+            moved_box=dict(moved_one["bbox"])
+            assert moved_box["x"]>before_box["x"]+20 or moved_box["y"]>before_box["y"]+20,(before_box,moved_box)
+
+            # Select the moved box, then drag its south-east handle to enlarge it.
+            mx,my=entry_xy(moved_box["x"]+moved_box["w"]/2,moved_box["y"]+moved_box["h"]/2)
+            entry.mouse.click(mx,my)
+            hx,hy=entry_xy(moved_box["x"]+moved_box["w"],moved_box["y"]+moved_box["h"])
+            entry.mouse.move(hx,hy);entry.mouse.down();entry.mouse.move(hx+55,hy+35,steps=6);entry.mouse.up()
+            expect(entry.locator("#status")).to_contain_text("枠位置/サイズを変更しました")
+            entry.locator("#save").click()
+            expect(entry.locator("#status")).to_contain_text("番号配置を保存しました",timeout=5000)
+            resized_map=entry.request.get(f"{BASE}/projects/{PROJECT_ID}/number-map?page=1").json()
+            resized_one=next(x for x in resized_map["candidates"] if str(x["number"])=="1")
+            resized_box=dict(resized_one["bbox"])
+            assert resized_box["w"]>moved_box["w"]+20,(moved_box,resized_box)
+            assert resized_box["h"]>moved_box["h"]+20,(moved_box,resized_box)
+            entry.close()
+
             browser.close()
     finally:
         server.shutdown();thread.join(timeout=2)
