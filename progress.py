@@ -286,7 +286,7 @@ body.progress-fullscreen .progress-thumbs{display:none}
 /* Production progress workspace only. Shared ui_shell remains untouched. */
 html:has(body.ui3-progress){height:100%;overflow:hidden!important;overscroll-behavior:none}
 body.ui3-progress{
-  --pw-header:44px;--pw-toolbar:44px;--pw-summary:24px;--pw-thumbs:52px;--pw-panel:312px;
+  --pw-header:44px;--pw-toolbar:44px;--pw-summary:24px;--pw-thumbs:52px;--pw-panel:clamp(280px,30vw,360px);
   height:100dvh!important;max-height:100dvh!important;margin:0!important;overflow:hidden!important;overscroll-behavior:none;background:#eef2f7!important
 }
 body.ui3-progress main{width:100%!important;max-width:none!important;height:100dvh!important;max-height:100dvh!important;margin:0!important;padding:0!important;display:grid!important;grid-template-rows:var(--pw-header) minmax(0,1fr)!important;overflow:hidden!important}
@@ -323,7 +323,7 @@ body.ui3-progress .viewer{
   grid-column:1!important;grid-row:4!important;min-width:0!important;min-height:0!important;width:100%!important;height:100%!important;
   max-height:none!important;margin:0!important;overflow:auto!important;overscroll-behavior:contain!important;background:#e5e9ef!important
 }
-body.ui3-progress .viewer>#canvas{display:block}
+body.ui3-progress .viewer>#canvas{display:block;margin:0!important}
 body.ui3-progress .progress-list-panel{
   min-width:0!important;min-height:0!important;width:100%!important;max-width:none!important;height:auto!important;max-height:none!important;position:static!important;inset:auto!important;
   margin:0!important;border:0!important;border-left:1px solid #dfe3e8!important;border-radius:0!important;box-shadow:none!important;overflow:hidden!important;background:#fff!important
@@ -359,7 +359,7 @@ body.ui3-progress .progress-list-input{min-height:34px!important;height:34px!imp
   body.ui3-progress.progress-list-open .toolbar .desktop-tools>#fullscreen{display:inline-flex!important;align-items:center!important;justify-content:center!important}
 }
 @media(min-width:1201px){
-  body.ui3-progress{--pw-header:46px;--pw-summary:32px;--pw-thumbs:58px;--pw-panel:340px}
+  body.ui3-progress{--pw-header:46px;--pw-summary:32px;--pw-thumbs:58px;--pw-panel:clamp(280px,30vw,360px)}
   body.ui3-progress main{grid-template-rows:var(--pw-header) minmax(0,1fr)!important}
   body.ui3-progress main>.top{
     min-height:var(--pw-header)!important;height:var(--pw-header)!important;padding:4px 8px!important;
