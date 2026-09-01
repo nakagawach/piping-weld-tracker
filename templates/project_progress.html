@@ -209,7 +209,7 @@ window.addEventListener('weld:progress-panel-target',event=>{pendingPanelTarget=
     const compact=window.innerWidth<=520;
     let minViewer=Math.max(compact?150:180,available*(compact ? .34 : .36));
     let minPanel=Math.max(compact?170:190,available*(compact ? .30 : .27));
-    let maxPanel=Math.min(compact?320:420,available);
+    let maxPanel=Math.min(compact?400:520,available);
     if(maxPanel<minPanel)maxPanel=minPanel;
     minViewer=Math.max(minViewer,available-maxPanel);
     if(minViewer+minPanel>available&&available>0){
