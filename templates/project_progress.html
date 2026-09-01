@@ -227,7 +227,7 @@ window.addEventListener('weld:progress-panel-target',event=>{pendingPanelTarget=
     splitter.setAttribute('aria-valuemax',String(Math.round(lim.maxViewer)));
     splitter.setAttribute('aria-valuenow',String(Math.round(height)));
     window.dispatchEvent(new CustomEvent('weld:progress-split-changed',{detail:{mode,height}}));
-    if(mode==='auto'&&initialAutoPending&&canvas.width&&canvas.height&&!canvas.hidden)initialAutoPending=false;
+    if(mode==='auto'&&initialAutoPending&&canvas.width&&canvas.height&&!canvas.hidden){initialAutoPending=false;requestAnimationFrame(()=>requestAnimationFrame(()=>window.dispatchEvent(new CustomEvent('weld:progress-fit-request'))))}
   }
   function autoHeight(){
     const lim=limits(),vr=viewer.getBoundingClientRect(),cr=canvas.getBoundingClientRect();
