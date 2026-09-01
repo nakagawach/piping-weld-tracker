@@ -134,11 +134,14 @@ def main():
             page.locator(".ui3-appbar .ui3-back").click()
             page.wait_for_url(f"**/projects/{PROJECT_ID}/progress?page=1")
 
-            # 進捗一覧ボタンを実クリック。
-            page.locator("[aria-label='進捗一覧']").click()
-            page.wait_for_url(f"**/projects/{PROJECT_ID}/progress-list")
-            expect(page.locator("[data-ui3-header='progress-list']")).to_be_visible()
-            assert_back(page, f"/projects/{PROJECT_ID}/progress?page=1", "進捗へ")
+            # 進捗一覧は全画面サイズで初期OPEN。トグルで閉じて再表示できる。
+            progress_list_toggle = page.locator("[aria-label='進捗一覧']")
+            expect(page.locator("#progressListPanel")).to_be_visible(timeout=5000)
+            expect(progress_list_toggle).to_have_attribute("aria-expanded","true")
+            progress_list_toggle.click()
+            expect(page.locator("#progressListPanel")).not_to_be_visible()
+            progress_list_toggle.click()
+            expect(page.locator("#progressListPanel")).to_be_visible()
 
             # エントリー: fixed parent navigation + overflow actions are actually visible in the menu.
             page.goto(f"{BASE_URL}/projects/{PROJECT_ID}/entry?page=1", wait_until="domcontentloaded")

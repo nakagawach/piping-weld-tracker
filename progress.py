@@ -4,7 +4,7 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-from flask import Blueprint, jsonify, render_template, request, url_for
+from flask import Blueprint, jsonify, make_response, render_template, request, url_for
 
 from project_render import normalize_label
 
@@ -186,14 +186,6 @@ def create_progress_blueprint(db_path: Path):
             pdf_name=project["original_pdf_name"],
         )
 
-        progress_list_url = url_for("progress.project_progress_list", project_id=project_id)
-        list_button = (
-            f'<a class="button icon-button" href="{progress_list_url}" '
-            'aria-label="進捗一覧" title="進捗一覧" '
-            'style="display:inline-flex;align-items:center;justify-content:center;text-decoration:none">☷</a>'
-        )
-        html = html.replace('<div class="spacer"></div>', f'<div class="spacer"></div>{list_button}', 1)
-
         memo_css = """
 .drawing-memo-launch.active,.drawing-memo-edit.active{border-color:#1967d2;background:#e8f0fe;color:#174ea6}
 .drawing-memo-tools{display:none;gap:6px;align-items:center;padding:6px;border-bottom:1px solid #eee;background:#fff;overflow-x:auto;white-space:nowrap}
@@ -258,19 +250,20 @@ body.progress-fullscreen .progress-thumbs{display:none}
         )
         html = html.replace("function setBusy(v){", thumb_js + "function setBusy(v){", 1)
         html = html.replace(
-            "async function loadPage(n){if(busy||!pageCount)return;n=Math.max(1,Math.min(pageCount,Number(n)||1));pageInput.value=n;setBusy(true);",
-            "async function loadPage(n){if(busy||!pageCount)return;n=Math.max(1,Math.min(pageCount,Number(n)||1));const previousPage=Number(pageInput.value)||1;if(n!==previousPage&&window.__drawingMemoBeforePageChange&&!await window.__drawingMemoBeforePageChange(previousPage,n))return;if(n!==previousPage)window.dispatchEvent(new CustomEvent('weld:progress-page-changing',{detail:{from:previousPage,to:n}}));pageInput.value=n;setBusy(true);",
+            "const previousPage=committedPage||Number(pageInput.value)||1;setBusy(true);",
+            "const previousPage=committedPage||Number(pageInput.value)||1;if(committedPage&&n!==previousPage&&window.__drawingMemoBeforePageChange&&!await window.__drawingMemoBeforePageChange(previousPage,n)){requestedPage=previousPage;return}if(committedPage&&n!==previousPage)window.dispatchEvent(new CustomEvent('weld:progress-page-changing',{detail:{from:previousPage,to:n}}));setBusy(true);",
             1,
         )
         html = html.replace(
-            "}catch(e){status.className='statusline error';status.textContent=e.message}finally{setBusy(false)}}",
-            "}catch(e){status.className='statusline error';status.textContent=e.message}finally{setBusy(false);window.dispatchEvent(new CustomEvent('weld:progress-page-loaded',{detail:{page:n}}))}}",
+            "pageInput.value=n;committedPage=n;lastAutoFitPage=initialLoad?0:n;",
+            "pageInput.value=n;committedPage=n;selectedTarget=null;selectionPulse=false;delete canvas.dataset.selectedTarget;updateProgressThumbActive();lastAutoFitPage=initialLoad?0:n;",
             1,
         )
-
-        old_load_start = "pageInput.value=n;setBusy(true);drawingZoom=1;rotation=0;zoomReset.textContent='100%';rotateButton.textContent='↻ 0°';canvas.style.width='100%';resetPosition();"
-        new_load_start = "pageInput.value=n;updateProgressThumbActive();setBusy(true);drawingZoom=1;zoomReset.textContent='100%';canvas.style.width='100%';resetPosition();"
-        html = html.replace(old_load_start, new_load_start, 1)
+        html = html.replace(
+            "}finally{setBusy(false);const queued=pendingPage;pendingPage=null;if(queued!==null&&queued!==n)loadPage(queued)}}",
+            "}finally{setBusy(false);if(committed)window.dispatchEvent(new CustomEvent('weld:progress-page-loaded',{detail:{page:n}}));const queued=pendingPage;pendingPage=null;if(queued!==null&&queued!==n)loadPage(queued)}}",
+            1,
+        )
         html = html.replace(
             "pageCount=data.pageCount;pageTotal.textContent=`/ ${pageCount}`;setBusy(false);await loadPage(1)",
             "pageCount=data.pageCount;pageTotal.textContent=`/ ${pageCount}`;setupProgressThumbnails();setBusy(false);await loadPage(1)",
@@ -288,7 +281,293 @@ body.progress-fullscreen .progress-thumbs{display:none}
             "if(target)openEditor(target)}}",
             1,
         )
-        return html
+        layout_v5_css = """
+<style data-progress-fixed-workspace>
+/* Production progress workspace only. Shared ui_shell remains untouched. */
+html:has(body.ui3-progress){height:100%;overflow:hidden!important;overscroll-behavior:none}
+body.ui3-progress{
+  --pw-header:44px;--pw-toolbar:44px;--pw-summary:24px;--pw-thumbs:52px;--pw-panel:312px;
+  height:100dvh!important;max-height:100dvh!important;margin:0!important;overflow:hidden!important;overscroll-behavior:none;background:#eef2f7!important
+}
+body.ui3-progress main{width:100%!important;max-width:none!important;height:100dvh!important;max-height:100dvh!important;margin:0!important;padding:0!important;display:grid!important;grid-template-rows:var(--pw-header) minmax(0,1fr)!important;overflow:hidden!important}
+body.ui3-progress main>.top{display:flex!important;min-height:var(--pw-header)!important;height:var(--pw-header)!important;margin:0!important;padding:3px 7px!important;align-items:center!important;gap:7px!important;border-bottom:1px solid #e5e7eb!important;background:#fff!important}
+body.ui3-progress main>.top>div{min-width:0;flex:1}
+body.ui3-progress main>.top .title{margin:0!important;font-size:.96rem!important;line-height:1.1!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+body.ui3-progress main>.top .meta{display:none!important}
+body.ui3-progress main>.top #back{order:-1!important;min-height:36px!important;height:36px!important;padding:0 8px!important;border:0!important;background:transparent!important;color:#1967d2!important}
+body.ui3-progress .card{
+  min-width:0!important;min-height:0!important;width:100%!important;height:100%!important;margin:0!important;padding:0!important;
+  display:grid!important;grid-template-columns:minmax(0,1fr)!important;
+  grid-template-rows:var(--pw-toolbar) var(--pw-summary) var(--pw-thumbs) minmax(0,1fr)!important;
+  overflow:hidden!important;border:0!important;border-radius:0!important;background:#fff!important
+}
+body.ui3-progress .toolbar{
+  position:relative!important;top:auto!important;grid-column:1!important;grid-row:1!important;
+  min-width:0!important;min-height:var(--pw-toolbar)!important;height:var(--pw-toolbar)!important;
+  margin:0!important;padding:3px 5px!important;display:flex!important;align-items:center!important;gap:3px!important;
+  overflow-x:auto!important;overflow-y:hidden!important;white-space:nowrap!important;background:#fff!important;border-bottom:1px solid #e5e7eb!important;scrollbar-width:none
+}
+body.ui3-progress .toolbar::-webkit-scrollbar{display:none}
+body.ui3-progress .toolbar .button{min-height:36px!important;height:36px!important}
+body.ui3-progress .statusline{display:none!important}
+body.ui3-progress .summary{grid-column:1!important;grid-row:2!important;min-height:var(--pw-summary)!important;height:var(--pw-summary)!important;margin:0!important;padding:2px 6px!important;gap:4px!important;overflow:hidden!important;background:#fff!important;border-bottom:1px solid #eef1f4!important}
+body.ui3-progress .summary .chip{padding:2px 7px!important;font-size:.7rem!important}
+body.ui3-progress .progress-thumbs{
+  grid-column:1!important;grid-row:3!important;min-width:0!important;min-height:var(--pw-thumbs)!important;height:var(--pw-thumbs)!important;
+  margin:0!important;padding:2px 4px!important;display:flex!important;gap:4px!important;overflow-x:auto!important;overflow-y:hidden!important;touch-action:pan-x!important;overscroll-behavior-x:contain!important;background:#fff!important;border-bottom:1px solid #e5e7eb!important
+}
+body.ui3-progress .progress-thumb{position:relative!important;flex:0 0 60px!important;height:48px!important;padding:2px!important;border-radius:7px!important}
+body.ui3-progress .progress-thumb img{height:42px!important;border-radius:4px!important}
+body.ui3-progress .progress-thumb span{position:absolute!important;left:4px!important;bottom:3px!important;margin:0!important;padding:1px 4px!important;border-radius:5px!important;background:rgba(255,255,255,.88)!important;font-size:.62rem!important;line-height:1.2!important}
+body.ui3-progress .viewer{
+  grid-column:1!important;grid-row:4!important;min-width:0!important;min-height:0!important;width:100%!important;height:100%!important;
+  max-height:none!important;margin:0!important;overflow:auto!important;overscroll-behavior:contain!important;background:#e5e9ef!important
+}
+body.ui3-progress .viewer>#canvas{display:block}
+body.ui3-progress .progress-list-panel{
+  min-width:0!important;min-height:0!important;width:100%!important;max-width:none!important;height:auto!important;max-height:none!important;position:static!important;inset:auto!important;
+  margin:0!important;border:0!important;border-left:1px solid #dfe3e8!important;border-radius:0!important;box-shadow:none!important;overflow:hidden!important;background:#fff!important
+}
+body.ui3-progress.progress-list-open .progress-list-panel{display:flex!important;flex-direction:column!important}
+body.ui3-progress .progress-list-records{min-height:0!important;overflow-y:auto!important;overflow-x:hidden!important;overscroll-behavior:contain!important;touch-action:pan-y!important}
+body.ui3-progress .progress-splitter{display:none;position:relative;min-height:8px;height:8px;cursor:row-resize;touch-action:none;user-select:none;background:#f8fafc;border-top:1px solid #d9dee5;border-bottom:1px solid #d9dee5;z-index:14}
+body.ui3-progress .progress-splitter>span{position:absolute;left:50%;top:50%;width:42px;height:3px;transform:translate(-50%,-50%);border-radius:999px;background:#9aa0a6}
+body.ui3-progress .progress-splitter:focus-visible{outline:2px solid #1967d2;outline-offset:-2px}
+body.ui3-progress .progress-list-panel .panel-head{height:42px!important;min-height:42px!important;padding:4px 7px!important}
+body.ui3-progress .progress-list-panel .panel-close{min-width:36px!important;height:34px!important;min-height:34px!important}
+body.ui3-progress .progress-list-panel .panel-filters{padding:6px!important}
+body.ui3-progress .progress-list-panel .panel-tab{min-height:32px!important;height:32px!important;padding:0 9px!important}
+body.ui3-progress .progress-list-panel .panel-search{margin-top:5px!important}
+body.ui3-progress .progress-list-panel .panel-search input{height:36px!important}
+body.ui3-progress .progress-list-panel .panel-search .button{min-height:36px!important;height:36px!important}
+body.ui3-progress .progress-list-focus{padding-top:8px!important;padding-bottom:8px!important}
+body.ui3-progress .progress-list-input{min-height:34px!important;height:34px!important}
+
+@media(min-width:821px){
+  body.ui3-progress.progress-list-open .card{grid-template-columns:minmax(0,1fr) var(--pw-panel)!important}
+  body.ui3-progress.progress-list-open .toolbar,
+  body.ui3-progress.progress-list-open .summary,
+  body.ui3-progress.progress-list-open .progress-thumbs,
+  body.ui3-progress.progress-list-open .viewer{grid-column:1!important}
+  body.ui3-progress.progress-list-open .progress-list-panel{grid-column:2!important;grid-row:1 / -1!important}
+  body.ui3-progress.progress-list-open .toolbar .desktop-tools{display:flex!important;align-items:center!important;gap:3px!important}
+  body.ui3-progress.progress-list-open .toolbar .desktop-tools>button{display:none!important}
+  body.ui3-progress.progress-list-open .toolbar .desktop-tools>#zoomOut,
+  body.ui3-progress.progress-list-open .toolbar .desktop-tools>#zoomReset,
+  body.ui3-progress.progress-list-open .toolbar .desktop-tools>#zoomIn,
+  body.ui3-progress.progress-list-open .toolbar .desktop-tools>#rotate,
+  body.ui3-progress.progress-list-open .toolbar .desktop-tools>#fullscreen{display:inline-flex!important;align-items:center!important;justify-content:center!important}
+}
+@media(min-width:1201px){
+  body.ui3-progress{--pw-header:46px;--pw-summary:32px;--pw-thumbs:58px;--pw-panel:340px}
+  body.ui3-progress main{grid-template-rows:var(--pw-header) minmax(0,1fr)!important}
+  body.ui3-progress main>.top{
+    min-height:var(--pw-header)!important;height:var(--pw-header)!important;padding:4px 8px!important;
+    gap:8px!important;position:relative!important;z-index:105!important
+  }
+  body.ui3-progress main>.top>div{max-width:300px!important}
+  body.ui3-progress main>.top #back{height:38px!important;min-height:38px!important;padding:0 6px!important}
+  body.ui3-progress .card{
+    grid-template-columns:minmax(0,1fr)!important;
+    grid-template-rows:var(--pw-thumbs) var(--pw-summary) minmax(0,1fr)!important
+  }
+  body.ui3-progress .toolbar{
+    position:fixed!important;left:320px!important;right:8px!important;top:0!important;z-index:130!important;
+    width:auto!important;min-height:var(--pw-header)!important;height:var(--pw-header)!important;
+    grid-column:auto!important;grid-row:auto!important;margin:0!important;padding:5px 0!important;
+    border:0!important;background:transparent!important;justify-content:flex-end!important
+  }
+  body.ui3-progress .toolbar .button{min-height:36px!important;height:36px!important}
+  body.ui3-progress .toolbar>.spacer{display:none!important}
+  body.ui3-progress .summary{
+    grid-column:1!important;grid-row:2!important;min-height:var(--pw-summary)!important;height:var(--pw-summary)!important;
+    padding:4px 8px!important;align-items:center!important
+  }
+  body.ui3-progress .summary .chip{padding:3px 7px!important;font-size:.72rem!important}
+  body.ui3-progress .progress-thumbs{
+    grid-column:1 / -1!important;grid-row:1!important;min-height:var(--pw-thumbs)!important;height:var(--pw-thumbs)!important;
+    padding:4px 8px!important;gap:5px!important
+  }
+  body.ui3-progress .progress-thumb{flex-basis:64px!important;height:50px!important}
+  body.ui3-progress .progress-thumb img{height:44px!important}
+  body.ui3-progress .viewer{grid-column:1!important;grid-row:3!important}
+  body.ui3-progress.progress-list-open .card{
+    grid-template-columns:minmax(0,1fr) var(--pw-panel)!important;
+    grid-template-rows:var(--pw-thumbs) var(--pw-summary) minmax(0,1fr)!important
+  }
+  body.ui3-progress.progress-list-open .progress-thumbs{grid-column:1 / -1!important;grid-row:1!important}
+  body.ui3-progress.progress-list-open .summary{grid-column:1!important;grid-row:2!important}
+  body.ui3-progress.progress-list-open .viewer{grid-column:1!important;grid-row:3!important}
+  body.ui3-progress.progress-list-open .progress-list-panel{
+    grid-column:2!important;grid-row:2 / 4!important;border-left:1px solid #dfe3e8!important
+  }
+  body.ui3-progress.progress-list-open .toolbar .desktop-tools{display:flex!important;align-items:center!important;gap:4px!important}
+  body.ui3-progress.progress-list-open .toolbar .desktop-tools>button{display:inline-flex!important;align-items:center!important;justify-content:center!important}
+}
+@media(max-width:820px){
+  body.ui3-progress{--pw-header:44px;--pw-toolbar:44px;--pw-summary:24px;--pw-thumbs:52px}
+  body.ui3-progress .ui3-appbar{
+    position:relative!important;top:auto!important;z-index:120!important;grid-column:1!important;grid-row:1!important;
+    min-height:var(--pw-header)!important;height:var(--pw-header)!important;
+    padding:2px max(5px,env(safe-area-inset-right)) 2px max(5px,env(safe-area-inset-left))!important
+  }
+  body.ui3-progress .ui3-back,body.ui3-progress .ui3-icon{min-width:40px!important;width:auto!important;height:40px!important;min-height:40px!important}
+  body.ui3-progress .ui3-title strong{font-size:.92rem!important}
+  body.ui3-progress .ui3-title small{display:none!important}
+  body.ui3-progress .ui3-appbar details.more>summary{width:40px!important;height:40px!important;min-width:40px!important;min-height:40px!important}
+  body.ui3-progress main{height:100dvh!important;max-height:100dvh!important;grid-template-rows:minmax(0,1fr)!important}
+  body.ui3-progress main>.top{display:none!important}
+  body.ui3-progress .card{
+    grid-template-rows:var(--pw-header) var(--pw-toolbar) var(--pw-summary) var(--pw-thumbs) minmax(0,1fr)!important
+  }
+  body.ui3-progress .toolbar{grid-row:2!important}
+  body.ui3-progress .summary{grid-row:3!important}
+  body.ui3-progress .progress-thumbs{grid-row:4!important}
+  body.ui3-progress .viewer{grid-row:5!important}
+  body.ui3-progress .progress-thumb{flex-basis:58px!important}
+  body.ui3-progress.progress-list-open .card{
+    grid-template-columns:minmax(0,1fr)!important;
+    grid-template-rows:var(--pw-header) var(--pw-toolbar) var(--pw-summary) var(--pw-thumbs) var(--pw-bottom-viewer,minmax(0,3fr)) 8px minmax(170px,1fr)!important
+  }
+  body.ui3-progress.progress-list-open .progress-splitter{display:block!important;grid-column:1!important;grid-row:6!important}
+  body.ui3-progress.progress-list-open .progress-list-panel{grid-column:1!important;grid-row:7!important;border-left:0!important;border-top:0!important}
+  body.ui3-progress.progress-list-open .viewer{grid-row:5!important}
+
+  /* Phone fullscreen: reclaim the app header height but keep one obvious exit control. */
+  body.ui3-progress.progress-fullscreen .progress-thumbs{display:none!important}
+  body.ui3-progress.progress-fullscreen .card{
+    grid-template-rows:0 var(--pw-toolbar) var(--pw-summary) 0 minmax(0,1fr)!important
+  }
+  body.ui3-progress.progress-fullscreen.progress-list-open .card{
+    grid-template-rows:0 var(--pw-toolbar) var(--pw-summary) 0 var(--pw-bottom-viewer,minmax(0,3fr)) 8px minmax(170px,1fr)!important
+  }
+  body.ui3-progress.progress-fullscreen .ui3-appbar{
+    position:fixed!important;top:max(4px,env(safe-area-inset-top))!important;right:max(4px,env(safe-area-inset-right))!important;
+    left:auto!important;width:38px!important;height:38px!important;min-height:38px!important;padding:0!important;
+    border:0!important;background:transparent!important;z-index:220!important;overflow:visible!important
+  }
+  body.ui3-progress.progress-fullscreen .ui3-appbar>.ui3-back,
+  body.ui3-progress.progress-fullscreen .ui3-appbar>.ui3-title,
+  body.ui3-progress.progress-fullscreen .ui3-appbar>details.more{display:none!important}
+  body.ui3-progress.progress-fullscreen .ui3-appbar>.ui3-icon{
+    display:inline-flex!important;width:38px!important;min-width:38px!important;height:38px!important;min-height:38px!important;
+    padding:0!important;border:1px solid rgba(0,0,0,.18)!important;border-radius:10px!important;background:rgba(255,255,255,.92)!important;
+    box-shadow:0 2px 10px #0002!important;font-size:1.1rem!important
+  }
+}
+@media(max-width:520px){
+  body.ui3-progress .progress-list-panel .panel-head{height:32px!important;min-height:32px!important;padding:1px 5px!important;gap:5px!important}
+  body.ui3-progress .progress-list-panel .panel-head strong{font-size:.9rem!important;line-height:1!important}
+  body.ui3-progress .progress-list-panel .panel-state{font-size:.64rem!important;line-height:1!important}
+  body.ui3-progress .progress-list-panel .panel-close{min-width:28px!important;width:28px!important;height:28px!important;min-height:28px!important;padding:0!important;border-radius:7px!important}
+  body.ui3-progress .progress-list-panel .panel-filters{padding:4px 5px!important}
+  body.ui3-progress .progress-list-panel .panel-tabs{gap:4px!important}
+  body.ui3-progress .progress-list-panel .panel-tab{min-height:30px!important;height:30px!important;padding:0 9px!important;font-size:.86rem!important}
+  body.ui3-progress .progress-list-panel .panel-search{margin-top:4px!important;gap:4px!important}
+  body.ui3-progress .progress-list-panel .panel-search input{height:34px!important}
+  body.ui3-progress .progress-list-panel .panel-search .button{min-height:34px!important;height:34px!important}
+}
+@media(min-width:821px) and (max-width:1200px) and (orientation:portrait){
+  body.ui3-progress .ui3-appbar{display:flex!important;position:relative!important;grid-column:1!important;grid-row:1!important;min-height:44px!important;height:44px!important;padding:2px 6px!important;background:#fff!important;border-bottom:1px solid #e5e7eb!important}
+  body.ui3-progress main{height:100dvh!important;max-height:100dvh!important;grid-template-rows:minmax(0,1fr)!important}
+  body.ui3-progress main>.top{display:none!important}
+  body.ui3-progress .card{grid-template-columns:minmax(0,1fr)!important;grid-template-rows:44px var(--pw-toolbar) var(--pw-summary) var(--pw-thumbs) minmax(0,1fr)!important}
+  body.ui3-progress .toolbar{grid-row:2!important}
+  body.ui3-progress .summary{grid-row:3!important}
+  body.ui3-progress .progress-thumbs{grid-row:4!important}
+  body.ui3-progress .viewer{grid-row:5!important}
+  body.ui3-progress.progress-list-open .card{grid-template-rows:44px var(--pw-toolbar) var(--pw-summary) var(--pw-thumbs) var(--pw-bottom-viewer,minmax(0,3fr)) 8px minmax(190px,1fr)!important}
+  body.ui3-progress.progress-list-open .progress-splitter{display:block!important;grid-column:1!important;grid-row:6!important}
+  body.ui3-progress.progress-list-open .progress-list-panel{grid-column:1!important;grid-row:7!important;border-left:0!important;border-top:0!important}
+  body.ui3-progress.progress-fullscreen .progress-thumbs{display:none!important}
+  body.ui3-progress.progress-fullscreen .card{grid-template-rows:44px var(--pw-toolbar) var(--pw-summary) 0 minmax(0,1fr)!important}
+  body.ui3-progress.progress-fullscreen.progress-list-open .card{grid-template-rows:44px var(--pw-toolbar) var(--pw-summary) 0 var(--pw-bottom-viewer,minmax(0,3fr)) 8px minmax(190px,1fr)!important}
+}
+@media(min-width:821px) and (max-width:1200px) and (orientation:landscape){
+  body.ui3-progress.progress-fullscreen .progress-thumbs{display:none!important}
+  body.ui3-progress.progress-fullscreen .card{grid-template-rows:var(--pw-toolbar) var(--pw-summary) 0 minmax(0,1fr)!important}
+}
+body.ui3-progress.progress-fullscreen{overflow:hidden!important}
+body.ui3-progress.progress-fullscreen main{height:100dvh!important;max-height:100dvh!important}
+body.ui3-progress .progress-minimap{position:fixed;left:0;top:0;bottom:auto;width:118px;height:84px;border:1px solid rgba(15,23,42,.35);border-radius:7px;background:rgba(255,255,255,.9);box-shadow:0 2px 10px rgba(15,23,42,.16);overflow:hidden;pointer-events:none;opacity:0;transition:opacity .12s;z-index:12}
+body.ui3-progress .progress-minimap.show{opacity:1}
+body.ui3-progress .progress-minimap>canvas{position:absolute;inset:0;width:100%;height:100%;margin:0!important}
+body.ui3-progress .progress-minimap-viewport{position:absolute;border:2px solid #ff4fa3;background:rgba(255,79,163,.22);border-radius:2px}
+
+/* Keep handwritten memo tools directly above drawing content when editing. */
+body.ui3-progress .drawing-memo-tools{min-width:0!important;z-index:18!important}
+body.ui3-progress:has(.drawing-memo-tools.open) .card{
+  grid-template-rows:var(--pw-toolbar) auto var(--pw-summary) var(--pw-thumbs) minmax(0,1fr)!important
+}
+body.ui3-progress:has(.drawing-memo-tools.open) .drawing-memo-tools{grid-column:1!important;grid-row:2!important}
+body.ui3-progress:has(.drawing-memo-tools.open) .summary{grid-row:3!important}
+body.ui3-progress:has(.drawing-memo-tools.open) .progress-thumbs{grid-row:4!important}
+body.ui3-progress:has(.drawing-memo-tools.open) .viewer{grid-row:5!important}
+@media(min-width:1201px){
+  body.ui3-progress:has(.drawing-memo-tools.open) .card{
+    grid-template-rows:var(--pw-thumbs) auto var(--pw-summary) minmax(0,1fr)!important
+  }
+  body.ui3-progress:has(.drawing-memo-tools.open) .progress-thumbs{grid-row:1!important}
+  body.ui3-progress:has(.drawing-memo-tools.open) .drawing-memo-tools{grid-row:2!important}
+  body.ui3-progress:has(.drawing-memo-tools.open) .summary{grid-row:3!important}
+  body.ui3-progress:has(.drawing-memo-tools.open) .viewer{grid-row:4!important}
+  body.ui3-progress.progress-list-open:has(.drawing-memo-tools.open) .progress-list-panel{grid-row:2 / 5!important}
+}
+@media(max-width:820px){
+  body.ui3-progress:has(.drawing-memo-tools.open) .card{
+    grid-template-rows:var(--pw-header) var(--pw-toolbar) auto var(--pw-summary) var(--pw-thumbs) minmax(0,1fr)!important
+  }
+  body.ui3-progress:has(.drawing-memo-tools.open) .toolbar{grid-row:2!important}
+  body.ui3-progress:has(.drawing-memo-tools.open) .drawing-memo-tools{grid-row:3!important}
+  body.ui3-progress:has(.drawing-memo-tools.open) .summary{grid-row:4!important}
+  body.ui3-progress:has(.drawing-memo-tools.open) .progress-thumbs{grid-row:5!important}
+  body.ui3-progress:has(.drawing-memo-tools.open) .viewer{grid-row:6!important}
+  body.ui3-progress.progress-list-open:has(.drawing-memo-tools.open) .card{
+    grid-template-rows:var(--pw-header) var(--pw-toolbar) auto var(--pw-summary) var(--pw-thumbs) var(--pw-bottom-viewer,minmax(0,3fr)) 8px minmax(170px,1fr)!important
+  }
+  body.ui3-progress.progress-list-open:has(.drawing-memo-tools.open) .progress-splitter{grid-row:7!important}
+  body.ui3-progress.progress-list-open:has(.drawing-memo-tools.open) .progress-list-panel{grid-row:8!important}
+  body.ui3-progress.progress-fullscreen:has(.drawing-memo-tools.open) .card{
+    grid-template-rows:0 var(--pw-toolbar) auto var(--pw-summary) 0 minmax(0,1fr)!important
+  }
+  body.ui3-progress.progress-fullscreen.progress-list-open:has(.drawing-memo-tools.open) .card{
+    grid-template-rows:0 var(--pw-toolbar) auto var(--pw-summary) 0 var(--pw-bottom-viewer,minmax(0,3fr)) 8px minmax(170px,1fr)!important
+  }
+}
+@media(min-width:821px) and (max-width:1200px) and (orientation:portrait){
+  body.ui3-progress:has(.drawing-memo-tools.open) .card{
+    grid-template-rows:44px var(--pw-toolbar) auto var(--pw-summary) var(--pw-thumbs) minmax(0,1fr)!important
+  }
+  body.ui3-progress:has(.drawing-memo-tools.open) .toolbar{grid-row:2!important}
+  body.ui3-progress:has(.drawing-memo-tools.open) .drawing-memo-tools{grid-row:3!important}
+  body.ui3-progress:has(.drawing-memo-tools.open) .summary{grid-row:4!important}
+  body.ui3-progress:has(.drawing-memo-tools.open) .progress-thumbs{grid-row:5!important}
+  body.ui3-progress:has(.drawing-memo-tools.open) .viewer{grid-row:6!important}
+  body.ui3-progress.progress-list-open:has(.drawing-memo-tools.open) .card{
+    grid-template-rows:44px var(--pw-toolbar) auto var(--pw-summary) var(--pw-thumbs) var(--pw-bottom-viewer,minmax(0,3fr)) 8px minmax(190px,1fr)!important
+  }
+  body.ui3-progress.progress-list-open:has(.drawing-memo-tools.open) .progress-splitter{grid-row:7!important}
+  body.ui3-progress.progress-list-open:has(.drawing-memo-tools.open) .progress-list-panel{grid-row:8!important}
+  body.ui3-progress.progress-fullscreen:has(.drawing-memo-tools.open) .card{
+    grid-template-rows:44px var(--pw-toolbar) auto var(--pw-summary) 0 minmax(0,1fr)!important
+  }
+  body.ui3-progress.progress-fullscreen.progress-list-open:has(.drawing-memo-tools.open) .card{
+    grid-template-rows:44px var(--pw-toolbar) auto var(--pw-summary) 0 var(--pw-bottom-viewer,minmax(0,3fr)) 8px minmax(190px,1fr)!important
+  }
+}
+@media(min-width:821px) and (max-width:1200px) and (orientation:landscape){
+  body.ui3-progress.progress-fullscreen:has(.drawing-memo-tools.open) .card{
+    grid-template-rows:var(--pw-toolbar) auto var(--pw-summary) 0 minmax(0,1fr)!important
+  }
+}
+</style>
+"""
+        html = html.replace("</body>", layout_v5_css + "</body>", 1)
+
+        response = make_response(html)
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        return response
 
     @blueprint.get("/projects/<int:project_id>/progress-list")
     def project_progress_list(project_id):
@@ -363,12 +642,15 @@ body.progress-fullscreen .progress-thumbs{display:none}
                 "y": round(row["y"] + row["height"] / 2.0),
             })
 
-        return jsonify({
+        response = jsonify({
             "drawingKey": key,
             "counts": counts,
             "completionRate": round((counts["done"] / counts["total"] * 100), 1) if counts["total"] else 0,
             "items": items,
         })
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        return response
 
     @blueprint.get("/projects/<int:project_id>/progress-data")
     def get_project_progress(project_id):
@@ -401,7 +683,7 @@ body.progress-fullscreen .progress-thumbs{display:none}
                 (key, page_number),
             ).fetchall()
 
-        return jsonify({
+        response = jsonify({
             "drawingKey": key,
             "pageNumber": page_number,
             "saved": bool(number_rows),
@@ -432,6 +714,9 @@ body.progress-fullscreen .progress-thumbs{display:none}
                 for row in progress_rows
             ],
         })
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        return response
 
     @blueprint.post("/projects/<int:project_id>/progress-data")
     def save_project_progress(project_id):
