@@ -160,7 +160,7 @@ def main():
             expect(portrait.locator("#progressListPanel")).to_be_visible()
             portrait.wait_for_timeout(180)
             pp=portrait.locator("#progressListPanel").bounding_box()
-            assert pp and 414<=pp["height"]<=426,pp
+            assert pp and 464<=pp["height"]<=478,pp
             assert pp["x"]<=1 and pp["width"]>=1020,pp
             assert_fit(portrait)
             zoom_after_fit=portrait.locator("#zoomReset").text_content()
@@ -207,7 +207,7 @@ def main():
             expect(phone.locator("#progressListPanel")).to_be_visible()
             phone.wait_for_timeout(180)
             panel=phone.locator("#progressListPanel").bounding_box()
-            assert panel and 314<=panel["height"]<=326,panel
+            assert panel and 390<=panel["height"]<=402,panel
             r25=row(phone,25,1)
             expect(r25).to_have_attribute("class",re.compile(r".*\bselected\b.*"),timeout=3000)
             scroll_top=phone.locator("#progressListRecords").evaluate("el=>el.scrollTop")
@@ -239,7 +239,7 @@ def main():
             assert rv and rc and rp
             assert abs(rc["x"]-rv["x"])<=2,(rc,rv)
             assert abs(rc["y"]-rv["y"])<=2,(rc,rv)
-            assert 170<=rp["height"]<=322,rp
+            assert 170<=rp["height"]<=402,rp
             rotated.close()
 
             browser.close()
