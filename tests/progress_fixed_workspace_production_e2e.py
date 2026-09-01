@@ -80,15 +80,12 @@ def main():
         with sync_playwright() as p:
             browser=p.chromium.launch()
 
-            # Temporary mock entry remains on projects screen and route stays alive.
+            # V1.3 projects screen no longer exposes the temporary mock button.
             home=browser.new_page(viewport={"width":1024,"height":768})
             home.goto(f"{BASE}/projects-screen",wait_until="domcontentloaded")
-            expect(home.locator("[data-progress-mock]")).to_be_visible(timeout=5000)
+            expect(home.locator("[data-progress-mock]")).to_have_count(0)
             expect(home.locator("[data-ui3-favorites]")).to_be_visible(timeout=5000)
-            mb=home.locator("[data-progress-mock]").bounding_box();fb=home.locator("[data-ui3-favorites]").bounding_box()
-            assert mb and fb and mb["x"]<fb["x"],(mb,fb)
-            home.locator("[data-progress-mock]").click()
-            expect(home).to_have_url(re.compile(r"/mock/progress-fixed-layout$"))
+            expect(home.locator("#new-project")).to_be_visible(timeout=5000)
             home.close()
 
             # Landscape tablet: fixed app, right panel, no body scroll.
