@@ -17,8 +17,6 @@ from tests.ui_shell_e2e import PROJECT_ID, seed_database
 
 BASE="http://127.0.0.1:8780"
 SVG='<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1131"><rect width="1600" height="1131" fill="white"/></svg>'
-WIDE_SVG='<svg xmlns="http://www.w3.org/2000/svg" width="2000" height="700"><rect width="2000" height="700" fill="white"/></svg>'
-TALL_SVG='<svg xmlns="http://www.w3.org/2000/svg" width="700" height="2000"><rect width="700" height="2000" fill="white"/></svg>'
 SCALE=1600/6000
 
 def seed_progress():
@@ -59,14 +57,14 @@ def run_server():
     thread.start()
     return server,thread
 
-def stub(page,svg_body=SVG):
+def stub(page):
     page.route(
         f"**/projects/{PROJECT_ID}/pdfium-info",
         lambda r:r.fulfill(status=200,content_type="application/json",body='{"pageCount":3}'),
     )
     page.route(
         f"**/projects/{PROJECT_ID}/pdfium-page**",
-        lambda r:r.fulfill(status=200,content_type="image/svg+xml",body=svg_body),
+        lambda r:r.fulfill(status=200,content_type="image/svg+xml",body=SVG),
     )
 
 def pixel(page,x,y):
@@ -101,7 +99,7 @@ def main():
         with sync_playwright() as p:
             browser=p.chromium.launch()
 
-            # iPad landscape: adaptive side panel, full drawing fit.
+            # iPad landscape: compact header + 312px right panel.
             landscape=browser.new_page(viewport={"width":1024,"height":768})
             stub(landscape)
             landscape.goto(f"{BASE}/projects/{PROJECT_ID}/progress?page=1",wait_until="domcontentloaded")
@@ -116,7 +114,7 @@ def main():
             assert top and 42<=top["height"]<=46,top
             assert toolbar and 42<=toolbar["height"]<=46,toolbar
             assert thumbs and 50<=thumbs["height"]<=54,thumbs
-            assert panel and panel["width"]>=278,panel
+            assert panel and 307<=panel["width"]<=317,panel
             assert panel["x"]>=700,panel
             assert_fit(landscape)
 
@@ -154,7 +152,7 @@ def main():
             assert blue_ring_stays[2] > blue_ring_stays[0]+40,blue_ring_stays
             landscape.close()
 
-            # Large portrait tablet: width-first fit determines the bottom boundary.
+            # Large portrait tablet: bottom 40%, one-shot A4 landscape fit.
             portrait=browser.new_page(viewport={"width":1024,"height":1366})
             stub(portrait)
             portrait.goto(f"{BASE}/projects/{PROJECT_ID}/progress?page=1",wait_until="domcontentloaded")
@@ -162,13 +160,8 @@ def main():
             expect(portrait.locator("#progressListPanel")).to_be_visible()
             portrait.wait_for_timeout(180)
             pp=portrait.locator("#progressListPanel").bounding_box()
-            pv=portrait.locator("#viewer").bounding_box()
-            pc=portrait.locator("#canvas").bounding_box()
-            assert pp and pv and pc
-            assert pp["height"]>=185,pp
+            assert pp and 540<=pp["height"]<=552,pp
             assert pp["x"]<=1 and pp["width"]>=1020,pp
-            assert abs(pc["y"]-pv["y"])<=3,(pc,pv)
-            assert abs((pc["y"]+pc["height"])-(pv["y"]+pv["height"]))<=3,(pc,pv)
             assert_fit(portrait)
             zoom_after_fit=portrait.locator("#zoomReset").text_content()
             width_after_fit=portrait.locator("#canvas").evaluate("el=>el.style.width")
@@ -182,7 +175,7 @@ def main():
             assert portrait.locator("#canvas").evaluate("el=>el.style.width")==width_after_fit
             portrait.close()
 
-            # 768px portrait iPad/tablet: width-first boundary.
+            # 768px portrait iPad/tablet: low mobile appbar + bottom 40%.
             tablet=browser.new_page(viewport={"width":768,"height":1024})
             stub(tablet)
             tablet.goto(f"{BASE}/projects/{PROJECT_ID}/progress?page=1",wait_until="domcontentloaded")
@@ -194,16 +187,11 @@ def main():
             panel=tablet.locator("#progressListPanel").bounding_box()
             assert appbar and 42<=appbar["height"]<=46,appbar
             assert toolbar and 42<=toolbar["height"]<=46,toolbar
-            assert panel and panel["height"]>=185,panel
-            tv=tablet.locator("#viewer").bounding_box()
-            tc=tablet.locator("#canvas").bounding_box()
-            assert tv and tc
-            assert abs(tc["y"]-tv["y"])<=3,(tc,tv)
-            assert abs((tc["y"]+tc["height"])-(tv["y"]+tv["height"]))<=3,(tc,tv)
+            assert panel and 405<=panel["height"]<=414,panel
             assert_fit(tablet)
             tablet.close()
 
-            # Phone: width-first boundary. Hidden selection/page state must sync on reopen.
+            # Phone: bottom 40%. Hidden selection/page state must sync on reopen.
             phone=browser.new_page(viewport={"width":390,"height":844})
             stub(phone)
             phone.goto(f"{BASE}/projects/{PROJECT_ID}/progress?page=1",wait_until="domcontentloaded")
@@ -219,12 +207,7 @@ def main():
             expect(phone.locator("#progressListPanel")).to_be_visible()
             phone.wait_for_timeout(180)
             panel=phone.locator("#progressListPanel").bounding_box()
-            fv=phone.locator("#viewer").bounding_box()
-            fc=phone.locator("#canvas").bounding_box()
-            assert panel and fv and fc
-            assert panel["height"]>=165,panel
-            assert abs(fc["y"]-fv["y"])<=3,(fc,fv)
-            assert abs((fc["y"]+fc["height"])-(fv["y"]+fv["height"]))<=3,(fc,fv)
+            assert panel and 333<=panel["height"]<=342,panel
             r25=row(phone,25,1)
             expect(r25).to_have_attribute("class",re.compile(r".*\bselected\b.*"),timeout=3000)
             scroll_top=phone.locator("#progressListRecords").evaluate("el=>el.scrollTop")
@@ -241,33 +224,6 @@ def main():
             for i in range(current.count()):
                 assert current.nth(i).locator(".progress-list-page").text_content()=="P2"
             phone.close()
-
-            # Extreme wide portrait: width must stay 100%; boundary follows the drawing height.
-            wide=browser.new_page(viewport={"width":390,"height":844})
-            stub(wide,WIDE_SVG)
-            wide.goto(f"{BASE}/projects/{PROJECT_ID}/progress?page=1",wait_until="domcontentloaded")
-            expect(wide.locator("#progressListPanel")).to_be_visible(timeout=5000)
-            wide.wait_for_timeout(220)
-            wv=wide.locator("#viewer").bounding_box(); wc=wide.locator("#canvas").bounding_box(); wp=wide.locator("#progressListPanel").bounding_box()
-            assert wv and wc and wp
-            assert abs(wc["width"]-wv["width"])<=3,(wc,wv)
-            assert abs(wc["height"]-wv["height"])<=3,(wc,wv)
-            assert (wide.locator("#canvas").evaluate("el=>el.style.width") in ("100%","100.0%"))
-            assert wp["height"]>=165,wp
-            wide.close()
-
-            # Extreme tall landscape: height-first geometry removes avoidable left/right space.
-            tall=browser.new_page(viewport={"width":1024,"height":768})
-            stub(tall,TALL_SVG)
-            tall.goto(f"{BASE}/projects/{PROJECT_ID}/progress?page=1",wait_until="domcontentloaded")
-            expect(tall.locator("#progressListPanel")).to_be_visible(timeout=5000)
-            tall.wait_for_timeout(220)
-            lv=tall.locator("#viewer").bounding_box(); lc=tall.locator("#canvas").bounding_box(); lp=tall.locator("#progressListPanel").bounding_box()
-            assert lv and lc and lp
-            assert abs(lc["x"]-lv["x"])<=3,(lc,lv)
-            assert abs((lc["x"]+lc["width"])-(lv["x"]+lv["width"]))<=3,(lc,lv)
-            assert lp["width"]>=278,lp
-            tall.close()
 
             browser.close()
     finally:
