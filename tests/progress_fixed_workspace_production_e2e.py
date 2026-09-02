@@ -313,15 +313,20 @@ def main():
             rotated.goto(f"{BASE}/projects/{PROJECT_ID}/progress?page=1",wait_until="domcontentloaded")
             expect(rotated.locator("#canvas")).to_be_visible(timeout=7000)
             expect(rotated.locator("#rotate")).to_contain_text("90",timeout=7000)
-            rotated.wait_for_timeout(160)
+            rotated.wait_for_timeout(240)
             rviewer=rotated.locator("#viewer").bounding_box()
             rcanvas=rotated.locator("#canvas").bounding_box()
             rsplit=rotated.locator("#progressSplitter").bounding_box()
             rpanel=rotated.locator("#progressListPanel").bounding_box()
             assert rviewer and rcanvas and rsplit and rpanel
             assert abs(rsplit["y"]-(rviewer["y"]+rviewer["height"]))<=2,(rviewer,rsplit)
-            rgap=rsplit["y"]-(rcanvas["y"]+rcanvas["height"])
-            assert rgap<=12,(rgap,rcanvas,rsplit)
+            left_gap=rcanvas["x"]-rviewer["x"]
+            right_gap=(rviewer["x"]+rviewer["width"])-(rcanvas["x"]+rcanvas["width"])
+            top_gap=rcanvas["y"]-rviewer["y"]
+            bottom_gap=(rviewer["y"]+rviewer["height"])-(rcanvas["y"]+rcanvas["height"])
+            assert abs(left_gap-right_gap)<=3,(left_gap,right_gap,rviewer,rcanvas)
+            assert abs(top_gap-bottom_gap)<=3,(top_gap,bottom_gap,rviewer,rcanvas)
+            assert min(abs(left_gap),abs(top_gap))<=3,(left_gap,top_gap,rviewer,rcanvas)
             assert rpanel["height"]>=165,rpanel
             assert rotated.locator("#progressSplitter").get_attribute("data-mode")=="auto"
             rotated.close()
