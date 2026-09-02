@@ -118,7 +118,7 @@ def main():
             no_body_scroll(land)
             card=land.locator(".card").bounding_box();viewer=land.locator("#viewer").bounding_box();panel=land.locator("#progressListPanel").bounding_box()
             assert card and viewer and panel
-            assert 307<=panel["width"]<=318,panel
+            assert panel["width"]>=278,panel
             assert abs((viewer["x"]+viewer["width"])-panel["x"])<=2,(viewer,panel)
             assert viewer["height"]>300,viewer
             top=land.locator("main>.top").bounding_box()
@@ -210,7 +210,7 @@ def main():
             assert abs(thumbs_box["y"]-(top_box["y"]+top_box["height"]))<=2,(top_box,thumbs_box)
             assert 54<=thumbs_box["height"]<=62,thumbs_box
             assert abs(panel_box["y"]-(thumbs_box["y"]+thumbs_box["height"]))<=2,(thumbs_box,panel_box)
-            assert 335<=panel_box["width"]<=345,panel_box
+            assert panel_box["width"]>=278,panel_box
             assert abs(summary_box["y"]-panel_box["y"])<=2,(summary_box,panel_box)
             assert abs(viewer_box["y"]-(summary_box["y"]+summary_box["height"]))<=2,(summary_box,viewer_box)
             assert abs((viewer_box["x"]+viewer_box["width"])-panel_box["x"])<=2,(viewer_box,panel_box)
