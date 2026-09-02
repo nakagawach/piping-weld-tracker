@@ -113,7 +113,7 @@ body.progress-list-open .progress-list-panel{display:flex;flex-direction:column}
   const status=document.getElementById('status'),summary=document.getElementById('summary'),viewer=document.getElementById('viewer'),canvas=document.getElementById('canvas'),empty=document.getElementById('empty');
   const dialog=document.getElementById('progressDialog'),form=document.getElementById('progressForm'),dialogTarget=document.getElementById('dialogTarget');
   const dateInput=document.getElementById('completedDate'),detailInput=document.getElementById('workDetail'),updated=document.getElementById('updated'),saveButton=document.getElementById('save'),source=document.createElement('canvas');
-  let pageCount=0,candidates=[],progressMap=new Map(),active=null,busy=false,selectedStatus='未着手',drawingZoom=1,rotation=initialRotation,cssFullscreen=false,selectedTarget=null,selectionPulse=false,selectionPulseToken=0,pendingPanelTarget=null,panelHandling=false,pendingPage=null,requestedPage=1,committedPage=0,lastAutoFitPage=0,desktopFitMode=false;
+  let pageCount=0,candidates=[],progressMap=new Map(),active=null,busy=false,selectedStatus='未着手',drawingZoom=1,rotation=initialRotation,cssFullscreen=false,selectedTarget=null,selectionPulse=false,selectionPulseToken=0,pendingPanelTarget=null,panelHandling=false,pendingPage=null,requestedPage=1,committedPage=0,lastAutoFitPage=0,desktopFitMode=false,initialLayoutReady=false,initialLayoutScale=null,initialCenterActive=false;
   let touchMode='',touchMoved=false,touchStartX=0,touchStartY=0,touchStartScrollLeft=0,touchStartScrollTop=0,pinchStartDistance=0,pinchStartZoom=1,suppressClick=false;
   let mousePan=false,mousePanMoved=false,mousePanStartX=0,mousePanStartY=0,mousePanScrollLeft=0,mousePanScrollTop=0;
   rotateButton.textContent=`↻ ${rotation}°`;
@@ -125,27 +125,48 @@ body.progress-list-open .progress-list-panel{display:flex;flex-direction:column}
   function fitScale(){if(!canvas.width||!canvas.height||!viewer.clientWidth||!viewer.clientHeight)return 1;const baseHeight=viewer.clientWidth*(canvas.height/canvas.width);if(!baseHeight)return 1;return Math.max(.1,Math.min(1,viewer.clientHeight/baseHeight))}
   function applyDesktopFit(){if(!isWideDesktop()||!canvas.width||!canvas.height||!viewer.clientWidth||!viewer.clientHeight)return;const fit=fitScale();drawingZoom=fit;canvas.style.width=`${fit*100}%`;zoomReset.textContent='Fit ⛶';requestAnimationFrame(resetPosition)}
   function userFitFloor(){const portraitLayout=window.innerWidth<=640||(window.innerWidth<=1200&&window.innerHeight>window.innerWidth);if(!(portraitLayout||isWideDesktop()))return 1;return fitScale()}
-  function fitPanelViewOnce(){if(isWideDesktop()){if(desktopFitMode)applyDesktopFit();return}const page=Number(pageInput.value)||1;if(lastAutoFitPage===page||Math.abs(drawingZoom-1)>.001)return;if(!canvas.width||!canvas.height||canvas.hidden||!viewer.clientWidth||!viewer.clientHeight)return;const fit=userFitFloor();lastAutoFitPage=page;if(fit<.999)setZoom(fit)}
+  function clearInitialCenter(){if(!initialCenterActive)return;initialCenterActive=false;canvas.style.marginTop='0px';canvas.style.marginBottom='0px'}
+  function centerInitialDrawing(){if(!canvas.width||!canvas.height||canvas.hidden)return;const r=canvas.getBoundingClientRect(),gapY=Math.max(0,(viewer.clientHeight-r.height)/2);canvas.style.marginTop=`${gapY}px`;canvas.style.marginBottom=`${gapY}px`;initialCenterActive=true;resetPosition()}
+  function fitPanelViewOnce(){
+    if(document.body.classList.contains('progress-list-open')&&!initialLayoutReady)return;
+    const page=Number(pageInput.value)||1;
+    if(lastAutoFitPage===page||Math.abs(drawingZoom-1)>.001)return;
+    if(!canvas.width||!canvas.height||canvas.hidden||!viewer.clientWidth||!viewer.clientHeight)return;
+    const fit=initialLayoutScale===null?fitScale():Math.max(.1,Math.min(1,initialLayoutScale));
+    initialLayoutScale=null;lastAutoFitPage=page;
+    if(Math.abs(fit-drawingZoom)>=.001){
+      const previousZoom=drawingZoom;drawingZoom=fit;canvas.style.width=`${fit*100}%`;
+      zoomReset.textContent=isWideDesktop()?'Fit ⛶':`${Math.round(fit*100)}%`;
+      window.dispatchEvent(new CustomEvent('weld:progress-zoom-changed',{detail:{zoom:drawingZoom,previousZoom,source:'initial-fit'}}));
+    }
+    requestAnimationFrame(()=>requestAnimationFrame(centerInitialDrawing));
+  }
   window.addEventListener('weld:progress-fit-request',()=>requestAnimationFrame(fitPanelViewOnce));
-  function setZoom(nextZoom,focalX=null,focalY=null){let next=Math.min(4,nextZoom);if(next<drawingZoom){const floor=Math.min(drawingZoom,userFitFloor());next=Math.max(floor,next)}else{next=Math.max(.1,next)}if(Math.abs(next-drawingZoom)<.001)return;if(isWideDesktop())desktopFitMode=false;const rect=viewer.getBoundingClientRect(),localX=focalX===null?viewer.clientWidth/2:focalX-rect.left,localY=focalY===null?viewer.clientHeight/2:focalY-rect.top,contentX=viewer.scrollLeft+localX,contentY=viewer.scrollTop+localY,ratio=next/drawingZoom;drawingZoom=next;canvas.style.width=`${drawingZoom*100}%`;zoomReset.textContent=`${Math.round(drawingZoom*100)}%`;window.dispatchEvent(new CustomEvent('weld:progress-zoom-changed',{detail:{zoom:drawingZoom}}));requestAnimationFrame(()=>{viewer.scrollLeft=Math.max(0,contentX*ratio-localX);viewer.scrollTop=Math.max(0,contentY*ratio-localY)})}
+  window.addEventListener('weld:progress-initial-layout-ready',event=>{
+    const scale=Number(event.detail?.scale);
+    initialLayoutScale=Number.isFinite(scale)?scale:null;
+    initialLayoutReady=true;lastAutoFitPage=0;
+    requestAnimationFrame(()=>requestAnimationFrame(fitPanelViewOnce));
+  });
+  function setZoom(nextZoom,focalX=null,focalY=null,source='internal'){let next=Math.min(4,nextZoom);if(next<drawingZoom){const floor=Math.min(drawingZoom,userFitFloor());next=Math.max(floor,next)}else{next=Math.max(.1,next)}if(Math.abs(next-drawingZoom)<.001)return;clearInitialCenter();if(isWideDesktop())desktopFitMode=false;const previousZoom=drawingZoom,rect=viewer.getBoundingClientRect(),localX=focalX===null?viewer.clientWidth/2:focalX-rect.left,localY=focalY===null?viewer.clientHeight/2:focalY-rect.top,contentX=viewer.scrollLeft+localX,contentY=viewer.scrollTop+localY,ratio=next/drawingZoom;drawingZoom=next;canvas.style.width=`${drawingZoom*100}%`;zoomReset.textContent=`${Math.round(drawingZoom*100)}%`;window.dispatchEvent(new CustomEvent('weld:progress-zoom-changed',{detail:{zoom:drawingZoom,previousZoom,source}}));requestAnimationFrame(()=>{viewer.scrollLeft=Math.max(0,contentX*ratio-localX);viewer.scrollTop=Math.max(0,contentY*ratio-localY)})}
   function resetPosition(){viewer.scrollLeft=0;viewer.scrollTop=0}
-  function resetZoom(){if(isWideDesktop()){desktopFitMode=true;applyDesktopFit();return}drawingZoom=1;canvas.style.width='100%';zoomReset.textContent='100%';window.dispatchEvent(new CustomEvent('weld:progress-zoom-changed',{detail:{zoom:drawingZoom}}));resetPosition()}
-  function rotate(){rotation=(rotation+90)%360;rotateButton.textContent=`↻ ${rotation}°`;draw();if(isWideDesktop()&&desktopFitMode)requestAnimationFrame(applyDesktopFit);else resetPosition()}
-  zoomOut.onclick=()=>setZoom(Math.round((drawingZoom-.5)*2)/2);zoomIn.onclick=()=>setZoom(Math.round((drawingZoom+.5)*2)/2);zoomReset.onclick=resetZoom;document.getElementById('zoomResetCompact').onclick=resetZoom;viewReset.onclick=resetPosition;document.getElementById('viewResetCompact').onclick=resetPosition;rotateButton.onclick=rotate;document.getElementById('rotateCompact').onclick=rotate;
+  function resetZoom(){clearInitialCenter();if(isWideDesktop()){desktopFitMode=true;applyDesktopFit();return}const previousZoom=drawingZoom;drawingZoom=1;canvas.style.width='100%';zoomReset.textContent='100%';window.dispatchEvent(new CustomEvent('weld:progress-zoom-changed',{detail:{zoom:drawingZoom,previousZoom,source:'reset'}}));resetPosition()}
+  function rotate(){clearInitialCenter();rotation=(rotation+90)%360;rotateButton.textContent=`↻ ${rotation}°`;draw();if(isWideDesktop()&&desktopFitMode)requestAnimationFrame(applyDesktopFit);else resetPosition()}
+  zoomOut.onclick=()=>setZoom(Math.round((drawingZoom-.5)*2)/2,null,null,'user');zoomIn.onclick=()=>setZoom(Math.round((drawingZoom+.5)*2)/2,null,null,'user');zoomReset.onclick=resetZoom;document.getElementById('zoomResetCompact').onclick=resetZoom;viewReset.onclick=resetPosition;document.getElementById('viewResetCompact').onclick=resetPosition;rotateButton.onclick=rotate;document.getElementById('rotateCompact').onclick=rotate;
   window.addEventListener('resize',()=>{if(isWideDesktop()&&desktopFitMode)requestAnimationFrame(applyDesktopFit)});
   new MutationObserver(()=>{if(isWideDesktop()&&desktopFitMode)requestAnimationFrame(()=>requestAnimationFrame(applyDesktopFit))}).observe(document.body,{attributes:true,attributeFilter:['class']});
   function setFullscreenUi(on){document.body.classList.toggle('progress-fullscreen',on);fullscreenButton.textContent=on?'⛶ 全画面終了':'⛶ 全画面';document.getElementById('fullscreenCompact').textContent=on?'×':'⛶';if(isWideDesktop()&&desktopFitMode)requestAnimationFrame(()=>requestAnimationFrame(applyDesktopFit))}
   async function toggleFullscreen(){const mobileLike=window.innerWidth<=1200;if(mobileLike){cssFullscreen=!cssFullscreen;setFullscreenUi(cssFullscreen);return}if(document.fullscreenElement){try{await document.exitFullscreen()}catch(_e){}return}if(cssFullscreen){cssFullscreen=false;setFullscreenUi(false);return}const target=document.documentElement;if(target.requestFullscreen){try{await target.requestFullscreen({navigationUI:'hide'});return}catch(_e){try{await target.requestFullscreen();return}catch(_e2){}}}cssFullscreen=true;setFullscreenUi(true)}fullscreenButton.onclick=toggleFullscreen;document.getElementById('fullscreenCompact').onclick=toggleFullscreen;document.addEventListener('fullscreenchange',()=>{const on=!!document.fullscreenElement;cssFullscreen=false;setFullscreenUi(on)});
   function touchDistance(a,b){return Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY)}function beginSingleTouch(t){touchMode='pan';touchMoved=false;touchStartX=t.clientX;touchStartY=t.clientY;touchStartScrollLeft=viewer.scrollLeft;touchStartScrollTop=viewer.scrollTop}
   viewer.addEventListener('touchstart',e=>{if(e.touches.length===1){beginSingleTouch(e.touches[0]);return}if(e.touches.length===2){e.preventDefault();touchMode='pinch';touchMoved=true;suppressClick=true;pinchStartDistance=Math.max(1,touchDistance(e.touches[0],e.touches[1]));pinchStartZoom=drawingZoom}},{passive:false});
-  viewer.addEventListener('touchmove',e=>{if(touchMode==='pinch'&&e.touches.length>=2){e.preventDefault();const a=e.touches[0],b=e.touches[1],distance=Math.max(1,touchDistance(a,b));setZoom(pinchStartZoom*distance/pinchStartDistance,(a.clientX+b.clientX)/2,(a.clientY+b.clientY)/2);suppressClick=true;return}if(touchMode==='pan'&&e.touches.length===1){const t=e.touches[0],dx=t.clientX-touchStartX,dy=t.clientY-touchStartY;if(Math.hypot(dx,dy)>6){touchMoved=true;suppressClick=true;e.preventDefault();viewer.scrollLeft=Math.max(0,touchStartScrollLeft-dx);viewer.scrollTop=Math.max(0,touchStartScrollTop-dy)}}},{passive:false});
+  viewer.addEventListener('touchmove',e=>{if(touchMode==='pinch'&&e.touches.length>=2){e.preventDefault();const a=e.touches[0],b=e.touches[1],distance=Math.max(1,touchDistance(a,b));setZoom(pinchStartZoom*distance/pinchStartDistance,(a.clientX+b.clientX)/2,(a.clientY+b.clientY)/2,'user');suppressClick=true;return}if(touchMode==='pan'&&e.touches.length===1){const t=e.touches[0],dx=t.clientX-touchStartX,dy=t.clientY-touchStartY;if(Math.hypot(dx,dy)>6){touchMoved=true;suppressClick=true;e.preventDefault();viewer.scrollLeft=Math.max(0,touchStartScrollLeft-dx);viewer.scrollTop=Math.max(0,touchStartScrollTop-dy)}}},{passive:false});
   viewer.addEventListener('touchend',e=>{if(e.touches.length===1&&touchMode==='pinch'){e.preventDefault();beginSingleTouch(e.touches[0]);suppressClick=true;return}if(e.touches.length===0){const wasTap=touchMode==='pan'&&!touchMoved&&e.changedTouches.length===1,endedAfterGesture=suppressClick||touchMoved,touch=wasTap?e.changedTouches[0]:null;touchMode='';touchMoved=false;if(wasTap&&touch&&!busy&&candidates.length){e.preventDefault();suppressClick=true;const hit=findAt(eventPoint(touch));if(hit)openEditor(hit);setTimeout(()=>{suppressClick=false},350)}else if(endedAfterGesture){e.preventDefault();suppressClick=true;setTimeout(()=>{suppressClick=false},350)}else{suppressClick=false}}},{passive:false});viewer.addEventListener('touchcancel',()=>{touchMode='';touchMoved=false;suppressClick=false},{passive:true});
   function pcPointer(){return window.matchMedia('(hover:hover) and (pointer:fine)').matches}
   viewer.addEventListener('pointerdown',e=>{if(!pcPointer()||e.pointerType!=='mouse'||e.button!==0||busy||canvas.hidden)return;mousePan=true;mousePanMoved=false;mousePanStartX=e.clientX;mousePanStartY=e.clientY;mousePanScrollLeft=viewer.scrollLeft;mousePanScrollTop=viewer.scrollTop});
   viewer.addEventListener('pointermove',e=>{if(!mousePan||e.pointerType!=='mouse')return;const dx=e.clientX-mousePanStartX,dy=e.clientY-mousePanStartY;if(Math.hypot(dx,dy)<=4&&!mousePanMoved)return;if(!mousePanMoved){mousePanMoved=true;viewer.classList.add('mouse-panning');try{viewer.setPointerCapture(e.pointerId)}catch(_e){}}e.preventDefault();viewer.scrollLeft=Math.max(0,mousePanScrollLeft-dx);viewer.scrollTop=Math.max(0,mousePanScrollTop-dy)});
   function endMousePan(e){if(!mousePan)return;const moved=mousePanMoved;mousePan=false;mousePanMoved=false;viewer.classList.remove('mouse-panning');try{viewer.releasePointerCapture(e.pointerId)}catch(_e){}if(moved){e.preventDefault();suppressClick=true;setTimeout(()=>{suppressClick=false},0)}}
   viewer.addEventListener('pointerup',endMousePan);viewer.addEventListener('pointercancel',endMousePan);
-  viewer.addEventListener('wheel',e=>{if(!pcPointer()||!e.ctrlKey||busy||canvas.hidden)return;if(e.cancelable)e.preventDefault();const factor=e.deltaY<0?1.12:1/1.12;setZoom(drawingZoom*factor,e.clientX,e.clientY)},{passive:false});
+  viewer.addEventListener('wheel',e=>{if(!pcPointer()||!e.ctrlKey||busy||canvas.hidden)return;if(e.cancelable)e.preventDefault();const factor=e.deltaY<0?1.12:1/1.12;setZoom(drawingZoom*factor,e.clientX,e.clientY,'user')},{passive:false});
   function configureContext(){if(rotation===90||rotation===270){canvas.width=source.height;canvas.height=source.width}else{canvas.width=source.width;canvas.height=source.height}const ctx=canvas.getContext('2d');if(rotation===90){ctx.translate(canvas.width,0);ctx.rotate(Math.PI/2)}else if(rotation===180){ctx.translate(canvas.width,canvas.height);ctx.rotate(Math.PI)}else if(rotation===270){ctx.translate(0,canvas.height);ctx.rotate(-Math.PI/2)}return ctx}
   function eventPoint(e){const r=canvas.getBoundingClientRect(),rx=(e.clientX-r.left)*canvas.width/r.width,ry=(e.clientY-r.top)*canvas.height/r.height;let x=rx,y=ry;if(rotation===90){x=ry;y=source.height-rx}else if(rotation===180){x=source.width-rx;y=source.height-ry}else if(rotation===270){x=source.width-ry;y=rx}return{x:x/SCALE,y:y/SCALE}}
   function cssHitToOcr(px){const r=canvas.getBoundingClientRect();return px*Math.max(canvas.width/r.width,canvas.height/r.height)/SCALE}function findAt(p){const size=cssHitToOcr(HIT_CSS_PX),hits=candidates.filter(item=>{const b=item.bbox,ex=Math.max(0,(size-b.w)/2),ey=Math.max(0,(size-b.h)/2);return p.x>=b.x-ex&&p.x<=b.x+b.w+ex&&p.y>=b.y-ey&&p.y<=b.y+b.h+ey});if(!hits.length)return null;hits.sort((a,b)=>{const ac=center(a),bc=center(b);return((p.x-ac.x)**2+(p.y-ac.y)**2)-((p.x-bc.x)**2+(p.y-bc.y)**2)});return hits[0]}
@@ -192,10 +213,12 @@ window.addEventListener('weld:progress-panel-target',event=>{pendingPanelTarget=
 (() => {
   const card=document.querySelector('.card'),viewer=document.getElementById('viewer'),canvas=document.getElementById('canvas'),panel=document.getElementById('progressListPanel'),splitter=document.getElementById('progressSplitter');
   if(!card||!viewer||!canvas||!panel||!splitter)return;
-  const bottomPaneMedia=window.matchMedia('(max-width:820px), (min-width:821px) and (max-width:1200px) and (orientation:portrait)');
-  let mode='auto',manualHeight=null,raf=0,dragging=false,startY=0,startHeight=0,initialAutoPending=true;
-  const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
-  function isActive(){return bottomPaneMedia.matches&&document.body.classList.contains('progress-list-open')}
+  const bottomMedia=window.matchMedia('(max-width:820px), (min-width:821px) and (max-width:1200px) and (orientation:portrait)');
+  let mode='auto',manualHeight=null,dragging=false,startY=0,startHeight=0,initialDone=false,userZoomExpanded=false;
+  const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
+  function open(){return document.body.classList.contains('progress-list-open')}
+  function bottom(){return bottomMedia.matches&&open()}
+  function side(){return !bottomMedia.matches&&window.innerWidth>=821&&open()}
   function fixedHeight(){
     let total=splitter.getBoundingClientRect().height||8;
     for(const selector of ['.ui3-appbar','.toolbar','.summary','.progress-thumbs']){
@@ -204,70 +227,109 @@ window.addEventListener('weld:progress-panel-target',event=>{pendingPanelTarget=
     }
     return total;
   }
-  function limits(){
-    const available=Math.max(0,card.clientHeight-fixedHeight());
-    const compact=window.innerWidth<=520;
-    let minViewer=Math.max(compact?150:180,available*(compact ? .34 : .36));
-    let minPanel=Math.max(compact?170:190,available*(compact ? .30 : .27));
-    if(minViewer+minPanel>available&&available>0){
-      const scale=available/(minViewer+minPanel);
-      minViewer*=scale;minPanel*=scale;
-    }
-    return{available,minViewer,maxViewer:Math.max(minViewer,available-minPanel),minPanel};
+  function bottomMetrics(){
+    const available=Math.max(0,card.clientHeight-fixedHeight()),minPanel=window.innerWidth<=520?170:190;
+    return{available,minPanel,maxViewer:Math.max(0,available-Math.min(minPanel,available)),manualMinViewer:Math.min(window.innerWidth<=520?150:180,Math.max(0,available-minPanel))};
   }
-  function applyHeight(value){
-    if(!isActive()){card.style.removeProperty('--pw-bottom-viewer');return}
-    const lim=limits(),height=clamp(value,lim.minViewer,lim.maxViewer);
-    card.style.setProperty('--pw-bottom-viewer',Math.round(height)+'px');
+  function sideMetrics(){
+    const total=card.clientWidth,minPanel=280;
+    return{total,minPanel,maxViewer:Math.max(0,total-minPanel)};
+  }
+  function finishInitial(scale){
+    if(initialDone)return;
+    initialDone=true;
+    requestAnimationFrame(()=>requestAnimationFrame(()=>window.dispatchEvent(new CustomEvent('weld:progress-initial-layout-ready',{detail:{scale}}))));
+  }
+  function applyBottom(height,manual=false){
+    const m=bottomMetrics(),min=manual?m.manualMinViewer:0,h=clamp(height,min,m.maxViewer);
+    card.style.setProperty('--pw-bottom-viewer',Math.round(h)+'px');
     splitter.dataset.mode=mode;
-    splitter.setAttribute('aria-valuemin',String(Math.round(lim.minViewer)));
-    splitter.setAttribute('aria-valuemax',String(Math.round(lim.maxViewer)));
-    splitter.setAttribute('aria-valuenow',String(Math.round(height)));
-    window.dispatchEvent(new CustomEvent('weld:progress-split-changed',{detail:{mode,height}}));
-    if(mode==='auto'&&initialAutoPending&&canvas.width&&canvas.height&&!canvas.hidden)initialAutoPending=false;
+    splitter.setAttribute('aria-valuemin',String(Math.round(m.manualMinViewer)));
+    splitter.setAttribute('aria-valuemax',String(Math.round(m.maxViewer)));
+    splitter.setAttribute('aria-valuenow',String(Math.round(h)));
+    window.dispatchEvent(new CustomEvent('weld:progress-split-changed',{detail:{mode,height:h}}));
+    return h;
   }
-  function autoHeight(){
-    const lim=limits(),vr=viewer.getBoundingClientRect(),cr=canvas.getBoundingClientRect();
-    if(!canvas.width||!canvas.height||canvas.hidden||cr.height<2)return clamp(lim.available*.58,lim.minViewer,lim.maxViewer);
-    return clamp(Math.max(0,cr.bottom-vr.top),lim.minViewer,lim.maxViewer);
+  function calculateInitialBottom(){
+    const m=bottomMetrics();
+    if(!canvas.width||!canvas.height||canvas.hidden||!viewer.clientWidth)return;
+    // Width first: 100% drawing width, then derive its natural height.
+    const fullWidthHeight=viewer.clientWidth*(canvas.height/canvas.width);
+    const viewerHeight=Math.min(fullWidthHeight,m.maxViewer);
+    const scale=fullWidthHeight>0?Math.min(1,viewerHeight/fullWidthHeight):1;
+    applyBottom(viewerHeight,false);
+    finishInitial(scale);
   }
-  function scheduleAuto(){
-    if(mode!=='auto'||!isActive())return;
-    if(raf)cancelAnimationFrame(raf);
-    raf=requestAnimationFrame(()=>{raf=requestAnimationFrame(()=>{raf=0;applyHeight(autoHeight())})});
+  function calculateInitialSide(){
+    const m=sideMetrics();
+    if(!canvas.width||!canvas.height||canvas.hidden||!viewer.clientHeight)return;
+    // Height first: derive the viewer width needed for a 100%-wide canvas to exactly fill height.
+    const neededViewerWidth=viewer.clientHeight*(canvas.width/canvas.height);
+    const viewerWidth=Math.min(neededViewerWidth,m.maxViewer);
+    const panelWidth=Math.max(m.minPanel,m.total-viewerWidth);
+    document.body.style.setProperty('--pw-panel',Math.round(panelWidth)+'px');
+    const actualViewerWidth=Math.max(1,m.total-panelWidth);
+    const scale=neededViewerWidth>0?Math.min(1,neededViewerWidth/actualViewerWidth):1;
+    finishInitial(scale);
+  }
+  function calculateInitial(){
+    if(initialDone||!open())return;
+    if(bottom())calculateInitialBottom();
+    else if(side())calculateInitialSide();
+  }
+  function collapseForUserZoom(){
+    if(bottom()&&mode==='auto'){
+      applyBottom(bottomMetrics().maxViewer,false);
+    }else if(side()){
+      document.body.style.setProperty('--pw-panel',Math.round(sideMetrics().minPanel)+'px');
+    }
   }
   function sync(){
-    if(!isActive()){card.style.removeProperty('--pw-bottom-viewer');return}
-    if(mode==='auto')scheduleAuto();
-    else if(manualHeight!==null)applyHeight(manualHeight);
+    if(bottom()){
+      document.body.style.removeProperty('--pw-panel');
+      if(mode==='manual'&&manualHeight!==null)applyBottom(manualHeight,true);
+      else if(!initialDone)requestAnimationFrame(()=>requestAnimationFrame(calculateInitial));
+    }else if(side()){
+      card.style.removeProperty('--pw-bottom-viewer');
+      if(!initialDone)requestAnimationFrame(()=>requestAnimationFrame(calculateInitial));
+      else if(userZoomExpanded)document.body.style.setProperty('--pw-panel',Math.round(sideMetrics().minPanel)+'px');
+    }else{
+      card.style.removeProperty('--pw-bottom-viewer');
+      document.body.style.removeProperty('--pw-panel');
+    }
   }
   splitter.addEventListener('pointerdown',event=>{
-    if(!isActive())return;
-    event.preventDefault();event.stopPropagation();
-    mode='manual';dragging=true;startY=event.clientY;startHeight=viewer.getBoundingClientRect().height;manualHeight=startHeight;
+    if(!bottom())return;
+    event.preventDefault();event.stopPropagation();mode='manual';dragging=true;
+    startY=event.clientY;startHeight=viewer.getBoundingClientRect().height;manualHeight=startHeight;
     try{splitter.setPointerCapture(event.pointerId)}catch(_e){}
   });
   splitter.addEventListener('pointermove',event=>{
     if(!dragging)return;
     event.preventDefault();event.stopPropagation();
-    manualHeight=startHeight+(event.clientY-startY);applyHeight(manualHeight);
+    manualHeight=startHeight+(event.clientY-startY);applyBottom(manualHeight,true);
   });
   const endDrag=event=>{
     if(!dragging)return;
     event.preventDefault();event.stopPropagation();dragging=false;
-    manualHeight=viewer.getBoundingClientRect().height;applyHeight(manualHeight);
+    manualHeight=viewer.getBoundingClientRect().height;applyBottom(manualHeight,true);
     try{splitter.releasePointerCapture(event.pointerId)}catch(_e){}
   };
   splitter.addEventListener('pointerup',endDrag);splitter.addEventListener('pointercancel',endDrag);
   splitter.addEventListener('keydown',event=>{
-    if(!isActive()||!['ArrowUp','ArrowDown','Home'].includes(event.key))return;
+    if(!bottom()||!['ArrowUp','ArrowDown','Home'].includes(event.key))return;
     event.preventDefault();event.stopPropagation();
-    if(event.key==='Home'){mode='auto';manualHeight=null;scheduleAuto();return}
-    mode='manual';manualHeight=viewer.getBoundingClientRect().height+(event.key==='ArrowDown'?24:-24);applyHeight(manualHeight);
+    if(event.key==='Home'){mode='auto';manualHeight=null;applyBottom(bottomMetrics().maxViewer,false);return}
+    mode='manual';manualHeight=viewer.getBoundingClientRect().height+(event.key==='ArrowDown'?24:-24);applyBottom(manualHeight,true);
   });
   window.addEventListener('weld:progress-list-open-changed',sync);
-  window.addEventListener('weld:progress-page-loaded',()=>{if(mode==='auto')setTimeout(scheduleAuto,40)});
-  window.addEventListener('weld:progress-zoom-changed',()=>{if(mode==='auto')setTimeout(scheduleAuto,0)});
+  window.addEventListener('weld:progress-page-loaded',()=>{if(!initialDone)setTimeout(calculateInitial,40)});
+  window.addEventListener('weld:progress-zoom-changed',event=>{
+    const d=event.detail||{};
+    if(d.source==='user'&&Number(d.zoom)>Number(d.previousZoom)){
+      userZoomExpanded=true;collapseForUserZoom();
+    }
+  });
   setTimeout(sync,0);
 })();
 </script>
