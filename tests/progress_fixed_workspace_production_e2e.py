@@ -393,22 +393,29 @@ def main():
             panel_auto=phone.locator("#progressListPanel").bounding_box()
             assert viewer_auto and canvas_auto and split_auto and panel_auto
             assert abs(split_auto["y"]-(viewer_auto["y"]+viewer_auto["height"]))<=2,(viewer_auto,split_auto)
-            auto_gap=split_auto["y"]-(canvas_auto["y"]+canvas_auto["height"])
-            # Never leave avoidable positive blank space. A negative gap is valid when
-            # the flexible minimum list height clamps the splitter above the canvas bottom.
-            assert auto_gap<=12,(auto_gap,canvas_auto,split_auto)
+            auto_top=canvas_auto["y"]-viewer_auto["y"]
+            auto_bottom=(viewer_auto["y"]+viewer_auto["height"])-(canvas_auto["y"]+canvas_auto["height"])
+            assert abs(auto_top-auto_bottom)<=3,(auto_top,auto_bottom,canvas_auto,viewer_auto)
+            assert max(auto_top,auto_bottom)<=4,(auto_top,auto_bottom,canvas_auto,viewer_auto)
             assert panel_auto["height"]>=165,panel_auto
+            initial_panel_height=panel_auto["height"]
             assert phone.locator("#progressSplitter").get_attribute("data-mode")=="auto"
 
-            # AUTO split must ignore viewer pan/scroll and react only to zoom changes.
+            # Pan/scroll does not move the split. A real user zoom-in collapses the list
+            # to its minimum so the viewer receives all remaining height.
             phone.evaluate("""()=>{window.__splitEvents=0;window.addEventListener('weld:progress-split-changed',()=>window.__splitEvents++)}""")
             before_events=phone.evaluate("()=>window.__splitEvents")
             phone.locator("#viewer").evaluate("el=>{el.scrollTop=Math.min(80,Math.max(0,el.scrollHeight-el.clientHeight));el.scrollLeft=Math.min(80,Math.max(0,el.scrollWidth-el.clientWidth))}")
             phone.wait_for_timeout(120)
             assert phone.evaluate("()=>window.__splitEvents")==before_events
             phone.locator("#zoomIn").evaluate("el=>el.click()")
-            phone.wait_for_timeout(140)
+            phone.wait_for_timeout(160)
             assert phone.evaluate("()=>window.__splitEvents")>before_events
+            zoom_panel=phone.locator("#progressListPanel").bounding_box()
+            zoom_viewer=phone.locator("#viewer").bounding_box()
+            assert zoom_panel and zoom_viewer
+            assert zoom_panel["height"]<initial_panel_height-40,(initial_panel_height,zoom_panel)
+            assert zoom_viewer["height"]>viewer_auto["height"]+40,(viewer_auto,zoom_viewer)
 
             # Saved-to-saved page changes keep the committed canvas visible until the new page is ready.
             phone.evaluate("""()=>{
@@ -424,7 +431,8 @@ def main():
             phone.wait_for_function("document.getElementById('page').value === '1'")
             phone.wait_for_timeout(100)
 
-            # Dragging the independent splitter enters MANUAL mode and preserves the chosen height.
+            # After zoom collapse the viewer is already at maximum. Drag upward to
+            # confirm manual split still works and persists.
             current_viewer=phone.locator("#viewer").bounding_box()
             assert current_viewer
             start_h=current_viewer["height"]
@@ -432,11 +440,11 @@ def main():
             assert sb
             phone.mouse.move(sb["x"]+sb["width"]/2,sb["y"]+sb["height"]/2)
             phone.mouse.down()
-            phone.mouse.move(sb["x"]+sb["width"]/2,sb["y"]+70,steps=5)
+            phone.mouse.move(sb["x"]+sb["width"]/2,sb["y"]-70,steps=5)
             phone.mouse.up()
             phone.wait_for_timeout(100)
             manual_viewer=phone.locator("#viewer").bounding_box()
-            assert manual_viewer and manual_viewer["height"]>start_h+40,(start_h,manual_viewer)
+            assert manual_viewer and manual_viewer["height"]<start_h-40,(start_h,manual_viewer)
             assert phone.locator("#progressSplitter").get_attribute("data-mode")=="manual"
             expect(phone.locator("#progressDialog")).not_to_be_visible()
             manual_h=manual_viewer["height"]
