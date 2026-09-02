@@ -17,6 +17,8 @@ from tests.ui_shell_e2e import PROJECT_ID, seed_database
 
 BASE="http://127.0.0.1:8780"
 SVG='<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1131"><rect width="1600" height="1131" fill="white"/></svg>'
+WIDE_SVG='<svg xmlns="http://www.w3.org/2000/svg" width="2000" height="700"><rect width="2000" height="700" fill="white"/></svg>'
+TALL_SVG='<svg xmlns="http://www.w3.org/2000/svg" width="700" height="2000"><rect width="700" height="2000" fill="white"/></svg>'
 SCALE=1600/6000
 
 def seed_progress():
@@ -57,14 +59,14 @@ def run_server():
     thread.start()
     return server,thread
 
-def stub(page):
+def stub(page,svg_body=SVG):
     page.route(
         f"**/projects/{PROJECT_ID}/pdfium-info",
         lambda r:r.fulfill(status=200,content_type="application/json",body='{"pageCount":3}'),
     )
     page.route(
         f"**/projects/{PROJECT_ID}/pdfium-page**",
-        lambda r:r.fulfill(status=200,content_type="image/svg+xml",body=SVG),
+        lambda r:r.fulfill(status=200,content_type="image/svg+xml",body=svg_body),
     )
 
 def pixel(page,x,y):
@@ -239,6 +241,47 @@ def main():
             for i in range(current.count()):
                 assert current.nth(i).locator(".progress-list-page").text_content()=="P2"
             phone.close()
+
+            # Extreme wide drawing on portrait phone: no minViewer clamp is allowed.
+            wide_phone=browser.new_page(viewport={"width":390,"height":844})
+            stub(wide_phone,WIDE_SVG)
+            wide_phone.goto(f"{BASE}/projects/{PROJECT_ID}/progress?page=1",wait_until="domcontentloaded")
+            expect(wide_phone.locator("#progressListPanel")).to_be_visible(timeout=5000)
+            wide_phone.wait_for_timeout(220)
+            wv=wide_phone.locator("#viewer").bounding_box()
+            wc=wide_phone.locator("#canvas").bounding_box()
+            wp=wide_phone.locator("#progressListPanel").bounding_box()
+            assert wv and wc and wp
+            assert abs(wc["y"]-wv["y"])<=3,(wc,wv)
+            assert abs((wc["y"]+wc["height"])-(wv["y"]+wv["height"]))<=3,(wc,wv)
+            assert wv["height"]<150,(wv,wc,wp)
+            assert wp["height"]>=165,wp
+            wide_phone.locator("#zoomIn").evaluate("el=>el.click()")
+            wide_phone.wait_for_timeout(150)
+            wv2=wide_phone.locator("#viewer").bounding_box()
+            wp2=wide_phone.locator("#progressListPanel").bounding_box()
+            assert wv2 and wp2
+            assert wv2["height"]>wv["height"]+150,(wv,wv2)
+            assert wp2["height"]<wp["height"]-150,(wp,wp2)
+            wide_phone.close()
+
+            # Extreme tall drawing on landscape: no drawing-side minimum width may
+            # create avoidable left/right whitespace.
+            tall_land=browser.new_page(viewport={"width":1024,"height":768})
+            stub(tall_land,TALL_SVG)
+            tall_land.goto(f"{BASE}/projects/{PROJECT_ID}/progress?page=1",wait_until="domcontentloaded")
+            expect(tall_land.locator("#progressListPanel")).to_be_visible(timeout=5000)
+            tall_land.wait_for_timeout(220)
+            lv=tall_land.locator("#viewer").bounding_box()
+            lc=tall_land.locator("#canvas").bounding_box()
+            lp=tall_land.locator("#progressListPanel").bounding_box()
+            assert lv and lc and lp
+            left_gap=lc["x"]-lv["x"]
+            right_gap=(lv["x"]+lv["width"])-(lc["x"]+lc["width"])
+            assert abs(left_gap-right_gap)<=3,(left_gap,right_gap,lv,lc)
+            assert max(left_gap,right_gap)<=4,(left_gap,right_gap,lv,lc)
+            assert lp["width"]>=278,lp
+            tall_land.close()
 
             browser.close()
     finally:
