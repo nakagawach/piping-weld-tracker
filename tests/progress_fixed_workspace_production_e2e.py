@@ -433,7 +433,8 @@ def main():
             phone.wait_for_function("document.getElementById('page').value === '1'")
             phone.wait_for_timeout(100)
 
-            # Dragging the independent splitter enters MANUAL mode and preserves the chosen height.
+            # Dragging the independent splitter still enters MANUAL mode after zoom collapse.
+            # At this point the viewer is already at its maximum, so drag upward to reduce it.
             current_viewer=phone.locator("#viewer").bounding_box()
             assert current_viewer
             start_h=current_viewer["height"]
@@ -441,11 +442,11 @@ def main():
             assert sb
             phone.mouse.move(sb["x"]+sb["width"]/2,sb["y"]+sb["height"]/2)
             phone.mouse.down()
-            phone.mouse.move(sb["x"]+sb["width"]/2,sb["y"]+70,steps=5)
+            phone.mouse.move(sb["x"]+sb["width"]/2,sb["y"]-70,steps=5)
             phone.mouse.up()
             phone.wait_for_timeout(100)
             manual_viewer=phone.locator("#viewer").bounding_box()
-            assert manual_viewer and manual_viewer["height"]>start_h+40,(start_h,manual_viewer)
+            assert manual_viewer and manual_viewer["height"]<start_h-40,(start_h,manual_viewer)
             assert phone.locator("#progressSplitter").get_attribute("data-mode")=="manual"
             expect(phone.locator("#progressDialog")).not_to_be_visible()
             manual_h=manual_viewer["height"]
