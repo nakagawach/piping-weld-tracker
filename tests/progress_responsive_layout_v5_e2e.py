@@ -99,7 +99,7 @@ def main():
         with sync_playwright() as p:
             browser=p.chromium.launch()
 
-            # iPad landscape: compact header + 312px right panel.
+            # iPad landscape: side panel stays usable while drawing remains fully fitted.
             landscape=browser.new_page(viewport={"width":1024,"height":768})
             stub(landscape)
             landscape.goto(f"{BASE}/projects/{PROJECT_ID}/progress?page=1",wait_until="domcontentloaded")
@@ -114,7 +114,7 @@ def main():
             assert top and 42<=top["height"]<=46,top
             assert toolbar and 42<=toolbar["height"]<=46,toolbar
             assert thumbs and 50<=thumbs["height"]<=54,thumbs
-            assert panel and 307<=panel["width"]<=317,panel
+            assert panel and panel["width"]>=278,panel
             assert panel["x"]>=700,panel
             assert_fit(landscape)
 
@@ -152,7 +152,7 @@ def main():
             assert blue_ring_stays[2] > blue_ring_stays[0]+40,blue_ring_stays
             landscape.close()
 
-            # Large portrait tablet: bottom 40%, one-shot A4 landscape fit.
+            # Large portrait tablet: boundary follows the width-fitted drawing, not a fixed percentage.
             portrait=browser.new_page(viewport={"width":1024,"height":1366})
             stub(portrait)
             portrait.goto(f"{BASE}/projects/{PROJECT_ID}/progress?page=1",wait_until="domcontentloaded")
@@ -160,8 +160,13 @@ def main():
             expect(portrait.locator("#progressListPanel")).to_be_visible()
             portrait.wait_for_timeout(180)
             pp=portrait.locator("#progressListPanel").bounding_box()
-            assert pp and 540<=pp["height"]<=552,pp
+            pv=portrait.locator("#viewer").bounding_box()
+            pc=portrait.locator("#canvas").bounding_box()
+            assert pp and pv and pc
+            assert pp["height"]>=185,pp
             assert pp["x"]<=1 and pp["width"]>=1020,pp
+            assert abs(pc["y"]-pv["y"])<=3,(pc,pv)
+            assert abs((pc["y"]+pc["height"])-(pv["y"]+pv["height"]))<=3,(pc,pv)
             assert_fit(portrait)
             zoom_after_fit=portrait.locator("#zoomReset").text_content()
             width_after_fit=portrait.locator("#canvas").evaluate("el=>el.style.width")
@@ -175,7 +180,7 @@ def main():
             assert portrait.locator("#canvas").evaluate("el=>el.style.width")==width_after_fit
             portrait.close()
 
-            # 768px portrait iPad/tablet: low mobile appbar + bottom 40%.
+            # 768px portrait iPad/tablet: boundary follows the fitted drawing.
             tablet=browser.new_page(viewport={"width":768,"height":1024})
             stub(tablet)
             tablet.goto(f"{BASE}/projects/{PROJECT_ID}/progress?page=1",wait_until="domcontentloaded")
@@ -187,11 +192,16 @@ def main():
             panel=tablet.locator("#progressListPanel").bounding_box()
             assert appbar and 42<=appbar["height"]<=46,appbar
             assert toolbar and 42<=toolbar["height"]<=46,toolbar
-            assert panel and 405<=panel["height"]<=414,panel
+            assert panel and panel["height"]>=185,panel
+            tv=tablet.locator("#viewer").bounding_box()
+            tc=tablet.locator("#canvas").bounding_box()
+            assert tv and tc
+            assert abs(tc["y"]-tv["y"])<=3,(tc,tv)
+            assert abs((tc["y"]+tc["height"])-(tv["y"]+tv["height"]))<=3,(tc,tv)
             assert_fit(tablet)
             tablet.close()
 
-            # Phone: bottom 40%. Hidden selection/page state must sync on reopen.
+            # Phone: adaptive bottom boundary. Hidden selection/page state must sync on reopen.
             phone=browser.new_page(viewport={"width":390,"height":844})
             stub(phone)
             phone.goto(f"{BASE}/projects/{PROJECT_ID}/progress?page=1",wait_until="domcontentloaded")
@@ -207,7 +217,12 @@ def main():
             expect(phone.locator("#progressListPanel")).to_be_visible()
             phone.wait_for_timeout(180)
             panel=phone.locator("#progressListPanel").bounding_box()
-            assert panel and 333<=panel["height"]<=342,panel
+            fv=phone.locator("#viewer").bounding_box()
+            fc=phone.locator("#canvas").bounding_box()
+            assert panel and fv and fc
+            assert panel["height"]>=165,panel
+            assert abs(fc["y"]-fv["y"])<=3,(fc,fv)
+            assert abs((fc["y"]+fc["height"])-(fv["y"]+fv["height"]))<=3,(fc,fv)
             r25=row(phone,25,1)
             expect(r25).to_have_attribute("class",re.compile(r".*\bselected\b.*"),timeout=3000)
             scroll_top=phone.locator("#progressListRecords").evaluate("el=>el.scrollTop")
