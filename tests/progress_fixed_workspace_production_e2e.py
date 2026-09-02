@@ -320,8 +320,13 @@ def main():
             rpanel=rotated.locator("#progressListPanel").bounding_box()
             assert rviewer and rcanvas and rsplit and rpanel
             assert abs(rsplit["y"]-(rviewer["y"]+rviewer["height"]))<=2,(rviewer,rsplit)
-            rgap=rsplit["y"]-(rcanvas["y"]+rcanvas["height"])
-            assert rgap<=12,(rgap,rcanvas,rsplit)
+            left_gap=rcanvas["x"]-rviewer["x"]
+            right_gap=(rviewer["x"]+rviewer["width"])-(rcanvas["x"]+rcanvas["width"])
+            top_gap=rcanvas["y"]-rviewer["y"]
+            bottom_gap=(rviewer["y"]+rviewer["height"])-(rcanvas["y"]+rcanvas["height"])
+            assert abs(left_gap-right_gap)<=3,(left_gap,right_gap,rviewer,rcanvas)
+            assert abs(top_gap-bottom_gap)<=3,(top_gap,bottom_gap,rviewer,rcanvas)
+            assert rviewer["height"]>rpanel["height"],(rviewer,rpanel)
             assert rpanel["height"]>=165,rpanel
             assert rotated.locator("#progressSplitter").get_attribute("data-mode")=="auto"
             rotated.close()
@@ -386,17 +391,21 @@ def main():
             assert "no-store" in list_response.headers.get("cache-control","").lower(),list_response.headers
             assert "no-store" in html_response.headers.get("cache-control","").lower(),html_response.headers
 
-            # AUTO split removes avoidable blank space below the fitted drawing.
+            # Initial AUTO split prioritizes drawing area: reserve only the list minimum,
+            # give all remaining height to the viewer, then center the fitted drawing.
             viewer_auto=phone.locator("#viewer").bounding_box()
             canvas_auto=phone.locator("#canvas").bounding_box()
             split_auto=phone.locator("#progressSplitter").bounding_box()
             panel_auto=phone.locator("#progressListPanel").bounding_box()
             assert viewer_auto and canvas_auto and split_auto and panel_auto
             assert abs(split_auto["y"]-(viewer_auto["y"]+viewer_auto["height"]))<=2,(viewer_auto,split_auto)
-            auto_gap=split_auto["y"]-(canvas_auto["y"]+canvas_auto["height"])
-            # Never leave avoidable positive blank space. A negative gap is valid when
-            # the flexible minimum list height clamps the splitter above the canvas bottom.
-            assert auto_gap<=12,(auto_gap,canvas_auto,split_auto)
+            left_gap=canvas_auto["x"]-viewer_auto["x"]
+            right_gap=(viewer_auto["x"]+viewer_auto["width"])-(canvas_auto["x"]+canvas_auto["width"])
+            top_gap=canvas_auto["y"]-viewer_auto["y"]
+            bottom_gap=(viewer_auto["y"]+viewer_auto["height"])-(canvas_auto["y"]+canvas_auto["height"])
+            assert abs(left_gap-right_gap)<=3,(left_gap,right_gap,viewer_auto,canvas_auto)
+            assert abs(top_gap-bottom_gap)<=3,(top_gap,bottom_gap,viewer_auto,canvas_auto)
+            assert viewer_auto["height"]>panel_auto["height"],(viewer_auto,panel_auto)
             assert panel_auto["height"]>=165,panel_auto
             assert phone.locator("#progressSplitter").get_attribute("data-mode")=="auto"
 
