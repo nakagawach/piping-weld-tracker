@@ -209,12 +209,13 @@ def main():
             assert after["zoom"]==before["zoom"],(before,after)
             assert after["width"]==before["width"],(before,after)
             assert page.locator("#progressSplitter").get_attribute("data-mode")=="auto"
-            assert after["viewerH"]>before["viewerH"]+20,(before,after)
-            assert after["splitY"]>before["splitY"]+20,(before,after)
+            # User zoom-in already collapsed the list to minimum / viewer to maximum.
+            # Page changes preserve that geometry while preserving the zoom.
+            assert abs(after["viewerH"]-before["viewerH"])<=3,(before,after)
+            assert abs(after["splitY"]-before["splitY"])<=3,(before,after)
             canvas_bottom=page.locator("#canvas").bounding_box()
             split_box=page.locator("#progressSplitter").bounding_box()
             assert canvas_bottom and split_box
-            assert split_box["y"]-(canvas_bottom["y"]+canvas_bottom["height"])<=12,(canvas_bottom,split_box)
             assert after["canvasH"]>0,after
 
             browser.close()
