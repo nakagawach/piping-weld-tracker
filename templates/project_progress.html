@@ -290,7 +290,7 @@ window.addEventListener('weld:progress-panel-target',event=>{pendingPanelTarget=
   window.addEventListener('weld:progress-page-loaded',()=>schedule({rebase:true,hide:true}));
   window.addEventListener('weld:progress-page-changing',()=>document.body.classList.add('progress-layout-pending'));
   window.addEventListener('weld:progress-zoom-changed',()=>{if(mode==='auto')schedule()});
-  new ResizeObserver(()=>schedule({rebase:true})).observe(card);
+  new ResizeObserver(()=>schedule()).observe(card);
   document.body.classList.add('progress-layout-pending');schedule({rebase:true});
 })();
 </script>
