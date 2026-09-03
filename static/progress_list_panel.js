@@ -3,6 +3,7 @@
   const panel=document.getElementById('progressListPanel');
   const close=document.getElementById('progressListClose');
   const headerToggle=document.getElementById('progressListHeaderToggle');
+  const fullscreenButton=document.getElementById('progressListFullscreen');
   const records=document.getElementById('progressListRecords');
   const state=document.getElementById('progressListState');
   const tabs=document.getElementById('progressListTabs');
@@ -10,7 +11,7 @@
   const clear=document.getElementById('progressListSearchClear');
   const pageInput=document.getElementById('page');
   const viewer=document.getElementById('viewer');
-  if(!toggle||!panel||!close||!headerToggle||!records||!state||!tabs||!search||!clear||!pageInput||!viewer)return;
+  if(!toggle||!panel||!close||!headerToggle||!fullscreenButton||!records||!state||!tabs||!search||!clear||!pageInput||!viewer)return;
   const bottomPaneMedia=window.matchMedia('(max-width:640px), (min-width:641px) and (max-width:1200px) and (orientation:portrait)');
   const listUrl=panel.dataset.listUrl;
   let allItems=[],filter='all',selectedKey='',currentPage=Math.max(1,Number(pageInput.value)||1),loaded=false,loading=false,pendingSelection=null,bottomPaneFrame=0;
@@ -43,7 +44,41 @@
     render();
     requestAnimationFrame(()=>requestAnimationFrame(()=>{if(selectedKey)scrollSelected();else scrollCurrentPage()}));
   }
+  const fullscreenStyleProps=['position','left','right','top','bottom','width','height','max-width','max-height','margin','border','border-radius','box-shadow','z-index','grid-column','grid-row','display'];
+  function setListFullscreen(on){
+    const enabled=!!on&&document.body.classList.contains('progress-list-open');
+    document.body.classList.toggle('progress-list-fullscreen',enabled);
+    fullscreenButton.setAttribute('aria-pressed',enabled?'true':'false');
+    fullscreenButton.setAttribute('aria-label',enabled?'進捗一覧の全画面表示を終了':'進捗一覧を全画面表示');
+    fullscreenButton.textContent=enabled?'×':'⛶';
+    if(enabled){
+      panel.style.setProperty('position','fixed','important');
+      panel.style.setProperty('left','0','important');
+      panel.style.setProperty('right','0','important');
+      panel.style.setProperty('top','0','important');
+      panel.style.setProperty('bottom','0','important');
+      panel.style.setProperty('width','100vw','important');
+      panel.style.setProperty('height','100dvh','important');
+      panel.style.setProperty('max-width','none','important');
+      panel.style.setProperty('max-height','none','important');
+      panel.style.setProperty('margin','0','important');
+      panel.style.setProperty('border','0','important');
+      panel.style.setProperty('border-radius','0','important');
+      panel.style.setProperty('box-shadow','none','important');
+      panel.style.setProperty('z-index','500','important');
+      panel.style.setProperty('grid-column','1 / -1','important');
+      panel.style.setProperty('grid-row','1 / -1','important');
+      panel.style.setProperty('display','flex','important');
+    }else{
+      for(const prop of fullscreenStyleProps)panel.style.removeProperty(prop);
+    }
+    window.dispatchEvent(new CustomEvent('weld:progress-list-fullscreen-changed',{detail:{fullscreen:enabled}}));
+    if(!enabled&&document.body.classList.contains('progress-list-open')){
+      requestAnimationFrame(()=>requestAnimationFrame(()=>window.dispatchEvent(new CustomEvent('weld:progress-fit-request'))));
+    }
+  }
   function setOpen(open){
+    if(!open&&document.body.classList.contains('progress-list-fullscreen'))setListFullscreen(false);
     document.body.classList.toggle('progress-list-open',open);
     toggle.classList.toggle('active',open);
     toggle.setAttribute('aria-expanded',open?'true':'false');
@@ -104,7 +139,9 @@
   toggle.setAttribute('aria-expanded','false');
   toggle.onclick=()=>setOpen(!document.body.classList.contains('progress-list-open'));
   close.onclick=()=>setOpen(false);
+  fullscreenButton.onclick=()=>setListFullscreen(!document.body.classList.contains('progress-list-fullscreen'));
   headerToggle.onclick=()=>setFiltersExpanded(headerToggle.getAttribute('aria-expanded')!=='true');
+  document.addEventListener('keydown',event=>{if(event.key==='Escape'&&document.body.classList.contains('progress-list-fullscreen')){event.preventDefault();setListFullscreen(false)}});
   tabs.onclick=event=>{const button=event.target.closest('[data-filter]');if(!button)return;filter=button.dataset.filter;tabs.querySelectorAll('[data-filter]').forEach(item=>item.classList.toggle('active',item===button));render()};
   search.oninput=render;clear.onclick=()=>{search.value='';render();search.focus()};
   window.addEventListener('weld:progress-selection',event=>{const detail=event.detail||{};if(!loaded){pendingSelection=detail;currentPage=Number(detail.pageNumber)||currentPage;return}applySelectionDetail(detail)});
