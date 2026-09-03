@@ -84,7 +84,8 @@ def main():
         # Exit fullscreen: normal landscape chrome returns.
         page.locator("#fullscreen").click();page.wait_for_timeout(180)
         expect(page.locator("body")).not_to_have_class(re.compile(r".*progress-fullscreen.*"))
-        expect(page.locator(".ui3-appbar")).to_be_visible()
+        expect(page.locator("main > .top")).to_be_visible()
+        expect(page.locator("#back")).to_be_visible()
         browser.close()
     finally:
       server.shutdown();th.join(timeout=2)
