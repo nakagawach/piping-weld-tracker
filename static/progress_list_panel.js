@@ -28,7 +28,7 @@
       .progress-list-panel .panel-close{font-size:1.25rem}
       .progress-list-panel .panel-icon-svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
       body.progress-list-fullscreen .progress-list-panel .panel-head{position:sticky;top:0;z-index:2;background:#fff}
-      .drawing-memo-tools{gap:8px!important;padding:7px 9px!important;scrollbar-width:thin;overscroll-behavior-x:contain}
+      .drawing-memo-tools{gap:8px!important;padding:5px 9px!important;min-height:52px!important;height:52px!important;align-items:center!important;overflow-y:hidden!important;scrollbar-width:thin;overscroll-behavior-x:contain}
       .drawing-memo-tools>*{flex:0 0 auto}
       .drawing-memo-tools .memo-color{width:38px!important;height:38px!important;min-width:38px!important}
       .drawing-memo-tools .memo-width{min-width:50px!important;padding:0 13px!important}
@@ -37,7 +37,7 @@
       .drawing-memo-tools #memoClear{min-width:72px!important;padding:0 12px!important}
       .drawing-memo-tools .memo-save{min-width:86px!important;padding:0 14px!important}
       @media(max-width:640px){
-        .drawing-memo-tools{gap:7px!important;padding:6px 8px!important}
+        .drawing-memo-tools{gap:7px!important;padding:5px 8px!important;min-height:52px!important;height:52px!important}
         .drawing-memo-tools .button{min-height:42px!important}
         .drawing-memo-tools .memo-color{width:36px!important;height:36px!important;min-width:36px!important}
         .drawing-memo-tools .memo-width{min-width:48px!important;padding:0 12px!important}
