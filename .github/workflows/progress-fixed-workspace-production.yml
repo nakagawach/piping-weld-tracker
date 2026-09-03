@@ -57,6 +57,10 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: python tests/user_zoom_fit_floor_e2e.py
+      - name: Adaptive fit-fill regression
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python tests/progress_adaptive_fit_fill_e2e.py
       - name: Memo alignment regression
         env:
           PYTHONPATH: ${{ github.workspace }}
