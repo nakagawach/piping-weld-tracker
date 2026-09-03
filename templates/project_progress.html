@@ -285,10 +285,11 @@ window.addEventListener('weld:progress-panel-target',event=>{pendingPanelTarget=
       const widthLimit=Math.max(1,viewer.clientWidth);
       const baseWidth=Math.max(1,Math.min(widthLimit,maxViewer/ratio));
       const autoHeight=Math.min(maxViewer,baseWidth*ratio*zoom());
-      const height=mode==='manual'&&manualHeight!==null?Math.max(1,Math.min(maxViewer,manualHeight)):autoHeight;
+      const manualMin=Math.min(maxViewer,window.innerWidth<=520?150:180);
+      const height=mode==='manual'&&manualHeight!==null?Math.max(manualMin,Math.min(maxViewer,manualHeight)):autoHeight;
       card.style.setProperty('--pw-bottom-viewer',Math.round(height)+'px');
       splitter.dataset.mode=mode;
-      splitter.setAttribute('aria-valuemin','1');splitter.setAttribute('aria-valuemax',String(Math.round(maxViewer)));splitter.setAttribute('aria-valuenow',String(Math.round(height)));
+      splitter.setAttribute('aria-valuemin',String(Math.round(manualMin)));splitter.setAttribute('aria-valuemax',String(Math.round(maxViewer)));splitter.setAttribute('aria-valuenow',String(Math.round(height)));
       state.setBaseWidth(baseWidth);
       const splitKey=`${mode}:h:${Math.round(height)}`;if(splitKey!==lastSplitKey){lastSplitKey=splitKey;window.dispatchEvent(new CustomEvent('weld:progress-split-changed',{detail:{mode,height}}))}
     }else{
