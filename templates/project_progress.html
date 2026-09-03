@@ -241,6 +241,28 @@ window.addEventListener('weld:progress-panel-target',event=>{pendingPanelTarget=
     }else{
       card.style.setProperty('grid-template-columns','minmax(0,1fr) var(--pw-panel)','important');
       splitter.style.setProperty('display','none','important');
+      if(window.innerWidth<=820){
+        card.style.setProperty('grid-template-rows',full?'0 var(--pw-toolbar) var(--pw-summary) 0 minmax(0,1fr)':'var(--pw-header) var(--pw-toolbar) var(--pw-summary) var(--pw-thumbs) minmax(0,1fr)','important');
+        const app=card.querySelector('.ui3-appbar');if(app){app.style.setProperty('grid-column','1','important');app.style.setProperty('grid-row','1','important')}
+        const tb=card.querySelector('.toolbar');tb.style.setProperty('grid-column','1','important');tb.style.setProperty('grid-row','2','important');
+        const sm=card.querySelector('.summary');sm.style.setProperty('grid-column','1','important');sm.style.setProperty('grid-row','3','important');
+        const th=card.querySelector('.progress-thumbs');if(th){th.style.setProperty('grid-column','1','important');th.style.setProperty('grid-row','4','important')}
+        viewer.style.setProperty('grid-column','1','important');viewer.style.setProperty('grid-row','5','important');
+        panel.style.setProperty('grid-column','2','important');panel.style.setProperty('grid-row','1 / -1','important');
+      }else if(window.innerWidth<=1200){
+        card.style.setProperty('grid-template-rows','var(--pw-toolbar) var(--pw-summary) var(--pw-thumbs) minmax(0,1fr)','important');
+        const tb=card.querySelector('.toolbar');tb.style.setProperty('grid-column','1','important');tb.style.setProperty('grid-row','1','important');
+        const sm=card.querySelector('.summary');sm.style.setProperty('grid-column','1','important');sm.style.setProperty('grid-row','2','important');
+        const th=card.querySelector('.progress-thumbs');if(th){th.style.setProperty('grid-column','1','important');th.style.setProperty('grid-row','3','important')}
+        viewer.style.setProperty('grid-column','1','important');viewer.style.setProperty('grid-row','4','important');
+        panel.style.setProperty('grid-column','2','important');panel.style.setProperty('grid-row','1 / -1','important');
+      }else{
+        card.style.setProperty('grid-template-rows','var(--pw-thumbs) var(--pw-summary) minmax(0,1fr)','important');
+        const th=card.querySelector('.progress-thumbs');if(th){th.style.setProperty('grid-column','1 / -1','important');th.style.setProperty('grid-row','1','important')}
+        const sm=card.querySelector('.summary');sm.style.setProperty('grid-column','1','important');sm.style.setProperty('grid-row','2','important');
+        viewer.style.setProperty('grid-column','1','important');viewer.style.setProperty('grid-row','3','important');
+        panel.style.setProperty('grid-column','2','important');panel.style.setProperty('grid-row','2 / 4','important');
+      }
     }
   };
   function fitClosed(){
