@@ -57,6 +57,10 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: python tests/user_zoom_fit_floor_e2e.py
+      - name: Fit baseline floor regression
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python tests/progress_fit_baseline_floor_e2e.py
       - name: Memo alignment regression
         env:
           PYTHONPATH: ${{ github.workspace }}
