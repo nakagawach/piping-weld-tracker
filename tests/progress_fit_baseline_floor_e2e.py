@@ -35,7 +35,7 @@ def main():
         page.locator("#progressListToggle").click();page.wait_for_timeout(180)
         expect(page.locator("#progressListToggle")).to_have_attribute("aria-expanded","false")
         closed=box();assert not closed["pending"],closed
-        assert closed["cw"]>=opened["cw"]+30,(opened,closed)
+        assert abs(closed["cw"]-closed["vw"])<=3,(opened,closed)
         assert closed["cw"]<=closed["vw"]+3 and closed["ch"]<=closed["vh"]+3,closed
         # 100% Fit is a hard floor.
         for _ in range(8): page.locator("#zoomOut").evaluate("el=>el.click()")
