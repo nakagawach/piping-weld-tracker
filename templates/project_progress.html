@@ -12,7 +12,7 @@
     .toolbar{display:flex;gap:6px;align-items:center;padding:6px;border-bottom:1px solid var(--border);background:#fff;position:sticky;top:0;z-index:5;white-space:nowrap}.page-field{display:flex;align-items:center;gap:4px;font-weight:700}.page-field input{width:54px;min-height:40px;padding:0 5px;border:1px solid #bdc1c6;border-radius:8px;background:#fff;text-align:center}.page-total{font-size:.86rem;color:var(--gray);font-weight:700}.spacer{flex:1}.icon-button{min-width:42px;padding:0 8px;font-size:1.05rem}.zoom-value{min-width:58px}.desktop-tools{display:flex;gap:6px;align-items:center}
     .more{position:relative}.more summary{list-style:none;display:flex;align-items:center;justify-content:center;min-width:42px;height:42px;border:1px solid #bdc1c6;border-radius:9px;background:#fff;font-weight:800;cursor:pointer}.more summary::-webkit-details-marker{display:none}.more-menu{position:absolute;right:0;top:47px;z-index:20;width:180px;padding:6px;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 28px #0003}.more-menu .button{display:block;width:100%;margin:3px 0;text-align:left}
     .statusline{padding:5px 9px;color:var(--gray);font-size:.8rem;border-bottom:1px solid #eee;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.summary{display:flex;gap:5px;overflow-x:auto;padding:5px 7px;border-bottom:1px solid #eee;scrollbar-width:none}.summary::-webkit-scrollbar{display:none}.chip{flex:0 0 auto;padding:4px 8px;border-radius:999px;background:#f1f3f4;font-size:.78rem;font-weight:800;white-space:nowrap}.chip.working{background:#fef7e0;color:#8a4b00}.chip.done{background:#e6f4ea;color:#137333}
-    .viewer{overflow:auto;max-height:calc(100vh - 160px);background:#e9eaed;overscroll-behavior:contain;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}canvas{display:block;width:100%;max-width:none;height:auto;margin:0 auto;background:#fff;touch-action:none;cursor:pointer}.empty{padding:36px 18px;text-align:center;color:var(--gray);line-height:1.7;white-space:pre-line}
+    .viewer{overflow:auto;max-height:calc(100vh - 160px);background:#e9eaed;overscroll-behavior:contain;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}canvas{display:block;width:100%;max-width:none;height:auto;margin:0 auto;background:#fff;touch-action:none;cursor:pointer}body.progress-layout-pending .viewer>#canvas{visibility:hidden!important}.empty{padding:36px 18px;text-align:center;color:var(--gray);line-height:1.7;white-space:pre-line}
     @media(hover:hover) and (pointer:fine){.viewer{cursor:grab}.viewer.mouse-panning{cursor:grabbing}}
     dialog{width:min(560px,calc(100vw - 24px));border:0;border-radius:18px;padding:0;box-shadow:0 18px 48px #0005;max-height:90vh}dialog::backdrop{background:#0007}.sheet{padding:18px;overflow:auto}.sheet-head{display:flex;justify-content:space-between;gap:10px;align-items:start;margin-bottom:12px}.sheet h2{margin:0;font-size:1.2rem}.target{margin-top:3px;color:var(--gray)}.close{width:44px;height:44px;border:1px solid var(--border);border-radius:50%;background:#fff;font-size:1.25rem;cursor:pointer}.label{display:block;font-weight:700;margin:14px 0 7px}.status-buttons{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.status-button{min-height:54px;border:2px solid var(--border);border-radius:12px;background:#fff;font-weight:800;cursor:pointer}.status-button[data-value="未着手"].active{border-color:#5f6368;background:#f1f3f4}.status-button[data-value="施工中"].active{border-color:#e37400;background:#fef7e0;color:#8a4b00}.status-button[data-value="完了"].active{border-color:#188038;background:#e6f4ea;color:#137333}input[type=date],textarea{width:100%;border:1px solid #bdc1c6;border-radius:10px;background:#fff;padding:11px 12px}input[type=date]{min-height:48px}textarea{min-height:100px;resize:vertical;line-height:1.5}.updated{min-height:1.4em;margin:10px 0 0;color:var(--gray);font-size:.82rem}.error{color:#b3261e}.actions{display:flex;gap:9px;margin-top:14px}.actions .button{flex:1}.save{border-color:var(--blue);background:var(--blue);color:#fff}button:disabled{opacity:.42;cursor:default;pointer-events:none;box-shadow:none}
     body.progress-fullscreen{overflow:hidden;background:#000}body.progress-fullscreen main{max-width:none;height:100vh;height:100dvh;padding:0}body.progress-fullscreen .top{display:none}body.progress-fullscreen .card{height:100vh;height:100dvh;border:0;border-radius:0;display:flex;flex-direction:column}body.progress-fullscreen .toolbar{position:relative;top:auto;flex:0 0 auto}body.progress-fullscreen .statusline{display:none}body.progress-fullscreen .summary{flex:0 0 auto}body.progress-fullscreen .viewer{flex:1;min-height:0;max-height:none}
@@ -122,18 +122,26 @@ body.progress-list-open .progress-list-panel{display:flex;flex-direction:column}
   function markerColor(v){if(v==='完了')return '#188038';if(v==='施工中')return '#e37400';return '#5f6368'}function markerFill(v){if(v==='完了')return 'rgba(24,128,56,.24)';if(v==='施工中')return 'rgba(227,116,0,.25)';return 'rgba(95,99,104,.20)'}
   function setBusy(v){busy=v;pageInput.disabled=v;prev.disabled=v||Number(pageInput.value)<=1;next.disabled=v||!pageCount||Number(pageInput.value)>=pageCount;reload.disabled=v;document.getElementById('reloadCompact').disabled=v}
   function isWideDesktop(){return window.innerWidth>=1201}
-  function fitScale(){if(!canvas.width||!canvas.height||!viewer.clientWidth||!viewer.clientHeight)return 1;const baseHeight=viewer.clientWidth*(canvas.height/canvas.width);if(!baseHeight)return 1;return Math.max(.1,Math.min(1,viewer.clientHeight/baseHeight))}
-  function applyDesktopFit(){if(!isWideDesktop()||!canvas.width||!canvas.height||!viewer.clientWidth||!viewer.clientHeight)return;const fit=fitScale();drawingZoom=fit;canvas.style.width=`${fit*100}%`;zoomReset.textContent='Fit ⛶';requestAnimationFrame(resetPosition)}
-  function userFitFloor(){const portraitLayout=window.innerWidth<=640||(window.innerWidth<=1200&&window.innerHeight>window.innerWidth);if(!(portraitLayout||isWideDesktop()))return 1;return fitScale()}
-  function fitPanelViewOnce(){if(isWideDesktop()){if(desktopFitMode)applyDesktopFit();return}const page=Number(pageInput.value)||1;if(lastAutoFitPage===page||Math.abs(drawingZoom-1)>.001)return;if(!canvas.width||!canvas.height||canvas.hidden||!viewer.clientWidth||!viewer.clientHeight)return;const fit=userFitFloor();lastAutoFitPage=page;if(fit<.999)setZoom(fit)}
-  window.addEventListener('weld:progress-fit-request',()=>requestAnimationFrame(fitPanelViewOnce));
-  function setZoom(nextZoom,focalX=null,focalY=null){let next=Math.min(4,nextZoom);if(next<drawingZoom){const floor=Math.min(drawingZoom,userFitFloor());next=Math.max(floor,next)}else{next=Math.max(.1,next)}if(Math.abs(next-drawingZoom)<.001)return;if(isWideDesktop())desktopFitMode=false;const rect=viewer.getBoundingClientRect(),localX=focalX===null?viewer.clientWidth/2:focalX-rect.left,localY=focalY===null?viewer.clientHeight/2:focalY-rect.top,contentX=viewer.scrollLeft+localX,contentY=viewer.scrollTop+localY,ratio=next/drawingZoom;drawingZoom=next;canvas.style.width=`${drawingZoom*100}%`;zoomReset.textContent=`${Math.round(drawingZoom*100)}%`;window.dispatchEvent(new CustomEvent('weld:progress-zoom-changed',{detail:{zoom:drawingZoom}}));requestAnimationFrame(()=>{viewer.scrollLeft=Math.max(0,contentX*ratio-localX);viewer.scrollTop=Math.max(0,contentY*ratio-localY)})}
+  let layoutBaseWidth=0;
   function resetPosition(){viewer.scrollLeft=0;viewer.scrollTop=0}
-  function resetZoom(){if(isWideDesktop()){desktopFitMode=true;applyDesktopFit();return}drawingZoom=1;canvas.style.width='100%';zoomReset.textContent='100%';window.dispatchEvent(new CustomEvent('weld:progress-zoom-changed',{detail:{zoom:drawingZoom}}));resetPosition()}
-  function rotate(){rotation=(rotation+90)%360;rotateButton.textContent=`↻ ${rotation}°`;draw();if(isWideDesktop()&&desktopFitMode)requestAnimationFrame(applyDesktopFit);else resetPosition()}
+  function applyCanvasZoom(){if(!canvas.width||!layoutBaseWidth)return;canvas.style.width=`${Math.max(1,layoutBaseWidth*drawingZoom)}px`}
+  function requestAdaptiveLayout(){window.dispatchEvent(new CustomEvent('weld:progress-layout-request'))}
+  window.__progressAdaptiveState={
+    getZoom:()=>drawingZoom,
+    setBaseWidth:(width)=>{layoutBaseWidth=Math.max(1,Number(width)||1);applyCanvasZoom()},
+    request:requestAdaptiveLayout
+  };
+  function fitScale(){return 1}
+  function applyDesktopFit(){drawingZoom=1;zoomReset.textContent='Fit ⛶';requestAdaptiveLayout();requestAnimationFrame(resetPosition)}
+  function userFitFloor(){return .1}
+  function fitPanelViewOnce(){requestAdaptiveLayout()}
+  window.addEventListener('weld:progress-fit-request',fitPanelViewOnce);
+  function setZoom(nextZoom,focalX=null,focalY=null){const next=Math.max(.1,Math.min(4,nextZoom));if(Math.abs(next-drawingZoom)<.001)return;const rect=viewer.getBoundingClientRect(),localX=focalX===null?viewer.clientWidth/2:focalX-rect.left,localY=focalY===null?viewer.clientHeight/2:focalY-rect.top,contentX=viewer.scrollLeft+localX,contentY=viewer.scrollTop+localY,ratio=next/drawingZoom;drawingZoom=next;desktopFitMode=false;applyCanvasZoom();zoomReset.textContent=`${Math.round(drawingZoom*100)}%`;window.dispatchEvent(new CustomEvent('weld:progress-zoom-changed',{detail:{zoom:drawingZoom}}));requestAnimationFrame(()=>{viewer.scrollLeft=Math.max(0,contentX*ratio-localX);viewer.scrollTop=Math.max(0,contentY*ratio-localY)})}
+  function resetZoom(){drawingZoom=1;desktopFitMode=isWideDesktop();zoomReset.textContent=desktopFitMode?'Fit ⛶':'100%';requestAdaptiveLayout();resetPosition()}
+  function rotate(){rotation=(rotation+90)%360;rotateButton.textContent=`↻ ${rotation}°`;draw();requestAdaptiveLayout();resetPosition()}
   zoomOut.onclick=()=>setZoom(Math.round((drawingZoom-.5)*2)/2);zoomIn.onclick=()=>setZoom(Math.round((drawingZoom+.5)*2)/2);zoomReset.onclick=resetZoom;document.getElementById('zoomResetCompact').onclick=resetZoom;viewReset.onclick=resetPosition;document.getElementById('viewResetCompact').onclick=resetPosition;rotateButton.onclick=rotate;document.getElementById('rotateCompact').onclick=rotate;
-  window.addEventListener('resize',()=>{if(isWideDesktop()&&desktopFitMode)requestAnimationFrame(applyDesktopFit)});
-  new MutationObserver(()=>{if(isWideDesktop()&&desktopFitMode)requestAnimationFrame(()=>requestAnimationFrame(applyDesktopFit))}).observe(document.body,{attributes:true,attributeFilter:['class']});
+  window.addEventListener('resize',requestAdaptiveLayout);
+  new MutationObserver(()=>requestAdaptiveLayout()).observe(document.body,{attributes:true,attributeFilter:['class']});
   function setFullscreenUi(on){document.body.classList.toggle('progress-fullscreen',on);fullscreenButton.textContent=on?'⛶ 全画面終了':'⛶ 全画面';document.getElementById('fullscreenCompact').textContent=on?'×':'⛶';if(isWideDesktop()&&desktopFitMode)requestAnimationFrame(()=>requestAnimationFrame(applyDesktopFit))}
   async function toggleFullscreen(){const mobileLike=window.innerWidth<=1200;if(mobileLike){cssFullscreen=!cssFullscreen;setFullscreenUi(cssFullscreen);return}if(document.fullscreenElement){try{await document.exitFullscreen()}catch(_e){}return}if(cssFullscreen){cssFullscreen=false;setFullscreenUi(false);return}const target=document.documentElement;if(target.requestFullscreen){try{await target.requestFullscreen({navigationUI:'hide'});return}catch(_e){try{await target.requestFullscreen();return}catch(_e2){}}}cssFullscreen=true;setFullscreenUi(true)}fullscreenButton.onclick=toggleFullscreen;document.getElementById('fullscreenCompact').onclick=toggleFullscreen;document.addEventListener('fullscreenchange',()=>{const on=!!document.fullscreenElement;cssFullscreen=false;setFullscreenUi(on)});
   function touchDistance(a,b){return Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY)}function beginSingleTouch(t){touchMode='pan';touchMoved=false;touchStartX=t.clientX;touchStartY=t.clientY;touchStartScrollLeft=viewer.scrollLeft;touchStartScrollTop=viewer.scrollTop}
@@ -192,83 +200,139 @@ window.addEventListener('weld:progress-panel-target',event=>{pendingPanelTarget=
 (() => {
   const card=document.querySelector('.card'),viewer=document.getElementById('viewer'),canvas=document.getElementById('canvas'),panel=document.getElementById('progressListPanel'),splitter=document.getElementById('progressSplitter');
   if(!card||!viewer||!canvas||!panel||!splitter)return;
-  const bottomPaneMedia=window.matchMedia('(max-width:820px), (min-width:821px) and (max-width:1200px) and (orientation:portrait)');
-  let mode='auto',manualHeight=null,raf=0,dragging=false,startY=0,startHeight=0,initialAutoPending=true;
-  const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
-  function isActive(){return bottomPaneMedia.matches&&document.body.classList.contains('progress-list-open')}
-  function fixedHeight(){
-    let total=splitter.getBoundingClientRect().height||8;
-    for(const selector of ['.ui3-appbar','.toolbar','.summary','.progress-thumbs']){
-      const el=card.querySelector(selector);
-      if(el&&getComputedStyle(el).display!=='none')total+=el.getBoundingClientRect().height;
+  let mode='auto',manualHeight=null,raf=0,dragging=false,startY=0,startHeight=0,lastSplitKey='';
+  const important=(el,prop,value)=>{if(value===null)el.style.removeProperty(prop);else el.style.setProperty(prop,value,'important')};
+  const zoom=()=>Math.max(.1,Number(window.__progressAdaptiveState?.getZoom?.())||1);
+  const portrait=()=>window.innerHeight>=window.innerWidth;
+  function panelMinimum(isPortrait){
+    if(isPortrait)return window.innerWidth<=520?170:190;
+    if(window.innerWidth>=1201)return 340;
+    if(window.innerWidth>=821)return 312;
+    return 280;
+  }
+  function configureGrid(isPortrait,minPanel){
+    const full=document.body.classList.contains('progress-fullscreen');
+    if(isPortrait){
+      important(card,'grid-template-columns','minmax(0,1fr)');
+      if(window.innerWidth<=1200){
+        important(card,'grid-template-rows',full
+          ?`0 var(--pw-toolbar) var(--pw-summary) 0 var(--pw-bottom-viewer) 8px minmax(${minPanel}px,1fr)`
+          :`${window.innerWidth<=820?'var(--pw-header)':'44px'} var(--pw-toolbar) var(--pw-summary) var(--pw-thumbs) var(--pw-bottom-viewer) 8px minmax(${minPanel}px,1fr)`);
+        const app=card.querySelector('.ui3-appbar');if(app){important(app,'grid-column','1');important(app,'grid-row','1')}
+        important(card.querySelector('.toolbar'),'grid-column','1');important(card.querySelector('.toolbar'),'grid-row','2');
+        important(card.querySelector('.summary'),'grid-column','1');important(card.querySelector('.summary'),'grid-row','3');
+        const thumbs=card.querySelector('.progress-thumbs');if(thumbs){important(thumbs,'grid-column','1');important(thumbs,'grid-row','4')}
+        important(viewer,'grid-column','1');important(viewer,'grid-row','5');
+        important(splitter,'display','block');important(splitter,'grid-column','1');important(splitter,'grid-row','6');
+        important(panel,'grid-column','1');important(panel,'grid-row','7');
+      }else{
+        important(card,'grid-template-rows',`var(--pw-thumbs) var(--pw-summary) var(--pw-bottom-viewer) 8px minmax(${minPanel}px,1fr)`);
+        const thumbs=card.querySelector('.progress-thumbs');if(thumbs){important(thumbs,'grid-column','1 / -1');important(thumbs,'grid-row','1')}
+        important(card.querySelector('.summary'),'grid-column','1');important(card.querySelector('.summary'),'grid-row','2');
+        important(viewer,'grid-column','1');important(viewer,'grid-row','3');
+        important(splitter,'display','block');important(splitter,'grid-column','1');important(splitter,'grid-row','4');
+        important(panel,'grid-column','1');important(panel,'grid-row','5');
+      }
+    }else{
+      important(card,'grid-template-columns','minmax(0,1fr) var(--pw-panel)');
+      if(window.innerWidth<=820){
+        important(card,'grid-template-rows',full?'0 var(--pw-toolbar) var(--pw-summary) 0 minmax(0,1fr)':'var(--pw-header) var(--pw-toolbar) var(--pw-summary) var(--pw-thumbs) minmax(0,1fr)');
+        const app=card.querySelector('.ui3-appbar');if(app){important(app,'grid-column','1');important(app,'grid-row','1')}
+        important(card.querySelector('.toolbar'),'grid-column','1');important(card.querySelector('.toolbar'),'grid-row','2');
+        important(card.querySelector('.summary'),'grid-column','1');important(card.querySelector('.summary'),'grid-row','3');
+        const thumbs=card.querySelector('.progress-thumbs');if(thumbs){important(thumbs,'grid-column','1');important(thumbs,'grid-row','4')}
+        important(viewer,'grid-column','1');important(viewer,'grid-row','5');
+        important(panel,'grid-column','2');important(panel,'grid-row','1 / -1');
+      }else if(window.innerWidth<=1200){
+        important(card,'grid-template-rows','var(--pw-toolbar) var(--pw-summary) var(--pw-thumbs) minmax(0,1fr)');
+        important(card.querySelector('.toolbar'),'grid-column','1');important(card.querySelector('.toolbar'),'grid-row','1');
+        important(card.querySelector('.summary'),'grid-column','1');important(card.querySelector('.summary'),'grid-row','2');
+        const thumbs=card.querySelector('.progress-thumbs');if(thumbs){important(thumbs,'grid-column','1');important(thumbs,'grid-row','3')}
+        important(viewer,'grid-column','1');important(viewer,'grid-row','4');
+        important(panel,'grid-column','2');important(panel,'grid-row','1 / -1');
+      }else{
+        important(card,'grid-template-rows','var(--pw-thumbs) var(--pw-summary) minmax(0,1fr)');
+        const thumbs=card.querySelector('.progress-thumbs');if(thumbs){important(thumbs,'grid-column','1 / -1');important(thumbs,'grid-row','1')}
+        important(card.querySelector('.summary'),'grid-column','1');important(card.querySelector('.summary'),'grid-row','2');
+        important(viewer,'grid-column','1');important(viewer,'grid-row','3');
+        important(panel,'grid-column','2');important(panel,'grid-row','2 / 4');
+      }
+      important(splitter,'display','none');
     }
+  }
+  function portraitFixedHeight(){
+    let total=splitter.getBoundingClientRect().height||8;
+    const selectors=window.innerWidth>=1201?['.summary','.progress-thumbs']:['.ui3-appbar','.toolbar','.summary','.progress-thumbs'];
+    for(const selector of selectors){const el=card.querySelector(selector);if(el&&getComputedStyle(el).display!=='none'&&getComputedStyle(el).position!=='fixed')total+=el.getBoundingClientRect().height}
     return total;
   }
-  function limits(){
-    const available=Math.max(0,card.clientHeight-fixedHeight());
-    const compact=window.innerWidth<=520;
-    let minViewer=Math.max(compact?150:180,available*(compact ? .34 : .36));
-    let minPanel=Math.max(compact?170:190,available*(compact ? .30 : .27));
-    if(minViewer+minPanel>available&&available>0){
-      const scale=available/(minViewer+minPanel);
-      minViewer*=scale;minPanel*=scale;
+  function applyLayout(){
+    raf=0;
+    const open=document.body.classList.contains('progress-list-open');
+    const state=window.__progressAdaptiveState;
+    if(!state||!canvas.width||!canvas.height||canvas.hidden||!open){
+      if(!open){card.style.removeProperty('--pw-bottom-viewer');card.style.removeProperty('--pw-panel')}
+      document.body.classList.remove('progress-layout-pending');return;
     }
-    return{available,minViewer,maxViewer:Math.max(minViewer,available-minPanel),minPanel};
+    const isPortrait=portrait(),minPanel=panelMinimum(isPortrait),ratio=canvas.height/canvas.width;
+    document.body.classList.toggle('progress-layout-portrait',isPortrait);
+    document.body.classList.toggle('progress-layout-landscape',!isPortrait);
+    configureGrid(isPortrait,minPanel);
+    if(isPortrait){
+      card.style.removeProperty('--pw-panel');
+      const available=Math.max(1,card.clientHeight-portraitFixedHeight());
+      const maxViewer=Math.max(1,available-minPanel);
+      const widthLimit=Math.max(1,viewer.clientWidth);
+      const baseWidth=Math.max(1,Math.min(widthLimit,maxViewer/ratio));
+      const autoHeight=Math.min(maxViewer,baseWidth*ratio*zoom());
+      const manualMin=Math.min(maxViewer,window.innerWidth<=520?150:180);
+      const height=mode==='manual'&&manualHeight!==null?Math.max(manualMin,Math.min(maxViewer,manualHeight)):autoHeight;
+      card.style.setProperty('--pw-bottom-viewer',Math.round(height)+'px');
+      splitter.dataset.mode=mode;
+      splitter.setAttribute('aria-valuemin',String(Math.round(manualMin)));splitter.setAttribute('aria-valuemax',String(Math.round(maxViewer)));splitter.setAttribute('aria-valuenow',String(Math.round(height)));
+      state.setBaseWidth(baseWidth);
+      const splitKey=`${mode}:h:${Math.round(height)}`;if(splitKey!==lastSplitKey){lastSplitKey=splitKey;window.dispatchEvent(new CustomEvent('weld:progress-split-changed',{detail:{mode,height}}))}
+    }else{
+      mode='auto';manualHeight=null;card.style.removeProperty('--pw-bottom-viewer');
+      const cardWidth=Math.max(1,card.clientWidth),maxViewer=Math.max(1,cardWidth-minPanel),viewerHeight=Math.max(1,viewer.clientHeight);
+      const baseWidth=Math.max(1,Math.min(maxViewer,viewerHeight/ratio));
+      const viewerWidth=Math.min(maxViewer,baseWidth*zoom());
+      const panelWidth=Math.max(minPanel,cardWidth-viewerWidth);
+      card.style.setProperty('--pw-panel',Math.round(panelWidth)+'px');
+      state.setBaseWidth(baseWidth);
+      const splitKey=`auto:w:${Math.round(viewerWidth)}:p:${Math.round(panelWidth)}`;if(splitKey!==lastSplitKey){lastSplitKey=splitKey;window.dispatchEvent(new CustomEvent('weld:progress-split-changed',{detail:{mode:'auto',width:viewerWidth}}))}
+    }
+    document.body.classList.remove('progress-layout-pending');
   }
-  function applyHeight(value){
-    if(!isActive()){card.style.removeProperty('--pw-bottom-viewer');return}
-    const lim=limits(),height=clamp(value,lim.minViewer,lim.maxViewer);
-    card.style.setProperty('--pw-bottom-viewer',Math.round(height)+'px');
-    splitter.dataset.mode=mode;
-    splitter.setAttribute('aria-valuemin',String(Math.round(lim.minViewer)));
-    splitter.setAttribute('aria-valuemax',String(Math.round(lim.maxViewer)));
-    splitter.setAttribute('aria-valuenow',String(Math.round(height)));
-    window.dispatchEvent(new CustomEvent('weld:progress-split-changed',{detail:{mode,height}}));
-    if(mode==='auto'&&initialAutoPending&&canvas.width&&canvas.height&&!canvas.hidden)initialAutoPending=false;
-  }
-  function autoHeight(){
-    const lim=limits(),vr=viewer.getBoundingClientRect(),cr=canvas.getBoundingClientRect();
-    if(!canvas.width||!canvas.height||canvas.hidden||cr.height<2)return clamp(lim.available*.58,lim.minViewer,lim.maxViewer);
-    return clamp(Math.max(0,cr.bottom-vr.top),lim.minViewer,lim.maxViewer);
-  }
-  function scheduleAuto(){
-    if(mode!=='auto'||!isActive())return;
+  function schedule({hide=false}={}){
+    if(hide)document.body.classList.add('progress-layout-pending');
     if(raf)cancelAnimationFrame(raf);
-    raf=requestAnimationFrame(()=>{raf=requestAnimationFrame(()=>{raf=0;applyHeight(autoHeight())})});
-  }
-  function sync(){
-    if(!isActive()){card.style.removeProperty('--pw-bottom-viewer');return}
-    if(mode==='auto')scheduleAuto();
-    else if(manualHeight!==null)applyHeight(manualHeight);
+    raf=requestAnimationFrame(applyLayout);
   }
   splitter.addEventListener('pointerdown',event=>{
-    if(!isActive())return;
-    event.preventDefault();event.stopPropagation();
-    mode='manual';dragging=true;startY=event.clientY;startHeight=viewer.getBoundingClientRect().height;manualHeight=startHeight;
+    if(!portrait()||!document.body.classList.contains('progress-list-open'))return;
+    event.preventDefault();event.stopPropagation();mode='manual';dragging=true;startY=event.clientY;startHeight=viewer.getBoundingClientRect().height;manualHeight=startHeight;
     try{splitter.setPointerCapture(event.pointerId)}catch(_e){}
   });
-  splitter.addEventListener('pointermove',event=>{
-    if(!dragging)return;
-    event.preventDefault();event.stopPropagation();
-    manualHeight=startHeight+(event.clientY-startY);applyHeight(manualHeight);
-  });
-  const endDrag=event=>{
-    if(!dragging)return;
-    event.preventDefault();event.stopPropagation();dragging=false;
-    manualHeight=viewer.getBoundingClientRect().height;applyHeight(manualHeight);
-    try{splitter.releasePointerCapture(event.pointerId)}catch(_e){}
-  };
+  splitter.addEventListener('pointermove',event=>{if(!dragging)return;event.preventDefault();event.stopPropagation();manualHeight=startHeight+(event.clientY-startY);schedule()});
+  const endDrag=event=>{if(!dragging)return;event.preventDefault();event.stopPropagation();dragging=false;manualHeight=viewer.getBoundingClientRect().height;schedule();try{splitter.releasePointerCapture(event.pointerId)}catch(_e){}};
   splitter.addEventListener('pointerup',endDrag);splitter.addEventListener('pointercancel',endDrag);
   splitter.addEventListener('keydown',event=>{
-    if(!isActive()||!['ArrowUp','ArrowDown','Home'].includes(event.key))return;
+    if(!portrait()||!['ArrowUp','ArrowDown','Home'].includes(event.key))return;
     event.preventDefault();event.stopPropagation();
-    if(event.key==='Home'){mode='auto';manualHeight=null;scheduleAuto();return}
-    mode='manual';manualHeight=viewer.getBoundingClientRect().height+(event.key==='ArrowDown'?24:-24);applyHeight(manualHeight);
+    if(event.key==='Home'){mode='auto';manualHeight=null;schedule();return}
+    mode='manual';manualHeight=viewer.getBoundingClientRect().height+(event.key==='ArrowDown'?24:-24);schedule();
   });
-  window.addEventListener('weld:progress-list-open-changed',sync);
-  window.addEventListener('weld:progress-page-loaded',()=>{if(mode==='auto')setTimeout(scheduleAuto,40)});
-  window.addEventListener('weld:progress-zoom-changed',()=>{if(mode==='auto')setTimeout(scheduleAuto,0)});
-  setTimeout(sync,0);
+  ['rotate','rotateCompact'].forEach(id=>document.getElementById(id)?.addEventListener('click',()=>schedule({hide:true}),true));
+  window.addEventListener('resize',()=>schedule({hide:true}));
+  window.addEventListener('weld:progress-layout-request',()=>schedule());
+  window.addEventListener('weld:progress-list-open-changed',()=>schedule({hide:true}));
+  window.addEventListener('weld:progress-page-changing',()=>document.body.classList.add('progress-layout-pending'));
+  window.addEventListener('weld:progress-page-loaded',()=>schedule({hide:true}));
+  window.addEventListener('weld:progress-zoom-changed',()=>{if(mode==='auto')schedule()});
+  new ResizeObserver(()=>schedule()).observe(card);
+  document.body.classList.add('progress-layout-pending');
+  schedule();
 })();
 </script>
 <script>
