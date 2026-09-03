@@ -182,7 +182,7 @@ def main():
             assert final_state["canvas"]["w"]>10 and final_state["canvas"]["h"]>10,final_state
             assert final_state["viewer"]["w"]>10 and final_state["viewer"]["h"]>10,final_state
 
-            # Fullscreen + zoomed page change must preserve zoom and viewer/splitter geometry.
+            # Fullscreen + zoomed page change must preserve zoom and automatic viewer/list geometry.
             page.locator("#fullscreenCompact").click()
             page.wait_for_timeout(120)
             page.evaluate("document.getElementById('zoomIn').click()")
@@ -192,7 +192,7 @@ def main():
               zoom:document.getElementById('zoomReset').textContent,
               width:document.getElementById('canvas').style.width,
               viewerH:document.getElementById('viewer').getBoundingClientRect().height,
-              splitY:document.getElementById('progressSplitter').getBoundingClientRect().y
+              panelY:document.getElementById('progressListPanel').getBoundingClientRect().y
             })""")
             page.locator("#next").click()
             page.wait_for_function("document.getElementById('page').value === '3'",timeout=7000)
@@ -202,19 +202,21 @@ def main():
               zoom:document.getElementById('zoomReset').textContent,
               width:document.getElementById('canvas').style.width,
               viewerH:document.getElementById('viewer').getBoundingClientRect().height,
-              splitY:document.getElementById('progressSplitter').getBoundingClientRect().y,
+              panelY:document.getElementById('progressListPanel').getBoundingClientRect().y,
               canvasH:document.getElementById('canvas').getBoundingClientRect().height
             })""")
             assert after["page"]=="3",after
             assert after["zoom"]==before["zoom"],(before,after)
             assert after["width"]==before["width"],(before,after)
-            assert page.locator("#progressSplitter").get_attribute("data-mode")=="auto"
+            expect(page.locator("#progressSplitter")).not_to_be_visible()
             assert after["viewerH"]>before["viewerH"]+20,(before,after)
-            assert after["splitY"]>before["splitY"]+20,(before,after)
-            canvas_bottom=page.locator("#canvas").bounding_box()
-            split_box=page.locator("#progressSplitter").bounding_box()
-            assert canvas_bottom and split_box
-            assert split_box["y"]-(canvas_bottom["y"]+canvas_bottom["height"])<=12,(canvas_bottom,split_box)
+            assert after["panelY"]>before["panelY"]+20,(before,after)
+            canvas_box=page.locator("#canvas").bounding_box()
+            viewer_box=page.locator("#viewer").bounding_box()
+            panel_box=page.locator("#progressListPanel").bounding_box()
+            assert canvas_box and viewer_box and panel_box
+            assert abs(panel_box["y"]-(viewer_box["y"]+viewer_box["height"]))<=2,(viewer_box,panel_box)
+            assert (viewer_box["y"]+viewer_box["height"])-(canvas_box["y"]+canvas_box["height"])<=12,(canvas_box,viewer_box)
             assert after["canvasH"]>0,after
 
             browser.close()
