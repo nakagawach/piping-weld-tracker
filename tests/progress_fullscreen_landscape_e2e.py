@@ -1,4 +1,4 @@
-import sqlite3,sys,threading,time
+import re,sqlite3,sys,threading,time
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path: sys.path.insert(0,str(ROOT))
@@ -43,7 +43,7 @@ def main():
         # Landscape fullscreen with list open: app header and thumbs are gone;
         # list starts at the top and drawing uses the remaining viewport height.
         page.locator("#fullscreen").click()
-        expect(page.locator("body")).to_have_class(lambda s:"progress-fullscreen" in s,timeout=3000)
+        expect(page.locator("body")).to_have_class(re.compile(r".*progress-fullscreen.*"),timeout=3000)
         page.wait_for_timeout(180)
         expect(page.locator(".ui3-appbar")).not_to_be_visible()
         expect(page.locator("#progressThumbs")).not_to_be_visible()
@@ -83,7 +83,7 @@ def main():
 
         # Exit fullscreen: normal landscape chrome returns.
         page.locator("#fullscreen").click();page.wait_for_timeout(180)
-        expect(page.locator("body")).not_to_have_class(lambda s:"progress-fullscreen" in s)
+        expect(page.locator("body")).not_to_have_class(re.compile(r".*progress-fullscreen.*"))
         expect(page.locator(".ui3-appbar")).to_be_visible()
         browser.close()
     finally:
