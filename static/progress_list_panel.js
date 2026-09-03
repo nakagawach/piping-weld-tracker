@@ -12,6 +12,55 @@
   const pageInput=document.getElementById('page');
   const viewer=document.getElementById('viewer');
   if(!toggle||!panel||!close||!headerToggle||!fullscreenButton||!records||!state||!tabs||!search||!clear||!pageInput||!viewer)return;
+
+  const expandIcon='<svg class="panel-icon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/><path d="M3 8l6-6M21 8l-6-6M3 16l6 6M21 16l-6 6"/></svg>';
+  const restoreIcon='<svg class="panel-icon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3v6H3M15 3v6h6M9 21v-6H3M15 21v-6h6"/><path d="M9 9L3 3M15 9l6-6M9 15l-6 6M15 15l6 6"/></svg>';
+  function installUiPolish(){
+    const style=document.createElement('style');
+    style.id='progressUiPolishStyles';
+    style.textContent=`
+      .progress-list-panel .panel-head{gap:2px;padding:6px 7px 6px 12px}
+      .progress-list-panel .panel-head strong{min-width:0}
+      .progress-list-panel .panel-state{margin-right:4px;white-space:nowrap}
+      .progress-list-panel .panel-collapse,.progress-list-panel .panel-fullscreen,.progress-list-panel .panel-close{width:40px;min-width:40px;height:40px;min-height:40px;padding:0;border:0;border-radius:999px;background:transparent;display:inline-flex;align-items:center;justify-content:center;color:#3c4043}
+      .progress-list-panel .panel-collapse:hover,.progress-list-panel .panel-fullscreen:hover,.progress-list-panel .panel-close:hover{background:#f1f3f4}
+      .progress-list-panel .panel-collapse:active,.progress-list-panel .panel-fullscreen:active,.progress-list-panel .panel-close:active{background:#e8eaed}
+      .progress-list-panel .panel-close{font-size:1.25rem}
+      .progress-list-panel .panel-icon-svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+      body.progress-list-fullscreen .progress-list-panel .panel-head{position:sticky;top:0;z-index:2;background:#fff}
+      .drawing-memo-tools{gap:8px!important;padding:7px 9px!important;scrollbar-width:thin;overscroll-behavior-x:contain}
+      .drawing-memo-tools>*{flex:0 0 auto}
+      .drawing-memo-tools .memo-color{width:38px!important;height:38px!important;min-width:38px!important}
+      .drawing-memo-tools .memo-width{min-width:50px!important;padding:0 13px!important}
+      .drawing-memo-tools .memo-eraser{min-width:86px!important;padding:0 14px!important}
+      .drawing-memo-tools #memoUndo,.drawing-memo-tools #memoRedo{min-width:46px!important;padding:0 11px!important;font-size:1.12rem}
+      .drawing-memo-tools #memoClear{min-width:72px!important;padding:0 12px!important}
+      .drawing-memo-tools .memo-save{min-width:86px!important;padding:0 14px!important}
+      @media(max-width:640px){
+        .drawing-memo-tools{gap:7px!important;padding:6px 8px!important}
+        .drawing-memo-tools .button{min-height:42px!important}
+        .drawing-memo-tools .memo-color{width:36px!important;height:36px!important;min-width:36px!important}
+        .drawing-memo-tools .memo-width{min-width:48px!important;padding:0 12px!important}
+        .drawing-memo-tools .memo-eraser{min-width:82px!important}
+      }
+    `;
+    document.head.appendChild(style);
+    fullscreenButton.innerHTML=expandIcon;
+    fullscreenButton.title='進捗一覧を全画面表示';
+    close.title='進捗一覧を閉じる';
+    headerToggle.title='絞り込みを開く';
+    const memoTools=document.getElementById('drawingMemoTools');
+    if(memoTools){
+      memoTools.setAttribute('aria-label','手書きメモツール（横にスクロールできます）');
+      memoTools.querySelectorAll('[data-memo-width]').forEach(button=>button.title=`線の太さ：${button.textContent.trim()}`);
+      const eraser=document.getElementById('memoEraser');if(eraser)eraser.title='消しゴム';
+      const undo=document.getElementById('memoUndo');if(undo){undo.title='元に戻す';undo.setAttribute('aria-label','元に戻す')}
+      const redo=document.getElementById('memoRedo');if(redo){redo.title='やり直す';redo.setAttribute('aria-label','やり直す')}
+      const memoClear=document.getElementById('memoClear');if(memoClear)memoClear.title='このページの手書きメモを全消去';
+    }
+  }
+  installUiPolish();
+
   const bottomPaneMedia=window.matchMedia('(max-width:640px), (min-width:641px) and (max-width:1200px) and (orientation:portrait)');
   const listUrl=panel.dataset.listUrl;
   let allItems=[],filter='all',selectedKey='',currentPage=Math.max(1,Number(pageInput.value)||1),loaded=false,loading=false,pendingSelection=null,bottomPaneFrame=0;
@@ -49,8 +98,9 @@
     const enabled=!!on&&document.body.classList.contains('progress-list-open');
     document.body.classList.toggle('progress-list-fullscreen',enabled);
     fullscreenButton.setAttribute('aria-pressed',enabled?'true':'false');
-    fullscreenButton.setAttribute('aria-label',enabled?'進捗一覧の全画面表示を終了':'進捗一覧を全画面表示');
-    fullscreenButton.textContent=enabled?'×':'⛶';
+    fullscreenButton.setAttribute('aria-label',enabled?'進捗一覧を元のサイズに戻す':'進捗一覧を全画面表示');
+    fullscreenButton.title=enabled?'進捗一覧を元のサイズに戻す':'進捗一覧を全画面表示';
+    fullscreenButton.innerHTML=enabled?restoreIcon:expandIcon;
     if(enabled){
       panel.style.setProperty('position','fixed','important');
       panel.style.setProperty('left','0','important');
@@ -95,6 +145,7 @@
     headerToggle.textContent=expanded?'∧':'∨';
     headerToggle.setAttribute('aria-expanded',expanded?'true':'false');
     headerToggle.setAttribute('aria-label',expanded?'絞り込みを閉じる':'絞り込みを開く');
+    headerToggle.title=expanded?'絞り込みを閉じる':'絞り込みを開く';
   }
   function revealRow(selector){
     requestAnimationFrame(()=>{
