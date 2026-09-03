@@ -293,13 +293,12 @@ def main():
             portrait.goto(f"{BASE}/projects/{PROJECT_ID}/progress?page=1",wait_until="domcontentloaded")
             expect(portrait.locator("#progressListPanel")).to_be_visible(timeout=5000)
             expect(portrait.locator("#progressListToggle")).to_have_attribute("aria-expanded","true")
-            expect(portrait.locator("#progressSplitter")).to_be_visible()
+            expect(portrait.locator("#progressSplitter")).not_to_be_visible()
             portrait.wait_for_timeout(180)
             no_body_scroll(portrait)
-            viewer=portrait.locator("#viewer").bounding_box();panel=portrait.locator("#progressListPanel").bounding_box();split=portrait.locator("#progressSplitter").bounding_box()
-            assert viewer and panel and split
-            assert abs(split["y"]-(viewer["y"]+viewer["height"]))<=2,(viewer,split)
-            assert abs(panel["y"]-(split["y"]+split["height"]))<=2,(split,panel)
+            viewer=portrait.locator("#viewer").bounding_box();panel=portrait.locator("#progressListPanel").bounding_box()
+            assert viewer and panel
+            assert abs(panel["y"]-(viewer["y"]+viewer["height"]))<=2,(viewer,panel)
             assert panel["width"]>=760,panel
             assert viewer["height"]>=180,viewer
             assert panel["height"]>=185,panel
@@ -316,14 +315,13 @@ def main():
             rotated.wait_for_timeout(160)
             rviewer=rotated.locator("#viewer").bounding_box()
             rcanvas=rotated.locator("#canvas").bounding_box()
-            rsplit=rotated.locator("#progressSplitter").bounding_box()
             rpanel=rotated.locator("#progressListPanel").bounding_box()
-            assert rviewer and rcanvas and rsplit and rpanel
-            assert abs(rsplit["y"]-(rviewer["y"]+rviewer["height"]))<=2,(rviewer,rsplit)
-            rgap=rsplit["y"]-(rcanvas["y"]+rcanvas["height"])
-            assert rgap<=12,(rgap,rcanvas,rsplit)
+            assert rviewer and rcanvas and rpanel
+            assert abs(rpanel["y"]-(rviewer["y"]+rviewer["height"]))<=2,(rviewer,rpanel)
+            rgap=(rviewer["y"]+rviewer["height"])-(rcanvas["y"]+rcanvas["height"])
+            assert rgap<=12,(rgap,rcanvas,rviewer)
             assert rpanel["height"]>=165,rpanel
-            assert rotated.locator("#progressSplitter").get_attribute("data-mode")=="auto"
+            expect(rotated.locator("#progressSplitter")).not_to_be_visible()
             rotated.close()
 
             # Tablet follows iPhone-style CSS fullscreen and must not call the native Fullscreen API.
@@ -362,7 +360,7 @@ def main():
             more.locator("summary").click()
             expect(phone.locator("#progressListPanel")).to_be_visible(timeout=5000)
             expect(phone.locator("#progressListToggle")).to_have_attribute("aria-expanded","true")
-            expect(phone.locator("#progressSplitter")).to_be_visible()
+            expect(phone.locator("#progressSplitter")).not_to_be_visible()
             expect(phone.locator("#progressListState")).to_have_text(re.compile(r"34件"),timeout=5000)
             expect(phone.locator(".progress-list-record")).to_have_count(34,timeout=5000)
             phone.wait_for_timeout(260)
@@ -386,19 +384,16 @@ def main():
             assert "no-store" in list_response.headers.get("cache-control","").lower(),list_response.headers
             assert "no-store" in html_response.headers.get("cache-control","").lower(),html_response.headers
 
-            # AUTO split removes avoidable blank space below the fitted drawing.
+            # Automatic list sizing removes avoidable blank space below the fitted drawing.
             viewer_auto=phone.locator("#viewer").bounding_box()
             canvas_auto=phone.locator("#canvas").bounding_box()
-            split_auto=phone.locator("#progressSplitter").bounding_box()
             panel_auto=phone.locator("#progressListPanel").bounding_box()
-            assert viewer_auto and canvas_auto and split_auto and panel_auto
-            assert abs(split_auto["y"]-(viewer_auto["y"]+viewer_auto["height"]))<=2,(viewer_auto,split_auto)
-            auto_gap=split_auto["y"]-(canvas_auto["y"]+canvas_auto["height"])
-            # Never leave avoidable positive blank space. A negative gap is valid when
-            # the flexible minimum list height clamps the splitter above the canvas bottom.
-            assert auto_gap<=12,(auto_gap,canvas_auto,split_auto)
+            assert viewer_auto and canvas_auto and panel_auto
+            assert abs(panel_auto["y"]-(viewer_auto["y"]+viewer_auto["height"]))<=2,(viewer_auto,panel_auto)
+            auto_gap=(viewer_auto["y"]+viewer_auto["height"])-(canvas_auto["y"]+canvas_auto["height"])
+            assert auto_gap<=12,(auto_gap,canvas_auto,viewer_auto)
             assert panel_auto["height"]>=165,panel_auto
-            assert phone.locator("#progressSplitter").get_attribute("data-mode")=="auto"
+            expect(phone.locator("#progressSplitter")).not_to_be_visible()
 
             # AUTO split must ignore viewer pan/scroll and react only to zoom changes.
             phone.evaluate("""()=>{window.__splitEvents=0;window.addEventListener('weld:progress-split-changed',()=>window.__splitEvents++)}""")
@@ -424,44 +419,19 @@ def main():
             phone.wait_for_function("document.getElementById('page').value === '1'")
             phone.wait_for_timeout(100)
 
-            # Dragging the independent splitter enters MANUAL mode and preserves the chosen height.
-            current_viewer=phone.locator("#viewer").bounding_box()
-            assert current_viewer
-            start_h=current_viewer["height"]
-            sb=phone.locator("#progressSplitter").bounding_box()
-            assert sb
-            phone.mouse.move(sb["x"]+sb["width"]/2,sb["y"]+sb["height"]/2)
-            phone.mouse.down()
-            phone.mouse.move(sb["x"]+sb["width"]/2,sb["y"]+70,steps=5)
-            phone.mouse.up()
-            phone.wait_for_timeout(100)
-            manual_viewer=phone.locator("#viewer").bounding_box()
-            assert manual_viewer and manual_viewer["height"]>start_h+40,(start_h,manual_viewer)
-            assert phone.locator("#progressSplitter").get_attribute("data-mode")=="manual"
-            expect(phone.locator("#progressDialog")).not_to_be_visible()
-            manual_h=manual_viewer["height"]
-
-            # MANUAL split survives progress page changes.
+            # Manual resizing is intentionally unavailable; automatic sizing survives page changes.
+            expect(phone.locator("#progressSplitter")).not_to_be_visible()
+            before_auto=phone.locator("#viewer").bounding_box()
             phone.locator("#next").click()
             phone.wait_for_function("document.getElementById('page').value === '2'")
             phone.wait_for_timeout(140)
-            after_page=phone.locator("#viewer").bounding_box()
-            assert after_page and abs(after_page["height"]-manual_h)<=3,(manual_h,after_page)
+            expect(phone.locator("#progressSplitter")).not_to_be_visible()
             phone.locator("#prev").click()
             phone.wait_for_function("document.getElementById('page').value === '1'")
             phone.wait_for_timeout(120)
-
-            # Flexible limits prevent either pane from being dragged out of the viewport.
-            sb=phone.locator("#progressSplitter").bounding_box();assert sb
-            phone.mouse.move(sb["x"]+sb["width"]/2,sb["y"]+sb["height"]/2);phone.mouse.down();phone.mouse.move(sb["x"]+sb["width"]/2,sb["y"]+1000);phone.mouse.up()
-            phone.wait_for_timeout(80)
-            panel_min=phone.locator("#progressListPanel").bounding_box();viewer_max=phone.locator("#viewer").bounding_box()
-            assert panel_min and viewer_max and panel_min["height"]>=165,(panel_min,viewer_max)
-            sb=phone.locator("#progressSplitter").bounding_box();assert sb
-            phone.mouse.move(sb["x"]+sb["width"]/2,sb["y"]+sb["height"]/2);phone.mouse.down();phone.mouse.move(sb["x"]+sb["width"]/2,sb["y"]-1000);phone.mouse.up()
-            phone.wait_for_timeout(80)
-            viewer_min=phone.locator("#viewer").bounding_box();panel_max=phone.locator("#progressListPanel").bounding_box()
-            assert viewer_min and panel_max and viewer_min["height"]>=145,(viewer_min,panel_max)
+            after_auto=phone.locator("#viewer").bounding_box()
+            assert before_auto and after_auto
+            assert abs(before_auto["height"]-after_auto["height"])<=3,(before_auto,after_auto)
 
             body_before=phone.evaluate("()=>window.scrollY")
             records=phone.locator("#progressListRecords")
