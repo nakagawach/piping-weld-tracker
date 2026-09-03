@@ -224,6 +224,9 @@ window.addEventListener('weld:progress-panel-target',event=>{pendingPanelTarget=
     card.style.removeProperty('grid-template-rows');
     card.style.removeProperty('--pw-bottom-viewer');
     card.style.removeProperty('--pw-panel');
+    const main=card.closest('main'),top=main?.querySelector(':scope > .top');
+    if(main)main.style.removeProperty('grid-template-rows');
+    if(top)top.style.removeProperty('display');
     for(const el of [
       card.querySelector('.ui3-appbar'),card.querySelector('.toolbar'),card.querySelector('.summary'),
       card.querySelector('.progress-thumbs'),viewer,panel,splitter
@@ -239,9 +242,12 @@ window.addEventListener('weld:progress-panel-target',event=>{pendingPanelTarget=
   }
 
   function syncFullscreenChrome(p){
+    const main=card.closest('main'),top=main?.querySelector(':scope > .top');
     const appbar=card.querySelector('.ui3-appbar'),thumbs=card.querySelector('.progress-thumbs');
     const landscapeMobileFullscreen=fullscreen()&&!p&&window.innerWidth<=1200;
     if(landscapeMobileFullscreen){
+      important(main,'grid-template-rows','minmax(0,1fr)');
+      important(top,'display','none');
       important(appbar,'display','none');
       important(thumbs,'display','none');
     }
