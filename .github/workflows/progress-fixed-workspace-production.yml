@@ -37,6 +37,10 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: python tests/progress_list_orientation_viewer_e2e.py
+      - name: Landscape fullscreen regression
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python tests/progress_fullscreen_landscape_e2e.py
       - name: iPad toolbar regression
         env:
           PYTHONPATH: ${{ github.workspace }}
