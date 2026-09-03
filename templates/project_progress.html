@@ -200,7 +200,7 @@ window.addEventListener('weld:progress-panel-target',event=>{pendingPanelTarget=
 (() => {
   const card=document.querySelector('.card'),viewer=document.getElementById('viewer'),canvas=document.getElementById('canvas'),panel=document.getElementById('progressListPanel'),splitter=document.getElementById('progressSplitter');
   if(!card||!viewer||!canvas||!panel||!splitter)return;
-  let mode='auto',manualHeight=null,raf=0,dragging=false,startY=0,startHeight=0;
+  let mode='auto',manualHeight=null,raf=0,dragging=false,startY=0,startHeight=0,lastSplitKey='';
   const important=(el,prop,value)=>{if(value===null)el.style.removeProperty(prop);else el.style.setProperty(prop,value,'important')};
   const zoom=()=>Math.max(.1,Number(window.__progressAdaptiveState?.getZoom?.())||1);
   const portrait=()=>window.innerHeight>=window.innerWidth;
@@ -290,7 +290,7 @@ window.addEventListener('weld:progress-panel-target',event=>{pendingPanelTarget=
       splitter.dataset.mode=mode;
       splitter.setAttribute('aria-valuemin','1');splitter.setAttribute('aria-valuemax',String(Math.round(maxViewer)));splitter.setAttribute('aria-valuenow',String(Math.round(height)));
       state.setBaseWidth(baseWidth);
-      window.dispatchEvent(new CustomEvent('weld:progress-split-changed',{detail:{mode,height}}));
+      const splitKey=`${mode}:h:${Math.round(height)}`;if(splitKey!==lastSplitKey){lastSplitKey=splitKey;window.dispatchEvent(new CustomEvent('weld:progress-split-changed',{detail:{mode,height}}))}
     }else{
       mode='auto';manualHeight=null;card.style.removeProperty('--pw-bottom-viewer');
       const cardWidth=Math.max(1,card.clientWidth),maxViewer=Math.max(1,cardWidth-minPanel),viewerHeight=Math.max(1,viewer.clientHeight);
@@ -299,7 +299,7 @@ window.addEventListener('weld:progress-panel-target',event=>{pendingPanelTarget=
       const panelWidth=Math.max(minPanel,cardWidth-viewerWidth);
       card.style.setProperty('--pw-panel',Math.round(panelWidth)+'px');
       state.setBaseWidth(baseWidth);
-      window.dispatchEvent(new CustomEvent('weld:progress-split-changed',{detail:{mode:'auto',width:viewerWidth}}));
+      const splitKey=`auto:w:${Math.round(viewerWidth)}:p:${Math.round(panelWidth)}`;if(splitKey!==lastSplitKey){lastSplitKey=splitKey;window.dispatchEvent(new CustomEvent('weld:progress-split-changed',{detail:{mode:'auto',width:viewerWidth}}))}
     }
     document.body.classList.remove('progress-layout-pending');
   }
