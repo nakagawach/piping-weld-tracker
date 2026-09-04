@@ -50,6 +50,7 @@
     close.title='進捗一覧を閉じる';
     headerToggle.title='絞り込みを開く';
     const memoTools=document.getElementById('drawingMemoTools');
+    const card=document.querySelector('.card');
     if(memoTools){
       memoTools.setAttribute('aria-label','手書きメモツール（横にスクロールできます）');
       memoTools.querySelectorAll('[data-memo-width]').forEach(button=>button.title=`線の太さ：${button.textContent.trim()}`);
@@ -57,6 +58,22 @@
       const undo=document.getElementById('memoUndo');if(undo){undo.title='元に戻す';undo.setAttribute('aria-label','元に戻す')}
       const redo=document.getElementById('memoRedo');if(redo){redo.title='やり直す';redo.setAttribute('aria-label','やり直す')}
       const memoClear=document.getElementById('memoClear');if(memoClear)memoClear.title='このページの手書きメモを全消去';
+    }
+    if(memoTools&&card){
+      let memoRowFrame=0;
+      const syncMemoRow=()=>{
+        if(memoRowFrame)cancelAnimationFrame(memoRowFrame);
+        memoRowFrame=requestAnimationFrame(()=>{
+          memoRowFrame=0;
+          if(memoTools.classList.contains('open')){
+            if(card.style.getPropertyValue('grid-template-rows'))card.style.removeProperty('grid-template-rows');
+          }else{
+            window.dispatchEvent(new CustomEvent('weld:progress-layout-request'));
+          }
+        });
+      };
+      new MutationObserver(syncMemoRow).observe(memoTools,{attributes:true,attributeFilter:['class']});
+      new MutationObserver(()=>{if(memoTools.classList.contains('open')&&card.style.getPropertyValue('grid-template-rows'))syncMemoRow()}).observe(card,{attributes:true,attributeFilter:['style']});
     }
   }
   installUiPolish();
