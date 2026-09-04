@@ -1,0 +1,27 @@
+name: Public Fixed Progress Mock Verification
+
+on:
+  push:
+    branches:
+      - mock/fixed-progress-workspace
+
+permissions:
+  contents: read
+
+jobs:
+  public:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt playwright
+          python -m playwright install --with-deps chromium
+      - name: Public fixed progress mock verification
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python tests/public_mock_fixed_progress_layout.py
