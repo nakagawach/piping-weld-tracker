@@ -65,9 +65,26 @@
   const appbar=document.querySelector('.ui3-appbar');
   const splitter=document.getElementById('progressSplitter');
   const portraitMedia=window.matchMedia('(orientation: portrait)');
-  let memoFrame=0,memoWasOpen=false;
+  let memoFrame=0,memoFitFrame=0,memoWasOpen=false,memoSnapshot=null;
   const important=(el,prop,value)=>{if(!el)return;if(value===null)el.style.removeProperty(prop);else if(el.style.getPropertyValue(prop)!==value||el.style.getPropertyPriority(prop)!=='important')el.style.setProperty(prop,value,'important')};
   const minPanel=p=>p?(window.innerWidth<=520?170:190):(window.innerWidth>=1201?340:window.innerWidth>=821?312:280);
+  const snapshotTargets=()=>[
+    [card,['grid-template-rows','--pw-bottom-viewer','--pw-panel']],
+    [appbar,['grid-row']],[toolbar,['grid-row']],[memoTools,['grid-column','grid-row']],
+    [summary,['grid-row']],[thumbs,['grid-row']],[viewer,['grid-row']],[panel,['grid-row']],[splitter,['display']]
+  ];
+  function captureMemoSnapshot(){
+    if(memoSnapshot)return;
+    memoSnapshot=snapshotTargets().map(([el,props])=>[el,props.map(prop=>[prop,el?.style.getPropertyValue(prop)||'',el?.style.getPropertyPriority(prop)||''])]);
+  }
+  function restoreMemoSnapshot(){
+    if(!memoSnapshot)return;
+    for(const [el,props] of memoSnapshot){
+      if(!el)continue;
+      for(const [prop,value,priority] of props){if(value)el.style.setProperty(prop,value,priority);else el.style.removeProperty(prop)}
+    }
+    memoSnapshot=null;
+  }
 
   function memoGridSpec(){
     if(!card||!memoTools||!memoTools.classList.contains('open')||document.body.classList.contains('progress-list-fullscreen'))return null;
@@ -85,29 +102,10 @@
     return null;
   }
 
-  function applyMemoGrid(){
-    memoFrame=0;
-    if(!card||!memoTools)return;
-    const isOpen=memoTools.classList.contains('open');
-    if(!isOpen){
-      if(memoWasOpen)window.dispatchEvent(new CustomEvent('weld:progress-layout-request'));
-      memoWasOpen=false;
-      return;
-    }
-    memoWasOpen=true;
-    const spec=memoGridSpec();
-    if(!spec)return;
-    important(card,'grid-template-rows',spec.rows);
-    if(spec.app!=null)important(appbar,'grid-row',String(spec.app));
-    if(spec.tb!=null)important(toolbar,'grid-row',String(spec.tb));
-    important(memoTools,'grid-column','1');important(memoTools,'grid-row',String(spec.memo));
-    if(spec.sm!=null)important(summary,'grid-row',String(spec.sm));
-    if(spec.th!=null)important(thumbs,'grid-row',String(spec.th));
-    if(spec.v!=null)important(viewer,'grid-row',String(spec.v));
-    if(spec.panel!=null)important(panel,'grid-row',String(spec.panel));
-    important(splitter,'display','none');
-
-    requestAnimationFrame(()=>{
+  function applyMemoFit(spec){
+    if(memoFitFrame)cancelAnimationFrame(memoFitFrame);
+    memoFitFrame=requestAnimationFrame(()=>{
+      memoFitFrame=0;
       const fitState=window.__progressFitState;
       if(!fitState||!viewer.clientWidth||!viewer.clientHeight)return;
       const canvas=document.getElementById('canvas');
@@ -127,8 +125,36 @@
       }
     });
   }
+  function applyMemoGrid(){
+    memoFrame=0;
+    if(!card||!memoTools)return;
+    const isOpen=memoTools.classList.contains('open');
+    if(!isOpen){
+      if(memoFitFrame){cancelAnimationFrame(memoFitFrame);memoFitFrame=0}
+      restoreMemoSnapshot();
+      if(memoWasOpen)window.dispatchEvent(new CustomEvent('weld:progress-layout-request'));
+      memoWasOpen=false;
+      return;
+    }
+    captureMemoSnapshot();
+    memoWasOpen=true;
+    const spec=memoGridSpec();
+    if(!spec)return;
+    important(card,'grid-template-rows',spec.rows);
+    if(spec.app!=null)important(appbar,'grid-row',String(spec.app));
+    if(spec.tb!=null)important(toolbar,'grid-row',String(spec.tb));
+    important(memoTools,'grid-column','1');important(memoTools,'grid-row',String(spec.memo));
+    if(spec.sm!=null)important(summary,'grid-row',String(spec.sm));
+    if(spec.th!=null)important(thumbs,'grid-row',String(spec.th));
+    if(spec.v!=null)important(viewer,'grid-row',String(spec.v));
+    if(spec.panel!=null)important(panel,'grid-row',String(spec.panel));
+    important(splitter,'display','none');
+    applyMemoFit(spec);
+  }
   function scheduleMemoGrid(){if(memoFrame)cancelAnimationFrame(memoFrame);memoFrame=requestAnimationFrame(applyMemoGrid)}
   if(card&&memoTools){
+    document.addEventListener('click',event=>{if(event.target.closest?.('#drawingMemoEdit')&&!memoTools.classList.contains('open'))captureMemoSnapshot()},true);
+    document.addEventListener('click',event=>{if(event.target.closest?.('#drawingMemoEdit'))applyMemoGrid()});
     new MutationObserver(scheduleMemoGrid).observe(memoTools,{attributes:true,attributeFilter:['class']});
     new MutationObserver(()=>{if(memoTools.classList.contains('open'))scheduleMemoGrid()}).observe(card,{attributes:true,attributeFilter:['style']});
     new MutationObserver(scheduleMemoGrid).observe(document.body,{attributes:true,attributeFilter:['class']});
