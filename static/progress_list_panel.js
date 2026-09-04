@@ -28,7 +28,7 @@
       .progress-list-panel .panel-close{font-size:1.25rem}
       .progress-list-panel .panel-icon-svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
       body.progress-list-fullscreen .progress-list-panel .panel-head{position:sticky;top:0;z-index:2;background:#fff}
-      .drawing-memo-tools{gap:8px!important;padding:5px 9px!important;min-height:52px!important;height:52px!important;align-items:center!important;overflow-y:hidden!important;scrollbar-width:thin;overscroll-behavior-x:contain}
+      .drawing-memo-tools{gap:8px!important;padding:7px 9px!important;scrollbar-width:thin;overscroll-behavior-x:contain}
       .drawing-memo-tools>*{flex:0 0 auto}
       .drawing-memo-tools .memo-color{width:38px!important;height:38px!important;min-width:38px!important}
       .drawing-memo-tools .memo-width{min-width:50px!important;padding:0 13px!important}
@@ -37,7 +37,7 @@
       .drawing-memo-tools #memoClear{min-width:72px!important;padding:0 12px!important}
       .drawing-memo-tools .memo-save{min-width:86px!important;padding:0 14px!important}
       @media(max-width:640px){
-        .drawing-memo-tools{gap:7px!important;padding:5px 8px!important;min-height:52px!important;height:52px!important}
+        .drawing-memo-tools{gap:7px!important;padding:6px 8px!important}
         .drawing-memo-tools .button{min-height:42px!important}
         .drawing-memo-tools .memo-color{width:36px!important;height:36px!important;min-width:36px!important}
         .drawing-memo-tools .memo-width{min-width:48px!important;padding:0 12px!important}
@@ -50,7 +50,6 @@
     close.title='進捗一覧を閉じる';
     headerToggle.title='絞り込みを開く';
     const memoTools=document.getElementById('drawingMemoTools');
-    const card=document.querySelector('.card');
     if(memoTools){
       memoTools.setAttribute('aria-label','手書きメモツール（横にスクロールできます）');
       memoTools.querySelectorAll('[data-memo-width]').forEach(button=>button.title=`線の太さ：${button.textContent.trim()}`);
@@ -58,22 +57,6 @@
       const undo=document.getElementById('memoUndo');if(undo){undo.title='元に戻す';undo.setAttribute('aria-label','元に戻す')}
       const redo=document.getElementById('memoRedo');if(redo){redo.title='やり直す';redo.setAttribute('aria-label','やり直す')}
       const memoClear=document.getElementById('memoClear');if(memoClear)memoClear.title='このページの手書きメモを全消去';
-    }
-    if(memoTools&&card){
-      let memoRowFrame=0;
-      const syncMemoRow=()=>{
-        if(memoRowFrame)cancelAnimationFrame(memoRowFrame);
-        memoRowFrame=requestAnimationFrame(()=>{
-          memoRowFrame=0;
-          if(memoTools.classList.contains('open')){
-            if(card.style.getPropertyValue('grid-template-rows'))card.style.removeProperty('grid-template-rows');
-          }else{
-            window.dispatchEvent(new CustomEvent('weld:progress-layout-request'));
-          }
-        });
-      };
-      new MutationObserver(syncMemoRow).observe(memoTools,{attributes:true,attributeFilter:['class']});
-      new MutationObserver(()=>{if(memoTools.classList.contains('open')&&card.style.getPropertyValue('grid-template-rows'))syncMemoRow()}).observe(card,{attributes:true,attributeFilter:['style']});
     }
   }
   installUiPolish();
