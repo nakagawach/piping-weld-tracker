@@ -45,6 +45,10 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: python tests/progress_list_fixed_fullscreen_e2e.py
+      - name: Memo toolbar UI regression
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python tests/progress_ui_polish_e2e.py
       - name: iPad toolbar regression
         env:
           PYTHONPATH: ${{ github.workspace }}
