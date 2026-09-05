@@ -4,6 +4,12 @@
   const rotateButton = document.getElementById('rotate');
   if (!canvas || !viewer || !rotateButton) return;
 
+  const areaOverlay = document.getElementById('entryAreaCanvas');
+  if (areaOverlay) {
+    areaOverlay.style.maxWidth = 'none';
+    areaOverlay.style.margin = '0';
+  }
+
   const MIN_ZOOM = 0.5;
   const MAX_ZOOM = 4;
   const BUTTON_STEP = 0.2;
