@@ -7,8 +7,10 @@ on:
     paths:
       - projects.py
       - static/entry_polygon_areas.js
+      - static/entry_viewer_zoom.js
       - static/progress_entry_areas.js
       - tests/entry_polygon_area_link_e2e.py
+      - tests/entry_zoom_overlay_alignment_e2e.py
       - .github/workflows/entry-polygon-area-link.yml
 
 jobs:
@@ -30,17 +32,23 @@ jobs:
           playwright install --with-deps chromium
 
       - name: Python syntax check
-        run: python -m py_compile projects.py tests/entry_polygon_area_link_e2e.py
+        run: python -m py_compile projects.py tests/entry_polygon_area_link_e2e.py tests/entry_zoom_overlay_alignment_e2e.py
 
       - name: JavaScript syntax check
         run: |
           node --check static/entry_polygon_areas.js
+          node --check static/entry_viewer_zoom.js
           node --check static/progress_entry_areas.js
 
       - name: Entry polygon area regression
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: python tests/entry_polygon_area_link_e2e.py
+
+      - name: Entry zoom overlay alignment regression
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python tests/entry_zoom_overlay_alignment_e2e.py
 
       - name: Shared UI shell regression
         env:
