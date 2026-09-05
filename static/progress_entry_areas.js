@@ -168,8 +168,8 @@
     const padY = Math.max(1.5, fontSize * .12);
     const boxWidth = textWidth + padX * 2;
     const boxHeight = fontSize * 1.16 + padY * 2;
-    const preferredX = c.x - r;
-    const preferredY = c.y - r - boxHeight - 2;
+    const preferredX = c.x - r + 1;
+    const preferredY = c.y - r - boxHeight + 2;
     const boxX = Math.max(1, Math.min(overlay.width - boxWidth - 1, preferredX));
     const boxY = Math.max(1, Math.min(overlay.height - boxHeight - 1, preferredY));
 
