@@ -1,4 +1,3 @@
-import json
 import shutil
 import sqlite3
 import uuid
@@ -12,6 +11,7 @@ from project_render import normalize_label, render_cached, vision_ocr
 
 MAX_ENTRY_AREAS = 200
 MAX_ENTRY_AREA_POINTS = 64
+ENTRY_AREA_SOURCE = "area"
 
 
 def create_projects_blueprint(db_path: Path, data_dir: Path):
@@ -31,24 +31,6 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
             )
             """
         )
-        connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS entry_areas (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                drawing_key TEXT NOT NULL,
-                page_number INTEGER NOT NULL,
-                target_x REAL NOT NULL,
-                target_y REAL NOT NULL,
-                number_text TEXT NOT NULL,
-                points_json TEXT NOT NULL,
-                saved_at TEXT NOT NULL,
-                UNIQUE(drawing_key, page_number, target_x, target_y)
-            )
-            """
-        )
-        connection.execute(
-            "CREATE INDEX IF NOT EXISTS idx_entry_areas_page ON entry_areas (drawing_key, page_number)"
-        )
 
     def connect():
         data_dir.mkdir(parents=True, exist_ok=True)
@@ -59,6 +41,9 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
 
     def project_drawing_key(project_id):
         return f"project:{project_id}"
+
+    def project_area_drawing_key(project_id):
+        return f"project-area:{project_id}"
 
     def get_project_pdf_path(project_id):
         with connect() as connection:
@@ -164,6 +149,64 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
             "points": normalized_points,
         }
 
+    def load_entry_areas(connection, project_id, page_number):
+        rows = connection.execute(
+            """
+            SELECT item_order, number_text, source, x, y, width, height
+            FROM number_map
+            WHERE drawing_key = ? AND page_number = ? AND source = ?
+            ORDER BY item_order
+            """,
+            (project_area_drawing_key(project_id), page_number, ENTRY_AREA_SOURCE),
+        ).fetchall()
+        grouped = {}
+        for row in rows:
+            key = (row["number_text"], round(row["width"], 2), round(row["height"], 2))
+            grouped.setdefault(key, []).append([row["x"], row["y"]])
+        return [
+            {
+                "number": number_text,
+                "target": {"x": target_x, "y": target_y},
+                "points": points,
+            }
+            for (number_text, target_x, target_y), points in grouped.items()
+            if len(points) >= 3
+        ]
+
+    def save_entry_areas(connection, project_id, page_number, areas, saved_at):
+        area_key = project_area_drawing_key(project_id)
+        connection.execute(
+            "DELETE FROM number_map WHERE drawing_key = ? AND page_number = ?",
+            (area_key, page_number),
+        )
+        rows = []
+        item_order = 0
+        for area in areas:
+            for point in area["points"]:
+                rows.append((
+                    area_key,
+                    page_number,
+                    item_order,
+                    area["number"],
+                    ENTRY_AREA_SOURCE,
+                    point[0],
+                    point[1],
+                    area["target"]["x"],
+                    area["target"]["y"],
+                    saved_at,
+                ))
+                item_order += 1
+        if rows:
+            connection.executemany(
+                """
+                INSERT INTO number_map (
+                    drawing_key, page_number, item_order, number_text, source,
+                    x, y, width, height, saved_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                rows,
+            )
+
     @blueprint.get("/projects")
     def list_projects():
         with connect() as connection:
@@ -172,7 +215,7 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
                 SELECT id, project_name, original_pdf_name, stored_pdf_name, created_at
                 FROM projects
                 ORDER BY id DESC
-                """,
+                """
             ).fetchall()
 
         return jsonify({
@@ -427,27 +470,7 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
                 """,
                 (drawing_key, page_number),
             ).fetchall()
-            area_rows = connection.execute(
-                """
-                SELECT number_text, target_x, target_y, points_json, saved_at
-                FROM entry_areas
-                WHERE drawing_key = ? AND page_number = ?
-                ORDER BY id
-                """,
-                (drawing_key, page_number),
-            ).fetchall()
-
-        areas = []
-        for row in area_rows:
-            try:
-                points = json.loads(row["points_json"])
-            except (TypeError, json.JSONDecodeError):
-                continue
-            areas.append({
-                "number": row["number_text"],
-                "target": {"x": row["target_x"], "y": row["target_y"]},
-                "points": points,
-            })
+            areas = load_entry_areas(connection, project_id, page_number)
 
         return jsonify({
             "drawingKey": drawing_key,
@@ -524,30 +547,7 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
                 ],
             )
             if areas is not None:
-                connection.execute(
-                    "DELETE FROM entry_areas WHERE drawing_key = ? AND page_number = ?",
-                    (drawing_key, page_number),
-                )
-                connection.executemany(
-                    """
-                    INSERT INTO entry_areas (
-                        drawing_key, page_number, target_x, target_y,
-                        number_text, points_json, saved_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    [
-                        (
-                            drawing_key,
-                            page_number,
-                            area["target"]["x"],
-                            area["target"]["y"],
-                            area["number"],
-                            json.dumps(area["points"], ensure_ascii=False, separators=(",", ":")),
-                            saved_at,
-                        )
-                        for area in areas
-                    ],
-                )
+                save_entry_areas(connection, project_id, page_number, areas, saved_at)
 
         return jsonify({
             "drawingKey": drawing_key,
