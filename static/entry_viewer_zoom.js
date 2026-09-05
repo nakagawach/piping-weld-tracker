@@ -10,6 +10,7 @@
   const WHEEL_FACTOR = 1.12;
 
   let zoom = 1;
+  let fitWidth = 0;
   let lastIntrinsicWidth = 0;
   let lastIntrinsicHeight = 0;
   let applying = false;
@@ -46,23 +47,44 @@
     return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, value));
   }
 
-  function baseRenderedWidth() {
-    if (!canvas.width) return 0;
-    return Math.min(canvas.width, Math.max(1, viewer.clientWidth));
-  }
-
   function updateControls() {
-    const percent = Math.round(zoom * 100);
-    resetButton.textContent = `${percent}%`;
+    resetButton.textContent = `${Math.round(zoom * 100)}%`;
     minusButton.disabled = zoom <= MIN_ZOOM + 0.001;
     plusButton.disabled = zoom >= MAX_ZOOM - 0.001;
     canvas.dataset.entryZoom = zoom.toFixed(3);
   }
 
+  function rememberFitWidth() {
+    if (!canvas.width || !canvas.height || Math.abs(zoom - 1) > 0.001) return;
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width) fitWidth = rect.width;
+  }
+
+  function restoreBaseline() {
+    zoom = 1;
+    applying = true;
+    canvas.style.removeProperty('width');
+    canvas.style.removeProperty('height');
+    canvas.style.removeProperty('max-width');
+    updateControls();
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width) fitWidth = rect.width;
+    applying = false;
+    window.dispatchEvent(new CustomEvent('weld:entry-zoom-changed', { detail: { zoom } }));
+  }
+
   function applyZoom(nextZoom, anchor = null) {
     if (!canvas.width || !canvas.height) return;
     const next = clampZoom(nextZoom);
+    if (Math.abs(next - 1) <= 0.001) {
+      restoreBaseline();
+      return;
+    }
+
     const before = canvas.getBoundingClientRect();
+    if (Math.abs(zoom - 1) <= 0.001 || !fitWidth) fitWidth = before.width;
+    if (!fitWidth) return;
+
     const viewerRect = viewer.getBoundingClientRect();
     const anchorX = anchor?.x ?? (viewerRect.left + viewerRect.width / 2);
     const anchorY = anchor?.y ?? (viewerRect.top + viewerRect.height / 2);
@@ -72,7 +94,7 @@
     zoom = next;
     applying = true;
     canvas.style.maxWidth = 'none';
-    canvas.style.width = `${baseRenderedWidth() * zoom}px`;
+    canvas.style.width = `${fitWidth * zoom}px`;
     canvas.style.height = 'auto';
     updateControls();
 
@@ -91,15 +113,19 @@
 
   function syncIntrinsicSize() {
     if (!canvas.width || !canvas.height) return;
-    if (canvas.width === lastIntrinsicWidth && canvas.height === lastIntrinsicHeight) return;
+    if (canvas.width === lastIntrinsicWidth && canvas.height === lastIntrinsicHeight) {
+      rememberFitWidth();
+      return;
+    }
     lastIntrinsicWidth = canvas.width;
     lastIntrinsicHeight = canvas.height;
-    applyZoom(zoom);
+    if (Math.abs(zoom - 1) > 0.001) restoreBaseline();
+    else rememberFitWidth();
   }
 
   minusButton.addEventListener('click', () => applyZoom(zoom - BUTTON_STEP));
   plusButton.addEventListener('click', () => applyZoom(zoom + BUTTON_STEP));
-  resetButton.addEventListener('click', () => applyZoom(1));
+  resetButton.addEventListener('click', restoreBaseline);
 
   viewer.addEventListener('wheel', event => {
     if (!event.ctrlKey || !canvas.width || !canvas.height) return;
@@ -116,14 +142,14 @@
 
   const viewerResizeObserver = 'ResizeObserver' in window
     ? new ResizeObserver(() => {
-        if (!applying && zoom <= 1.001) applyZoom(zoom);
+        if (!applying && Math.abs(zoom - 1) <= 0.001) rememberFitWidth();
       })
     : null;
   if (viewerResizeObserver) viewerResizeObserver.observe(viewer);
 
   window.addEventListener('weld:entry-base-drawn', syncIntrinsicSize);
   window.addEventListener('resize', () => {
-    if (!applying && zoom <= 1.001) applyZoom(zoom);
+    if (!applying && Math.abs(zoom - 1) <= 0.001) rememberFitWidth();
   });
 
   updateControls();
