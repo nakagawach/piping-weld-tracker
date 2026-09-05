@@ -137,32 +137,48 @@
     ctx.strokeStyle = color;
     ctx.lineWidth = Math.max(2, overlay.width / 900);
     ctx.stroke();
-
-    const label = String(item.number ?? '');
-    if (label) {
-      let fontSize = Math.max(8, r * .9);
-      const maxWidth = Math.max(12, r * 1.55);
-      ctx.font = `800 ${fontSize}px system-ui,-apple-system,"Segoe UI",sans-serif`;
-      while (fontSize > 7 && ctx.measureText(label).width > maxWidth) {
-        fontSize -= 1;
-        ctx.font = `800 ${fontSize}px system-ui,-apple-system,"Segoe UI",sans-serif`;
-      }
-      const textWidth = Math.min(maxWidth, ctx.measureText(label).width);
-      const padX = Math.max(2, fontSize * .22);
-      const padY = Math.max(1.5, fontSize * .12);
-      ctx.fillStyle = 'rgba(255,255,255,.96)';
-      ctx.fillRect(
-        cx - textWidth / 2 - padX,
-        cy - fontSize * .58 - padY,
-        textWidth + padX * 2,
-        fontSize * 1.16 + padY * 2,
-      );
-      ctx.fillStyle = color;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(label, cx, cy, maxWidth);
-    }
     ctx.restore();
+  }
+
+  function screenPoint(point) {
+    const sx = point.x * SCALE;
+    const sy = point.y * SCALE;
+    const r = rotation();
+    if (r === 90) return { x: overlay.width - sy, y: sx };
+    if (r === 180) return { x: overlay.width - sx, y: overlay.height - sy };
+    if (r === 270) return { x: sy, y: overlay.height - sx };
+    return { x: sx, y: sy };
+  }
+
+  function drawMarkerLabel(ctx, item) {
+    const label = String(item.number ?? '');
+    if (!label) return;
+    const c = screenPoint(center(item));
+    const r = markerRadius(item);
+    const color = markerColor(statusFor(item));
+    let fontSize = Math.max(8, r * .82);
+    const maxWidth = Math.max(16, r * 1.9);
+    ctx.font = `800 ${fontSize}px system-ui,-apple-system,"Segoe UI",sans-serif`;
+    while (fontSize > 7 && ctx.measureText(label).width > maxWidth) {
+      fontSize -= 1;
+      ctx.font = `800 ${fontSize}px system-ui,-apple-system,"Segoe UI",sans-serif`;
+    }
+    const textWidth = Math.min(maxWidth, ctx.measureText(label).width);
+    const padX = Math.max(2, fontSize * .22);
+    const padY = Math.max(1.5, fontSize * .12);
+    const boxWidth = textWidth + padX * 2;
+    const boxHeight = fontSize * 1.16 + padY * 2;
+    const preferredX = c.x - r;
+    const preferredY = c.y - r - boxHeight - 2;
+    const boxX = Math.max(1, Math.min(overlay.width - boxWidth - 1, preferredX));
+    const boxY = Math.max(1, Math.min(overlay.height - boxHeight - 1, preferredY));
+
+    ctx.fillStyle = 'rgba(255,255,255,.96)';
+    ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+    ctx.fillStyle = color;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, boxX + padX, boxY + boxHeight / 2, maxWidth);
   }
 
   function render() {
@@ -213,10 +229,15 @@
 
     for (const item of candidates) drawMarker(ctx, item);
 
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    for (const item of candidates) drawMarkerLabel(ctx, item);
+
     overlay.dataset.areaCount = String(areas.length);
     overlay.dataset.areaPage = String(pageInput.value || '');
     overlay.dataset.markerTextCount = String(candidates.filter(item => String(item.number ?? '')).length);
     overlay.dataset.colorMode = 'progress-status';
+    overlay.dataset.labelPlacement = 'marker-top-left';
+    overlay.dataset.labelOrientation = 'screen-upright';
   }
 
   function eventPoint(event) {
