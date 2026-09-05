@@ -25,8 +25,30 @@
   areaButton.title = '丸枠を選択してポリゴンエリアを作成・編集';
   host.bboxEditButton.insertAdjacentElement('afterend', areaButton);
 
+  const numberLabelControl = document.createElement('label');
+  numberLabelControl.id = 'entryMarkerNumberControl';
+  numberLabelControl.className = 'button';
+  numberLabelControl.style.display = 'inline-flex';
+  numberLabelControl.style.alignItems = 'center';
+  numberLabelControl.style.gap = '7px';
+  numberLabelControl.style.cursor = 'pointer';
+  numberLabelControl.style.fontWeight = '600';
+  numberLabelControl.title = '進捗画面の丸枠内に番号を表示します';
+
+  const numberLabelCheckbox = document.createElement('input');
+  numberLabelCheckbox.type = 'checkbox';
+  numberLabelCheckbox.id = 'entryShowNumberInMarker';
+  numberLabelCheckbox.checked = false;
+  numberLabelCheckbox.setAttribute('aria-label', '進捗画面の枠内に番号を表示');
+
+  const numberLabelText = document.createElement('span');
+  numberLabelText.textContent = '枠内番号';
+  numberLabelControl.append(numberLabelCheckbox, numberLabelText);
+  areaButton.insertAdjacentElement('afterend', numberLabelControl);
+
   let areas = [];
   let originalAreas = [];
+  let originalShowNumberInMarker = false;
   let nextAreaId = 1;
   let mode = false;
   let targetId = null;
@@ -270,6 +292,8 @@
       });
     }
     originalAreas = cloneAreas(areas);
+    originalShowNumberInMarker = record.data?.showNumberInMarker === true;
+    numberLabelCheckbox.checked = originalShowNumberInMarker;
     setMode(false);
     syncOverlaySize();
   }
@@ -313,6 +337,18 @@
   areaButton.addEventListener('click', () => {
     if (host.isBusy()) return;
     setMode(!mode);
+  });
+
+  numberLabelCheckbox.addEventListener('change', () => {
+    if (host.isBusy()) {
+      numberLabelCheckbox.checked = !numberLabelCheckbox.checked;
+      return;
+    }
+    host.setDirty(true);
+    host.status.className = 'status';
+    host.status.textContent = numberLabelCheckbox.checked
+      ? '進捗画面の丸枠内に番号を表示します。確定保存すると反映されます。'
+      : '進捗画面の丸枠内番号を非表示にします。確定保存すると反映されます。';
   });
 
   baseCanvas.addEventListener('pointerdown', event => {
@@ -489,11 +525,13 @@
           pageNumber: host.currentPage(),
           candidates: host.serializeCandidates(),
           areas: serializeAreas(),
+          showNumberInMarker: numberLabelCheckbox.checked,
         }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || '保存に失敗しました。');
       originalAreas = cloneAreas(areas);
+      originalShowNumberInMarker = numberLabelCheckbox.checked;
       host.afterSave(data);
     } catch (error) {
       host.status.className = 'status error';
@@ -505,6 +543,7 @@
 
   host.resetButton.addEventListener('click', () => {
     areas = cloneAreas(originalAreas);
+    numberLabelCheckbox.checked = originalShowNumberInMarker;
     targetId = null;
     draft = [];
     preview = null;
