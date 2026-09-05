@@ -30,8 +30,6 @@ def white_png():
 
 def seed_database():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    # Reuse the application's existing schema initializers so this regression test
-    # never carries schema-management SQL of its own.
     with get_db_connection():
         pass
     response = app.test_client().get("/projects")
@@ -111,7 +109,6 @@ def save_initial_area():
     assert response.status_code == 400
     assert "丸枠" in response.get_json()["error"]
 
-    # Old clients that save candidates only must not erase polygon data.
     response = client.post(
         f"/projects/{PROJECT_ID}/number-map",
         json={"pageNumber": 1, "candidates": payload["candidates"]},
@@ -163,7 +160,6 @@ def main():
                 lambda route: route.fulfill(status=200, content_type="image/png", body=png),
             )
 
-            # Entry: existing polygon loads and isolated zoom controls are available.
             page.goto(f"{BASE_URL}/projects/{PROJECT_ID}/entry?page=1", wait_until="domcontentloaded")
             expect(page.locator("#areaCreate")).to_be_visible(timeout=5000)
             expect(page.locator("#entryShowNumberInMarker")).to_be_visible(timeout=5000)
@@ -179,7 +175,7 @@ def main():
             initial_width = canvas.bounding_box()["width"]
             page.locator("#entryZoomIn").click()
             page.wait_for_function("parseFloat(document.getElementById('canvas').dataset.entryZoom || '1') > 1")
-            assert canvas.bounding_box()["width"] > initial_width, "zoom-in button did not enlarge Entry canvas"
+            assert canvas.bounding_box()["width"] > initial_width
 
             page.locator("#entryZoomReset").click()
             page.wait_for_function("Math.abs(parseFloat(document.getElementById('canvas').dataset.entryZoom || '0') - 1) < 0.01")
@@ -192,9 +188,8 @@ def main():
             page.mouse.wheel(0, -120)
             page.keyboard.up("Control")
             page.wait_for_function("parseFloat(document.getElementById('canvas').dataset.entryZoom || '1') > 1")
-            assert canvas.bounding_box()["width"] > reset_width, "Ctrl+wheel did not enlarge Entry canvas"
+            assert canvas.bounding_box()["width"] > reset_width
 
-            # Keep a zoomed canvas while using the existing polygon creation coordinates.
             page.locator("#areaCreate").click()
             expect(page.locator("#areaCreate")).to_have_class("button active")
 
@@ -217,14 +212,12 @@ def main():
             assert saved["showNumberInMarker"] is False, saved
             page.wait_for_function("document.getElementById('pageState').textContent.includes('保存済')")
 
-            # Reloading the Entry page must restore both saved polygons and default unchecked setting.
             page.reload(wait_until="domcontentloaded")
             page.wait_for_function(
                 "document.getElementById('entryAreaCanvas')?.dataset.areaCount === '2'"
             )
             expect(page.locator("#entryShowNumberInMarker")).not_to_be_checked()
 
-            # Progress: marker numbers are hidden by default; rotation must not change that.
             page.goto(f"{BASE_URL}/projects/{PROJECT_ID}/progress?page=1", wait_until="domcontentloaded")
             page.wait_for_function(
                 "document.getElementById('progressEntryAreaCanvas')?.dataset.areaCount === '2'"
@@ -239,20 +232,20 @@ def main():
             for _ in range(3):
                 page.locator("#rotate").click()
             page.wait_for_function("document.getElementById('rotate').textContent.includes('0')")
+            # Rotation also performs adaptive layout and position reset. Wait for that
+            # asynchronous layout pass before asserting source-coordinate hit testing.
+            page.wait_for_timeout(250)
 
-            # Polygon interior opens exactly the paired target's existing progress dialog.
             click_ocr(page, 1800, 1100)
             expect(page.locator("#progressDialog")).to_be_visible()
             expect(page.locator("#dialogTarget")).to_contain_text("34")
             page.locator("#closeDialog").click()
             expect(page.locator("#progressDialog")).not_to_be_visible()
 
-            # Connector midpoint is display-only: it must NOT open the progress dialog.
             click_ocr(page, 1250, 1000)
             page.wait_for_timeout(150)
             expect(page.locator("#progressDialog")).not_to_be_visible()
 
-            # Existing round marker remains interactive and opens the same target.
             click_ocr(page, 1000, 1000)
             expect(page.locator("#progressDialog")).to_be_visible()
             expect(page.locator("#dialogTarget")).to_contain_text("34")
