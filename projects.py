@@ -172,7 +172,7 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
                 SELECT id, project_name, original_pdf_name, stored_pdf_name, created_at
                 FROM projects
                 ORDER BY id DESC
-                """
+                """,
             ).fetchall()
 
         return jsonify({
@@ -312,7 +312,7 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
     serializeCandidates:()=>candidates.map(({number,source,bbox})=>({number,source,bbox:{...bbox}})),
     currentPage:()=>Number(pageInput.value),
     getLastMapData:()=>entryAreaLastMapData,
-    afterSave:data=>{originalCandidates=clone(candidates);savedPage=true;dirty=false;clearSelection();clearBboxEditSelection();ocrButton.textContent='再OCR';updateState();draw();status.className='status';status.textContent=`番号配置とエリアを保存しました（番号 ${data.count}件 / エリア ${data.areaCount||0}件）`;}
+    afterSave:data=>{originalCandidates=clone(candidates);savedPage=true;dirty=false;clearSelection();clearBboxEditSelection();ocrButton.textContent='再OCR';updateState();draw();status.className='status';status.textContent=`番号配置を保存しました（${data.count}件）`;}
   };
 """
             marker = "  fetch(pdfiumInfoUrl,{cache:'no-store'})"
