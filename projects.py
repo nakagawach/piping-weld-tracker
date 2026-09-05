@@ -12,6 +12,8 @@ from project_render import normalize_label, render_cached, vision_ocr
 MAX_ENTRY_AREAS = 200
 MAX_ENTRY_AREA_POINTS = 64
 ENTRY_AREA_SOURCE = "area"
+ENTRY_NUMBER_OPTION_SOURCE = "number-option"
+ENTRY_NUMBER_OPTION_NAME = "show-marker-number"
 
 
 def create_projects_blueprint(db_path: Path, data_dir: Path):
@@ -44,6 +46,9 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
 
     def project_area_drawing_key(project_id):
         return f"project-area:{project_id}"
+
+    def project_option_drawing_key(project_id):
+        return f"project-option:{project_id}"
 
     def get_project_pdf_path(project_id):
         with connect() as connection:
@@ -206,6 +211,45 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
                 """,
                 rows,
             )
+
+    def load_marker_number_option(connection, project_id):
+        return connection.execute(
+            """
+            SELECT 1
+            FROM number_map
+            WHERE drawing_key = ? AND page_number = 0
+              AND source = ? AND number_text = ?
+            LIMIT 1
+            """,
+            (
+                project_option_drawing_key(project_id),
+                ENTRY_NUMBER_OPTION_SOURCE,
+                ENTRY_NUMBER_OPTION_NAME,
+            ),
+        ).fetchone() is not None
+
+    def save_marker_number_option(connection, project_id, enabled, saved_at):
+        option_key = project_option_drawing_key(project_id)
+        connection.execute(
+            "DELETE FROM number_map WHERE drawing_key = ?",
+            (option_key,),
+        )
+        if not enabled:
+            return
+        connection.execute(
+            """
+            INSERT INTO number_map (
+                drawing_key, page_number, item_order, number_text, source,
+                x, y, width, height, saved_at
+            ) VALUES (?, 0, 0, ?, ?, 0, 0, 1, 1, ?)
+            """,
+            (
+                option_key,
+                ENTRY_NUMBER_OPTION_NAME,
+                ENTRY_NUMBER_OPTION_SOURCE,
+                saved_at,
+            ),
+        )
 
     @blueprint.get("/projects")
     def list_projects():
@@ -471,6 +515,7 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
                 (drawing_key, page_number),
             ).fetchall()
             areas = load_entry_areas(connection, project_id, page_number)
+            show_number_in_marker = load_marker_number_option(connection, project_id)
 
         return jsonify({
             "drawingKey": drawing_key,
@@ -489,6 +534,7 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
                 for row in rows
             ],
             "areas": areas,
+            "showNumberInMarker": show_number_in_marker,
         })
 
     @blueprint.post("/projects/<int:project_id>/number-map")
@@ -497,6 +543,9 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
         page_number = body.get("pageNumber")
         raw_candidates = body.get("candidates")
         raw_areas = body.get("areas") if "areas" in body else None
+        raw_show_number_in_marker = (
+            body.get("showNumberInMarker") if "showNumberInMarker" in body else None
+        )
 
         if not isinstance(page_number, int) or page_number < 1:
             return jsonify({"error": "ページ番号が不正です。"}), 400
@@ -508,6 +557,8 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
             return jsonify({"error": "エリア情報が不正です。"}), 400
         if isinstance(raw_areas, list) and len(raw_areas) > MAX_ENTRY_AREAS:
             return jsonify({"error": "エリアが多すぎます。"}), 400
+        if raw_show_number_in_marker is not None and not isinstance(raw_show_number_in_marker, bool):
+            return jsonify({"error": "枠内番号表示の設定が不正です。"}), 400
 
         try:
             candidates = [normalize_candidate(candidate) for candidate in raw_candidates]
@@ -548,6 +599,13 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
             )
             if areas is not None:
                 save_entry_areas(connection, project_id, page_number, areas, saved_at)
+            if raw_show_number_in_marker is not None:
+                save_marker_number_option(
+                    connection,
+                    project_id,
+                    raw_show_number_in_marker,
+                    saved_at,
+                )
 
         return jsonify({
             "drawingKey": drawing_key,
@@ -555,6 +613,7 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
             "savedAt": saved_at,
             "count": len(candidates),
             "areaCount": len(areas) if areas is not None else None,
+            "showNumberInMarker": raw_show_number_in_marker,
         })
 
     @blueprint.get("/pdfs/<path:stored_name>")
