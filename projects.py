@@ -4,9 +4,15 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from flask import Blueprint, jsonify, render_template, request, send_file, send_from_directory
+from flask import Blueprint, jsonify, render_template, request, send_file, send_from_directory, url_for
 
 from project_render import normalize_label, render_cached, vision_ocr
+
+
+MAX_ENTRY_AREAS = 200
+MAX_ENTRY_AREA_POINTS = 64
+ENTRY_AREA_SOURCE = "area"
+ENTRY_NUMBER_MARKER_SOURCE = "number-marker"
 
 
 def create_projects_blueprint(db_path: Path, data_dir: Path):
@@ -36,6 +42,12 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
 
     def project_drawing_key(project_id):
         return f"project:{project_id}"
+
+    def project_area_drawing_key(project_id):
+        return f"project-area:{project_id}"
+
+    def project_option_drawing_key(project_id):
+        return f"project-option:{project_id}"
 
     def get_project_pdf_path(project_id):
         with connect() as connection:
@@ -86,6 +98,192 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
             "source": source,
             "bbox": {"x": x, "y": y, "w": width, "h": height},
         }
+
+    def candidate_center(candidate):
+        bbox = candidate["bbox"]
+        return bbox["x"] + bbox["w"] / 2.0, bbox["y"] + bbox["h"] / 2.0
+
+    def normalize_entry_area(raw_area, candidates):
+        if not isinstance(raw_area, dict):
+            raise ValueError("エリアの形式が不正です。")
+        number_text = normalize_label(raw_area.get("number", ""))
+        target = raw_area.get("target")
+        points = raw_area.get("points")
+        if not number_text or not isinstance(target, dict):
+            raise ValueError("エリアの接続先が不正です。")
+        if not isinstance(points, list) or not 3 <= len(points) <= MAX_ENTRY_AREA_POINTS:
+            raise ValueError("ポリゴンは3〜64点で指定してください。")
+        try:
+            target_x = float(target.get("x"))
+            target_y = float(target.get("y"))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("エリアの接続先座標が不正です。") from exc
+
+        matched = None
+        for candidate in candidates:
+            cx, cy = candidate_center(candidate)
+            if candidate["number"] == number_text and abs(cx - target_x) < 2 and abs(cy - target_y) < 2:
+                matched = candidate
+                target_x, target_y = cx, cy
+                break
+        if matched is None:
+            raise ValueError("エリアの接続先が保存対象の丸枠と一致しません。")
+
+        normalized_points = []
+        distinct_points = set()
+        for point in points:
+            if not isinstance(point, (list, tuple)) or len(point) != 2:
+                raise ValueError("ポリゴン座標が不正です。")
+            try:
+                x = float(point[0])
+                y = float(point[1])
+            except (TypeError, ValueError) as exc:
+                raise ValueError("ポリゴン座標が不正です。") from exc
+            if not (0 <= x <= 10000 and 0 <= y <= 10000):
+                raise ValueError("ポリゴン座標が範囲外です。")
+            normalized = [round(x, 2), round(y, 2)]
+            normalized_points.append(normalized)
+            distinct_points.add(tuple(normalized))
+        if len(distinct_points) < 3:
+            raise ValueError("ポリゴンには異なる3点以上が必要です。")
+
+        return {
+            "number": number_text,
+            "target": {"x": target_x, "y": target_y},
+            "points": normalized_points,
+        }
+
+    def normalize_marker_number_target(raw_target, candidates):
+        if not isinstance(raw_target, dict):
+            raise ValueError("枠内番号表示の対象が不正です。")
+        number_text = normalize_label(raw_target.get("number", ""))
+        target = raw_target.get("target")
+        if not number_text or not isinstance(target, dict):
+            raise ValueError("枠内番号表示の対象が不正です。")
+        try:
+            target_x = float(target.get("x"))
+            target_y = float(target.get("y"))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("枠内番号表示の対象座標が不正です。") from exc
+
+        for candidate in candidates:
+            cx, cy = candidate_center(candidate)
+            if candidate["number"] == number_text and abs(cx - target_x) < 2 and abs(cy - target_y) < 2:
+                return {
+                    "number": number_text,
+                    "target": {"x": cx, "y": cy},
+                }
+        raise ValueError("枠内番号表示の対象が保存対象の丸枠と一致しません。")
+
+    def load_entry_areas(connection, project_id, page_number):
+        rows = connection.execute(
+            """
+            SELECT item_order, number_text, source, x, y, width, height
+            FROM number_map
+            WHERE drawing_key = ? AND page_number = ? AND source = ?
+            ORDER BY item_order
+            """,
+            (project_area_drawing_key(project_id), page_number, ENTRY_AREA_SOURCE),
+        ).fetchall()
+        grouped = {}
+        for row in rows:
+            key = (row["number_text"], round(row["width"], 2), round(row["height"], 2))
+            grouped.setdefault(key, []).append([row["x"], row["y"]])
+        return [
+            {
+                "number": number_text,
+                "target": {"x": target_x, "y": target_y},
+                "points": points,
+            }
+            for (number_text, target_x, target_y), points in grouped.items()
+            if len(points) >= 3
+        ]
+
+    def save_entry_areas(connection, project_id, page_number, areas, saved_at):
+        area_key = project_area_drawing_key(project_id)
+        connection.execute(
+            "DELETE FROM number_map WHERE drawing_key = ? AND page_number = ?",
+            (area_key, page_number),
+        )
+        rows = []
+        item_order = 0
+        for area in areas:
+            for point in area["points"]:
+                rows.append((
+                    area_key,
+                    page_number,
+                    item_order,
+                    area["number"],
+                    ENTRY_AREA_SOURCE,
+                    point[0],
+                    point[1],
+                    area["target"]["x"],
+                    area["target"]["y"],
+                    saved_at,
+                ))
+                item_order += 1
+        if rows:
+            connection.executemany(
+                """
+                INSERT INTO number_map (
+                    drawing_key, page_number, item_order, number_text, source,
+                    x, y, width, height, saved_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                rows,
+            )
+
+    def load_marker_number_targets(connection, project_id, page_number):
+        rows = connection.execute(
+            """
+            SELECT number_text, x, y
+            FROM number_map
+            WHERE drawing_key = ? AND page_number = ? AND source = ?
+            ORDER BY item_order
+            """,
+            (
+                project_option_drawing_key(project_id),
+                page_number,
+                ENTRY_NUMBER_MARKER_SOURCE,
+            ),
+        ).fetchall()
+        return [
+            {
+                "number": row["number_text"],
+                "target": {"x": row["x"], "y": row["y"]},
+            }
+            for row in rows
+        ]
+
+    def save_marker_number_targets(connection, project_id, page_number, targets, saved_at):
+        option_key = project_option_drawing_key(project_id)
+        connection.execute(
+            "DELETE FROM number_map WHERE drawing_key = ? AND page_number = ? AND source = ?",
+            (option_key, page_number, ENTRY_NUMBER_MARKER_SOURCE),
+        )
+        if not targets:
+            return
+        connection.executemany(
+            """
+            INSERT INTO number_map (
+                drawing_key, page_number, item_order, number_text, source,
+                x, y, width, height, saved_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1, ?)
+            """,
+            [
+                (
+                    option_key,
+                    page_number,
+                    index,
+                    target["number"],
+                    ENTRY_NUMBER_MARKER_SOURCE,
+                    target["target"]["x"],
+                    target["target"]["y"],
+                    saved_at,
+                )
+                for index, target in enumerate(targets)
+            ],
+        )
 
     @blueprint.get("/projects")
     def list_projects():
@@ -209,6 +407,48 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
             pdf_url=f"../../pdfs/{row['stored_pdf_name']}",
         )
 
+    @blueprint.after_app_request
+    def inject_entry_area_assets(response):
+        if response.mimetype != "text/html":
+            return response
+        endpoint = request.endpoint or ""
+        if endpoint == "projects.project_entry":
+            html = response.get_data(as_text=True)
+            hook = """
+  const entryAreaBaseLoadNumberMap=loadNumberMap;
+  let entryAreaLastMapData=null;
+  loadNumberMap=async function(pageNumber){const data=await entryAreaBaseLoadNumberMap(pageNumber);entryAreaLastMapData={pageNumber,data};return data;};
+  const entryAreaBaseDraw=draw;
+  draw=function(){entryAreaBaseDraw();window.dispatchEvent(new CustomEvent('weld:entry-base-drawn'));};
+  window.__weldEntryAreaHost={
+    canvas,status,saveButton,resetButton,bboxEditButton,numberMapUrl,pageInput,
+    getCandidates:()=>candidates,
+    isBusy:()=>busy,
+    setBusy,
+    isDirty:()=>dirty,
+    setDirty:value=>{dirty=Boolean(value);updateState();},
+    point,findAt,cssPxToOcrX,cssPxToOcrY,
+    clearSelection,clearBboxEditSelection,
+    disableBboxEdit:()=>{if(bboxEditMode){bboxEditMode=false;clearBboxEditSelection();bboxEditButton.classList.remove('active');bboxEditButton.textContent='枠編集';}},
+    serializeCandidates:()=>candidates.map(({number,source,bbox})=>({number,source,bbox:{...bbox}})),
+    currentPage:()=>Number(pageInput.value),
+    getLastMapData:()=>entryAreaLastMapData,
+    afterSave:data=>{originalCandidates=clone(candidates);savedPage=true;dirty=false;clearSelection();clearBboxEditSelection();ocrButton.textContent='再OCR';updateState();draw();status.className='status';status.textContent=`番号配置を保存しました（${data.count}件）`;}
+  };
+"""
+            marker = "  fetch(pdfiumInfoUrl,{cache:'no-store'})"
+            if marker in html:
+                html = html.replace(marker, hook + marker, 1)
+            script_url = url_for("static", filename="entry_polygon_areas.js")
+            html = html.replace("</body>", f'<script src="{script_url}"></script></body>', 1)
+            response.set_data(html)
+        elif endpoint == "progress.project_progress":
+            html = response.get_data(as_text=True)
+            script_url = url_for("static", filename="progress_entry_areas.js")
+            html = html.replace("</body>", f'<script src="{script_url}"></script></body>', 1)
+            response.set_data(html)
+        return response
+
     @blueprint.get("/projects/<int:project_id>/pdfium-info")
     def pdfium_info(project_id):
         pdf_path = get_project_pdf_path(project_id)
@@ -308,6 +548,8 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
                 """,
                 (drawing_key, page_number),
             ).fetchall()
+            areas = load_entry_areas(connection, project_id, page_number)
+            number_marker_targets = load_marker_number_targets(connection, project_id, page_number)
 
         return jsonify({
             "drawingKey": drawing_key,
@@ -325,6 +567,8 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
                 }
                 for row in rows
             ],
+            "areas": areas,
+            "numberMarkerTargets": number_marker_targets,
         })
 
     @blueprint.post("/projects/<int:project_id>/number-map")
@@ -332,6 +576,10 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
         body = request.get_json(silent=True) or {}
         page_number = body.get("pageNumber")
         raw_candidates = body.get("candidates")
+        raw_areas = body.get("areas") if "areas" in body else None
+        raw_number_marker_targets = (
+            body.get("numberMarkerTargets") if "numberMarkerTargets" in body else None
+        )
 
         if not isinstance(page_number, int) or page_number < 1:
             return jsonify({"error": "ページ番号が不正です。"}), 400
@@ -339,9 +587,27 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
             return jsonify({"error": "番号候補が不正です。"}), 400
         if len(raw_candidates) > 1000:
             return jsonify({"error": "番号候補が多すぎます。"}), 400
+        if raw_areas is not None and not isinstance(raw_areas, list):
+            return jsonify({"error": "エリア情報が不正です。"}), 400
+        if isinstance(raw_areas, list) and len(raw_areas) > MAX_ENTRY_AREAS:
+            return jsonify({"error": "エリアが多すぎます。"}), 400
+        if raw_number_marker_targets is not None and not isinstance(raw_number_marker_targets, list):
+            return jsonify({"error": "枠内番号表示の設定が不正です。"}), 400
+        if isinstance(raw_number_marker_targets, list) and len(raw_number_marker_targets) > 1000:
+            return jsonify({"error": "枠内番号表示の対象が多すぎます。"}), 400
 
         try:
             candidates = [normalize_candidate(candidate) for candidate in raw_candidates]
+            areas = (
+                [normalize_entry_area(area, candidates) for area in raw_areas]
+                if isinstance(raw_areas, list)
+                else None
+            )
+            number_marker_targets = (
+                [normalize_marker_number_target(target, candidates) for target in raw_number_marker_targets]
+                if isinstance(raw_number_marker_targets, list)
+                else None
+            )
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
 
@@ -372,12 +638,24 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
                     for index, candidate in enumerate(candidates)
                 ],
             )
+            if areas is not None:
+                save_entry_areas(connection, project_id, page_number, areas, saved_at)
+            if number_marker_targets is not None:
+                save_marker_number_targets(
+                    connection,
+                    project_id,
+                    page_number,
+                    number_marker_targets,
+                    saved_at,
+                )
 
         return jsonify({
             "drawingKey": drawing_key,
             "pageNumber": page_number,
             "savedAt": saved_at,
             "count": len(candidates),
+            "areaCount": len(areas) if areas is not None else None,
+            "numberMarkerCount": len(number_marker_targets) if number_marker_targets is not None else None,
         })
 
     @blueprint.get("/pdfs/<path:stored_name>")
