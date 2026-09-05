@@ -101,7 +101,7 @@ def save_initial_area():
     data = response.get_json()
     assert len(data["areas"]) == 1
     assert data["areas"][0]["number"] == "12"
-    assert data["showNumberInMarker"] is False
+    assert data["numberMarkerTargets"] == []
 
     bad = dict(payload)
     bad["areas"] = [{"number": "12", "target": {"x": 123, "y": 456}, "points": [[1, 1], [10, 1], [10, 10]]}]
@@ -162,13 +162,15 @@ def main():
 
             page.goto(f"{BASE_URL}/projects/{PROJECT_ID}/entry?page=1", wait_until="domcontentloaded")
             expect(page.locator("#areaCreate")).to_be_visible(timeout=5000)
-            expect(page.locator("#entryShowNumberInMarker")).to_be_visible(timeout=5000)
-            expect(page.locator("#entryShowNumberInMarker")).not_to_be_checked()
+            expect(page.locator("#entryMarkerNumberHelp")).to_be_visible(timeout=5000)
             expect(page.locator("#entryZoomIn")).to_be_visible(timeout=5000)
             expect(page.locator("#entryZoomOut")).to_be_visible(timeout=5000)
             expect(page.locator("#entryZoomReset")).to_be_visible(timeout=5000)
             page.wait_for_function(
                 "document.getElementById('entryAreaCanvas')?.dataset.areaCount === '1'"
+            )
+            page.wait_for_function(
+                "document.getElementById('entryAreaCanvas')?.dataset.numberMarkerCount === '0'"
             )
 
             canvas = page.locator("#canvas")
@@ -209,14 +211,16 @@ def main():
             saved = response_info.value.json()
             assert saved["count"] == 2, saved
             assert saved["areaCount"] == 2, saved
-            assert saved["showNumberInMarker"] is False, saved
+            assert saved["numberMarkerCount"] == 0, saved
             page.wait_for_function("document.getElementById('pageState').textContent.includes('保存済')")
 
             page.reload(wait_until="domcontentloaded")
             page.wait_for_function(
                 "document.getElementById('entryAreaCanvas')?.dataset.areaCount === '2'"
             )
-            expect(page.locator("#entryShowNumberInMarker")).not_to_be_checked()
+            page.wait_for_function(
+                "document.getElementById('entryAreaCanvas')?.dataset.numberMarkerCount === '0'"
+            )
 
             page.goto(f"{BASE_URL}/projects/{PROJECT_ID}/progress?page=1", wait_until="domcontentloaded")
             page.wait_for_function(
@@ -232,8 +236,6 @@ def main():
             for _ in range(3):
                 page.locator("#rotate").click()
             page.wait_for_function("document.getElementById('rotate').textContent.includes('0')")
-            # Rotation also performs adaptive layout and position reset. Wait for that
-            # asynchronous layout pass before asserting source-coordinate hit testing.
             page.wait_for_timeout(250)
 
             click_ocr(page, 1800, 1100)
@@ -261,7 +263,7 @@ def main():
     assert response.status_code == 200
     assert len(data["areas"]) == 2, data
     assert {area["number"] for area in data["areas"]} == {"12", "34"}
-    assert data["showNumberInMarker"] is False
+    assert data["numberMarkerTargets"] == []
 
     print("ENTRY_ZOOM_BUTTONS_AND_CTRL_WHEEL", True)
     print("ENTRY_POLYGON_CREATE_WHILE_ZOOMED", True)
