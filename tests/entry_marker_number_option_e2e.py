@@ -178,6 +178,13 @@ def main():
             expect(overlay).to_have_attribute("data-marker-text-count", "1")
             expect(overlay).to_have_attribute("data-label-orientation", "screen-upright")
 
+            # This test's OCR click helper assumes 0 degrees. Return the persisted drawing
+            # rotation to 0 before navigating back to Entry for individual checkbox clicks.
+            for _ in range(3):
+                page.locator("#rotate").click()
+            page.wait_for_function("document.getElementById('rotate').textContent.includes('0')")
+            page.wait_for_timeout(150)
+
             # Turn marker 12 OFF and marker 34 ON, proving the setting is per marker.
             page.goto(f"{BASE_URL}/projects/{PROJECT_ID}/entry?page=1", wait_until="domcontentloaded")
             page.wait_for_function(
