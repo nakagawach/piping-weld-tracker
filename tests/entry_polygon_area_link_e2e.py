@@ -13,7 +13,7 @@ from PIL import Image
 from playwright.sync_api import expect, sync_playwright
 from werkzeug.serving import make_server
 
-from app import DB_PATH, app
+from app import DB_PATH, app, get_db_connection
 
 
 PROJECT_ID = 993
@@ -30,59 +30,22 @@ def white_png():
 
 def seed_database():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    # Reuse the application's existing schema initializers so this regression test
+    # never carries schema-management SQL of its own.
+    with get_db_connection():
+        pass
+    response = app.test_client().get("/projects")
+    assert response.status_code == 200
+
     with sqlite3.connect(DB_PATH) as connection:
-        connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS projects (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                project_name TEXT NOT NULL,
-                original_pdf_name TEXT NOT NULL,
-                stored_pdf_name TEXT NOT NULL UNIQUE,
-                created_at TEXT NOT NULL
-            )
-            """
-        )
-        connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS number_map (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                drawing_key TEXT NOT NULL,
-                page_number INTEGER NOT NULL,
-                item_order INTEGER NOT NULL,
-                number_text TEXT NOT NULL,
-                source TEXT NOT NULL,
-                x REAL NOT NULL,
-                y REAL NOT NULL,
-                width REAL NOT NULL,
-                height REAL NOT NULL,
-                saved_at TEXT NOT NULL
-            )
-            """
-        )
-        connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS weld_progress (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                drawing_key TEXT NOT NULL,
-                page_number INTEGER NOT NULL,
-                position_x INTEGER NOT NULL,
-                position_y INTEGER NOT NULL,
-                number_text TEXT NOT NULL,
-                status TEXT NOT NULL,
-                completed_date TEXT NOT NULL DEFAULT '',
-                work_detail TEXT NOT NULL DEFAULT '',
-                updated_at TEXT NOT NULL,
-                UNIQUE(drawing_key, page_number, position_x, position_y)
-            )
-            """
-        )
         connection.execute("DELETE FROM projects WHERE id = ?", (PROJECT_ID,))
         connection.execute(
             "INSERT INTO projects (id, project_name, original_pdf_name, stored_pdf_name, created_at) VALUES (?, ?, ?, ?, ?)",
             (PROJECT_ID, "ポリゴンE2E", "area-test.pdf", "area-test.pdf", "2026-09-05T00:00:00+00:00"),
         )
         key = f"project:{PROJECT_ID}"
-        connection.execute("DELETE FROM number_map WHERE drawing_key = ?", (key,))
+        area_key = f"project-area:{PROJECT_ID}"
+        connection.execute("DELETE FROM number_map WHERE drawing_key IN (?, ?)", (key, area_key))
         connection.execute("DELETE FROM weld_progress WHERE drawing_key = ?", (key,))
         connection.execute(
             """
