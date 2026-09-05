@@ -24,6 +24,7 @@
   let candidates = [];
   let areas = [];
   let progressMap = new Map();
+  let showNumberInMarker = false;
   let selectedKey = '';
   let loadToken = 0;
   let syntheticClick = false;
@@ -155,30 +156,32 @@
     if (!label) return;
     const c = screenPoint(center(item));
     const r = markerRadius(item);
-    const color = markerColor(statusFor(item));
-    let fontSize = Math.max(8, r * .82);
-    const maxWidth = Math.max(16, r * 1.9);
+    const status = statusFor(item);
+    let fontSize = Math.max(8, r * .78);
+    const maxWidth = Math.max(14, r * 1.55);
     ctx.font = `800 ${fontSize}px system-ui,-apple-system,"Segoe UI",sans-serif`;
     while (fontSize > 7 && ctx.measureText(label).width > maxWidth) {
       fontSize -= 1;
       ctx.font = `800 ${fontSize}px system-ui,-apple-system,"Segoe UI",sans-serif`;
     }
     const textWidth = Math.min(maxWidth, ctx.measureText(label).width);
-    const padX = Math.max(2, fontSize * .22);
-    const padY = Math.max(1.5, fontSize * .12);
-    const boxWidth = textWidth + padX * 2;
-    const boxHeight = fontSize * 1.16 + padY * 2;
-    const preferredX = c.x - r + 1;
-    const preferredY = c.y - r - boxHeight + 2;
-    const boxX = Math.max(1, Math.min(overlay.width - boxWidth - 1, preferredX));
-    const boxY = Math.max(1, Math.min(overlay.height - boxHeight - 1, preferredY));
+    const padX = Math.max(2, fontSize * .18);
+    const padY = Math.max(1, fontSize * .08);
+    const boxWidth = Math.min(r * 1.75, textWidth + padX * 2);
+    const boxHeight = Math.min(r * .95, fontSize * 1.08 + padY * 2);
+    const boxX = c.x - boxWidth / 2;
+    const boxY = c.y - boxHeight / 2;
 
-    ctx.fillStyle = 'rgba(255,255,255,.96)';
+    // Cover the drawing under the text first, then repaint the same marker fill.
+    // This keeps the number readable without changing the circle's status color.
+    ctx.fillStyle = '#fff';
     ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
-    ctx.fillStyle = color;
-    ctx.textAlign = 'left';
+    ctx.fillStyle = markerFill(status);
+    ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+    ctx.fillStyle = '#000';
+    ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(label, boxX + padX, boxY + boxHeight / 2, maxWidth);
+    ctx.fillText(label, c.x, c.y, maxWidth);
   }
 
   function render() {
@@ -229,15 +232,21 @@
 
     for (const item of candidates) drawMarker(ctx, item);
 
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    for (const item of candidates) drawMarkerLabel(ctx, item);
+    if (showNumberInMarker) {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      for (const item of candidates) drawMarkerLabel(ctx, item);
+    }
 
     overlay.dataset.areaCount = String(areas.length);
     overlay.dataset.areaPage = String(pageInput.value || '');
-    overlay.dataset.markerTextCount = String(candidates.filter(item => String(item.number ?? '')).length);
+    overlay.dataset.markerTextCount = String(
+      showNumberInMarker ? candidates.filter(item => String(item.number ?? '')).length : 0
+    );
     overlay.dataset.colorMode = 'progress-status';
-    overlay.dataset.labelPlacement = 'marker-top-left';
+    overlay.dataset.labelPlacement = showNumberInMarker ? 'marker-center' : 'hidden';
     overlay.dataset.labelOrientation = 'screen-upright';
+    overlay.dataset.labelColor = 'black';
+    overlay.dataset.labelBackground = 'marker-fill';
   }
 
   function eventPoint(event) {
@@ -362,6 +371,7 @@
     if (token !== loadToken) return;
 
     candidates = Array.isArray(numberData.candidates) ? numberData.candidates : [];
+    showNumberInMarker = numberData.showNumberInMarker === true;
     progressMap = new Map((Array.isArray(progressData.items) ? progressData.items : []).map(item => [
       keyFromXY(item.x, item.y), item,
     ]));
@@ -432,6 +442,7 @@
     candidates = [];
     areas = [];
     progressMap = new Map();
+    showNumberInMarker = false;
     selectedKey = '';
     render();
   });
@@ -442,6 +453,7 @@
       candidates = [];
       areas = [];
       progressMap = new Map();
+      showNumberInMarker = false;
       render();
     });
   });
