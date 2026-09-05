@@ -45,7 +45,11 @@ def seed_database():
         )
         key = f"project:{PROJECT_ID}"
         area_key = f"project-area:{PROJECT_ID}"
-        connection.execute("DELETE FROM number_map WHERE drawing_key IN (?, ?)", (key, area_key))
+        option_key = f"project-option:{PROJECT_ID}"
+        connection.execute(
+            "DELETE FROM number_map WHERE drawing_key IN (?, ?, ?)",
+            (key, area_key, option_key),
+        )
         connection.execute("DELETE FROM weld_progress WHERE drawing_key = ?", (key,))
         connection.execute(
             """
@@ -99,6 +103,7 @@ def save_initial_area():
     data = response.get_json()
     assert len(data["areas"]) == 1
     assert data["areas"][0]["number"] == "12"
+    assert data["showNumberInMarker"] is False
 
     bad = dict(payload)
     bad["areas"] = [{"number": "12", "target": {"x": 123, "y": 456}, "points": [[1, 1], [10, 1], [10, 10]]}]
@@ -161,6 +166,8 @@ def main():
             # Entry: existing polygon loads and isolated zoom controls are available.
             page.goto(f"{BASE_URL}/projects/{PROJECT_ID}/entry?page=1", wait_until="domcontentloaded")
             expect(page.locator("#areaCreate")).to_be_visible(timeout=5000)
+            expect(page.locator("#entryShowNumberInMarker")).to_be_visible(timeout=5000)
+            expect(page.locator("#entryShowNumberInMarker")).not_to_be_checked()
             expect(page.locator("#entryZoomIn")).to_be_visible(timeout=5000)
             expect(page.locator("#entryZoomOut")).to_be_visible(timeout=5000)
             expect(page.locator("#entryZoomReset")).to_be_visible(timeout=5000)
@@ -207,25 +214,28 @@ def main():
             saved = response_info.value.json()
             assert saved["count"] == 2, saved
             assert saved["areaCount"] == 2, saved
+            assert saved["showNumberInMarker"] is False, saved
             page.wait_for_function("document.getElementById('pageState').textContent.includes('保存済')")
 
-            # Reloading the Entry page must restore both saved polygons.
+            # Reloading the Entry page must restore both saved polygons and default unchecked setting.
             page.reload(wait_until="domcontentloaded")
             page.wait_for_function(
                 "document.getElementById('entryAreaCanvas')?.dataset.areaCount === '2'"
             )
+            expect(page.locator("#entryShowNumberInMarker")).not_to_be_checked()
 
-            # Progress: labels are outside the marker and remain screen-upright through drawing rotation.
+            # Progress: marker numbers are hidden by default; rotation must not change that.
             page.goto(f"{BASE_URL}/projects/{PROJECT_ID}/progress?page=1", wait_until="domcontentloaded")
             page.wait_for_function(
                 "document.getElementById('progressEntryAreaCanvas')?.dataset.areaCount === '2'"
             )
             overlay = page.locator("#progressEntryAreaCanvas")
-            expect(overlay).to_have_attribute("data-label-placement", "marker-top-left")
+            expect(overlay).to_have_attribute("data-label-placement", "hidden")
+            expect(overlay).to_have_attribute("data-marker-text-count", "0")
             expect(overlay).to_have_attribute("data-label-orientation", "screen-upright")
             page.locator("#rotate").click()
             page.wait_for_function("document.getElementById('rotate').textContent.includes('90')")
-            expect(overlay).to_have_attribute("data-label-orientation", "screen-upright")
+            expect(overlay).to_have_attribute("data-label-placement", "hidden")
             for _ in range(3):
                 page.locator("#rotate").click()
             page.wait_for_function("document.getElementById('rotate').textContent.includes('0')")
@@ -258,11 +268,12 @@ def main():
     assert response.status_code == 200
     assert len(data["areas"]) == 2, data
     assert {area["number"] for area in data["areas"]} == {"12", "34"}
+    assert data["showNumberInMarker"] is False
 
     print("ENTRY_ZOOM_BUTTONS_AND_CTRL_WHEEL", True)
     print("ENTRY_POLYGON_CREATE_WHILE_ZOOMED", True)
     print("ENTRY_POLYGON_CREATE_SAVE_RELOAD", True)
-    print("PROGRESS_LABEL_TOP_LEFT_UPRIGHT", True)
+    print("PROGRESS_MARKER_NUMBER_DEFAULT_HIDDEN", True)
     print("PROGRESS_POLYGON_OPENS_PAIRED_TARGET", True)
     print("CONNECTOR_LINE_DISPLAY_ONLY", True)
     print("ROUND_MARKER_EXISTING_HIT_RETAINED", True)
