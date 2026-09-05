@@ -158,12 +158,36 @@ def main():
                 lambda route: route.fulfill(status=200, content_type="image/png", body=png),
             )
 
-            # Entry: existing polygon loads, then create a second polygon paired with marker 34.
+            # Entry: existing polygon loads and isolated zoom controls are available.
             page.goto(f"{BASE_URL}/projects/{PROJECT_ID}/entry?page=1", wait_until="domcontentloaded")
             expect(page.locator("#areaCreate")).to_be_visible(timeout=5000)
+            expect(page.locator("#entryZoomIn")).to_be_visible(timeout=5000)
+            expect(page.locator("#entryZoomOut")).to_be_visible(timeout=5000)
+            expect(page.locator("#entryZoomReset")).to_be_visible(timeout=5000)
             page.wait_for_function(
                 "document.getElementById('entryAreaCanvas')?.dataset.areaCount === '1'"
             )
+
+            canvas = page.locator("#canvas")
+            initial_width = canvas.bounding_box()["width"]
+            page.locator("#entryZoomIn").click()
+            page.wait_for_function("parseFloat(document.getElementById('canvas').dataset.entryZoom || '1') > 1")
+            assert canvas.bounding_box()["width"] > initial_width, "zoom-in button did not enlarge Entry canvas"
+
+            page.locator("#entryZoomReset").click()
+            page.wait_for_function("Math.abs(parseFloat(document.getElementById('canvas').dataset.entryZoom || '0') - 1) < 0.01")
+            reset_width = canvas.bounding_box()["width"]
+            assert abs(reset_width - initial_width) < 2, (initial_width, reset_width)
+
+            viewer_box = page.locator(".viewer").bounding_box()
+            page.mouse.move(viewer_box["x"] + viewer_box["width"] / 2, viewer_box["y"] + viewer_box["height"] / 2)
+            page.keyboard.down("Control")
+            page.mouse.wheel(0, -120)
+            page.keyboard.up("Control")
+            page.wait_for_function("parseFloat(document.getElementById('canvas').dataset.entryZoom || '1') > 1")
+            assert canvas.bounding_box()["width"] > reset_width, "Ctrl+wheel did not enlarge Entry canvas"
+
+            # Keep a zoomed canvas while using the existing polygon creation coordinates.
             page.locator("#areaCreate").click()
             expect(page.locator("#areaCreate")).to_have_class("button active")
 
@@ -191,11 +215,22 @@ def main():
                 "document.getElementById('entryAreaCanvas')?.dataset.areaCount === '2'"
             )
 
-            # Progress: polygon interior opens exactly the paired target's existing progress dialog.
+            # Progress: labels are outside the marker and remain screen-upright through drawing rotation.
             page.goto(f"{BASE_URL}/projects/{PROJECT_ID}/progress?page=1", wait_until="domcontentloaded")
             page.wait_for_function(
                 "document.getElementById('progressEntryAreaCanvas')?.dataset.areaCount === '2'"
             )
+            overlay = page.locator("#progressEntryAreaCanvas")
+            expect(overlay).to_have_attribute("data-label-placement", "marker-top-left")
+            expect(overlay).to_have_attribute("data-label-orientation", "screen-upright")
+            page.locator("#rotate").click()
+            page.wait_for_function("document.getElementById('rotate').textContent.includes('90')")
+            expect(overlay).to_have_attribute("data-label-orientation", "screen-upright")
+            for _ in range(3):
+                page.locator("#rotate").click()
+            page.wait_for_function("document.getElementById('rotate').textContent.includes('0')")
+
+            # Polygon interior opens exactly the paired target's existing progress dialog.
             click_ocr(page, 1800, 1100)
             expect(page.locator("#progressDialog")).to_be_visible()
             expect(page.locator("#dialogTarget")).to_contain_text("34")
@@ -224,7 +259,10 @@ def main():
     assert len(data["areas"]) == 2, data
     assert {area["number"] for area in data["areas"]} == {"12", "34"}
 
+    print("ENTRY_ZOOM_BUTTONS_AND_CTRL_WHEEL", True)
+    print("ENTRY_POLYGON_CREATE_WHILE_ZOOMED", True)
     print("ENTRY_POLYGON_CREATE_SAVE_RELOAD", True)
+    print("PROGRESS_LABEL_TOP_LEFT_UPRIGHT", True)
     print("PROGRESS_POLYGON_OPENS_PAIRED_TARGET", True)
     print("CONNECTOR_LINE_DISPLAY_ONLY", True)
     print("ROUND_MARKER_EXISTING_HIT_RETAINED", True)
