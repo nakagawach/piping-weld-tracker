@@ -24,7 +24,7 @@
   let candidates = [];
   let areas = [];
   let progressMap = new Map();
-  let showNumberInMarker = false;
+  let numberMarkerKeys = new Set();
   let selectedKey = '';
   let loadToken = 0;
   let syntheticClick = false;
@@ -52,6 +52,7 @@
   };
   const statusFor = item => progressMap.get(targetKey(item))?.status || '未着手';
   const markerRadius = item => Math.max(9, Math.max(item.bbox.w * SCALE, item.bbox.h * SCALE) * .82);
+  const markerNumberEnabled = item => numberMarkerKeys.has(targetKey(item));
 
   function rotation() {
     const match = rotateButton.textContent.match(/(0|90|180|270)/);
@@ -172,8 +173,6 @@
     const boxX = c.x - boxWidth / 2;
     const boxY = c.y - boxHeight / 2;
 
-    // Cover the drawing under the text first, then repaint the same marker fill.
-    // This keeps the number readable without changing the circle's status color.
     ctx.fillStyle = '#fff';
     ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
     ctx.fillStyle = markerFill(status);
@@ -232,18 +231,17 @@
 
     for (const item of candidates) drawMarker(ctx, item);
 
-    if (showNumberInMarker) {
+    const enabledItems = candidates.filter(item => markerNumberEnabled(item) && String(item.number ?? ''));
+    if (enabledItems.length) {
       ctx.setTransform(1, 0, 0, 1, 0, 0);
-      for (const item of candidates) drawMarkerLabel(ctx, item);
+      for (const item of enabledItems) drawMarkerLabel(ctx, item);
     }
 
     overlay.dataset.areaCount = String(areas.length);
     overlay.dataset.areaPage = String(pageInput.value || '');
-    overlay.dataset.markerTextCount = String(
-      showNumberInMarker ? candidates.filter(item => String(item.number ?? '')).length : 0
-    );
+    overlay.dataset.markerTextCount = String(enabledItems.length);
     overlay.dataset.colorMode = 'progress-status';
-    overlay.dataset.labelPlacement = showNumberInMarker ? 'marker-center' : 'hidden';
+    overlay.dataset.labelPlacement = enabledItems.length ? 'marker-center-individual' : 'hidden';
     overlay.dataset.labelOrientation = 'screen-upright';
     overlay.dataset.labelColor = 'black';
     overlay.dataset.labelBackground = 'marker-fill';
@@ -371,7 +369,16 @@
     if (token !== loadToken) return;
 
     candidates = Array.isArray(numberData.candidates) ? numberData.candidates : [];
-    showNumberInMarker = numberData.showNumberInMarker === true;
+    numberMarkerKeys = new Set();
+    for (const raw of Array.isArray(numberData.numberMarkerTargets) ? numberData.numberMarkerTargets : []) {
+      const target = candidates.find(item => {
+        const c = center(item);
+        return item.number === raw.number
+          && Math.abs(c.x - Number(raw.target?.x)) < 2
+          && Math.abs(c.y - Number(raw.target?.y)) < 2;
+      });
+      if (target) numberMarkerKeys.add(targetKey(target));
+    }
     progressMap = new Map((Array.isArray(progressData.items) ? progressData.items : []).map(item => [
       keyFromXY(item.x, item.y), item,
     ]));
@@ -442,7 +449,7 @@
     candidates = [];
     areas = [];
     progressMap = new Map();
-    showNumberInMarker = false;
+    numberMarkerKeys = new Set();
     selectedKey = '';
     render();
   });
@@ -453,7 +460,7 @@
       candidates = [];
       areas = [];
       progressMap = new Map();
-      showNumberInMarker = false;
+      numberMarkerKeys = new Set();
       render();
     });
   });
