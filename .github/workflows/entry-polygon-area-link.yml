@@ -1,0 +1,63 @@
+name: Entry Polygon Area Link Regression
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - projects.py
+      - static/entry_polygon_areas.js
+      - static/progress_entry_areas.js
+      - tests/entry_polygon_area_link_e2e.py
+      - .github/workflows/entry-polygon-area-link.yml
+
+jobs:
+  polygon-area-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install app dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install browser test dependencies
+        run: |
+          pip install playwright
+          playwright install --with-deps chromium
+
+      - name: Python syntax check
+        run: python -m py_compile projects.py tests/entry_polygon_area_link_e2e.py
+
+      - name: JavaScript syntax check
+        run: |
+          node --check static/entry_polygon_areas.js
+          node --check static/progress_entry_areas.js
+
+      - name: Entry polygon area regression
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python tests/entry_polygon_area_link_e2e.py
+
+      - name: Shared UI shell regression
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python tests/ui_shell_e2e.py
+
+      - name: Progress navigation regression
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python tests/progress_nav_verified_e2e.py
+
+      - name: Drawing memo regression
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python tests/drawing_memo_v2_e2e.py
+
+      - name: Progress fixed workspace regression
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python tests/progress_fixed_workspace_production_e2e.py
