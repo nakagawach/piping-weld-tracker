@@ -531,3 +531,12 @@
   applyMapData();
   syncOverlaySize();
 })();
+
+(() => {
+  const current = document.currentScript?.src;
+  if (!current || document.getElementById('entryViewerZoomScript')) return;
+  const script = document.createElement('script');
+  script.id = 'entryViewerZoomScript';
+  script.src = new URL('entry_viewer_zoom.js', current).href;
+  document.head.appendChild(script);
+})();
