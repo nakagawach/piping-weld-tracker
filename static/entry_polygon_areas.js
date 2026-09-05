@@ -9,7 +9,7 @@
   const SCALE = 1600 / 6000;
   const overlay = document.createElement('canvas');
   overlay.id = 'entryAreaCanvas';
-  overlay.setAttribute('aria-label', 'ポリゴンエリア表示レイヤー');
+  overlay.setAttribute('aria-label', 'ポリゴンエリア・枠内番号個別設定レイヤー');
   overlay.style.position = 'absolute';
   overlay.style.zIndex = '3';
   overlay.style.pointerEvents = 'none';
@@ -25,30 +25,20 @@
   areaButton.title = '丸枠を選択してポリゴンエリアを作成・編集';
   host.bboxEditButton.insertAdjacentElement('afterend', areaButton);
 
-  const numberLabelControl = document.createElement('label');
-  numberLabelControl.id = 'entryMarkerNumberControl';
-  numberLabelControl.className = 'button';
-  numberLabelControl.style.display = 'inline-flex';
-  numberLabelControl.style.alignItems = 'center';
-  numberLabelControl.style.gap = '7px';
-  numberLabelControl.style.cursor = 'pointer';
-  numberLabelControl.style.fontWeight = '600';
-  numberLabelControl.title = '進捗画面の丸枠内に番号を表示します';
-
-  const numberLabelCheckbox = document.createElement('input');
-  numberLabelCheckbox.type = 'checkbox';
-  numberLabelCheckbox.id = 'entryShowNumberInMarker';
-  numberLabelCheckbox.checked = false;
-  numberLabelCheckbox.setAttribute('aria-label', '進捗画面の枠内に番号を表示');
-
-  const numberLabelText = document.createElement('span');
-  numberLabelText.textContent = '枠内番号';
-  numberLabelControl.append(numberLabelCheckbox, numberLabelText);
-  areaButton.insertAdjacentElement('afterend', numberLabelControl);
+  const numberHelp = document.createElement('span');
+  numberHelp.id = 'entryMarkerNumberHelp';
+  numberHelp.textContent = '☐ 枠内番号';
+  numberHelp.title = '各丸枠右上のチェックを個別に切り替えます';
+  numberHelp.style.fontSize = '12px';
+  numberHelp.style.fontWeight = '600';
+  numberHelp.style.whiteSpace = 'nowrap';
+  numberHelp.style.alignSelf = 'center';
+  areaButton.insertAdjacentElement('afterend', numberHelp);
 
   let areas = [];
   let originalAreas = [];
-  let originalShowNumberInMarker = false;
+  let numberMarkerIds = new Set();
+  let originalNumberMarkerIds = new Set();
   let nextAreaId = 1;
   let mode = false;
   let targetId = null;
@@ -63,6 +53,7 @@
     ...area,
     points: area.points.map(point => [...point]),
   }));
+  const cloneIdSet = set => new Set([...set]);
   const center = item => ({
     x: item.bbox.x + item.bbox.w / 2,
     y: item.bbox.y + item.bbox.h / 2,
@@ -160,9 +151,74 @@
     if (markDirty && areas.length !== before) host.setDirty(true);
   }
 
+  function reconcileNumberMarkers(markDirty = true) {
+    const ids = new Set(host.getCandidates().map(item => item.id));
+    const next = new Set([...numberMarkerIds].filter(id => ids.has(id)));
+    const changed = next.size !== numberMarkerIds.size;
+    numberMarkerIds = next;
+    if (markDirty && changed) host.setDirty(true);
+  }
+
+  function markerCheckboxRect(item) {
+    const width = Math.max(host.cssPxToOcrX(14), 20);
+    const height = Math.max(host.cssPxToOcrY(14), 20);
+    const gap = Math.max(host.cssPxToOcrX(3), 4);
+    return {
+      x: item.bbox.x + item.bbox.w + gap,
+      y: item.bbox.y,
+      w: width,
+      h: height,
+    };
+  }
+
+  function drawMarkerCheckboxes(ctx) {
+    for (const item of host.getCandidates()) {
+      const rect = markerCheckboxRect(item);
+      const x = rect.x * SCALE;
+      const y = rect.y * SCALE;
+      const w = rect.w * SCALE;
+      const h = rect.h * SCALE;
+      const enabled = numberMarkerIds.has(item.id);
+      ctx.save();
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(x, y, w, h);
+      ctx.strokeStyle = enabled ? '#1967d2' : '#5f6368';
+      ctx.lineWidth = Math.max(1.5, overlay.width / 1200);
+      ctx.strokeRect(x, y, w, h);
+      if (enabled) {
+        ctx.beginPath();
+        ctx.moveTo(x + w * .20, y + h * .53);
+        ctx.lineTo(x + w * .43, y + h * .76);
+        ctx.lineTo(x + w * .82, y + h * .25);
+        ctx.strokeStyle = '#1967d2';
+        ctx.lineWidth = Math.max(2, overlay.width / 850);
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
+
+  function findMarkerCheckbox(point) {
+    const padX = host.cssPxToOcrX(4);
+    const padY = host.cssPxToOcrY(4);
+    const candidates = host.getCandidates();
+    for (let index = candidates.length - 1; index >= 0; index--) {
+      const item = candidates[index];
+      const rect = markerCheckboxRect(item);
+      if (
+        point.x >= rect.x - padX && point.x <= rect.x + rect.w + padX
+        && point.y >= rect.y - padY && point.y <= rect.y + rect.h + padY
+      ) return item;
+    }
+    return null;
+  }
+
   function render() {
     if (!overlay.width || !overlay.height) return;
     reconcileAreas(false);
+    reconcileNumberMarkers(false);
     const ctx = configureContext();
     for (const area of areas) {
       const target = candidateById(area.targetId);
@@ -200,8 +256,11 @@
       ctx.stroke();
       ctx.setLineDash([]);
     }
+
+    if (!mode) drawMarkerCheckboxes(ctx);
     overlay.dataset.areaCount = String(areas.length);
     overlay.dataset.selectedArea = selectedAreaId === null ? '' : String(selectedAreaId);
+    overlay.dataset.numberMarkerCount = String(numberMarkerIds.size);
   }
 
   function pointSegmentDistance(point, a, b) {
@@ -266,7 +325,7 @@
       areaButton.classList.remove('active');
       baseCanvas.style.removeProperty('cursor');
       host.status.className = 'status';
-      host.status.textContent = 'エリア作成OFF：通常の番号変更・手動追加に戻りました。';
+      host.status.textContent = 'エリア作成OFF：各丸枠右上の☐で枠内番号を個別設定できます。';
     }
     render();
   }
@@ -277,6 +336,7 @@
     lastMapRef = record;
     const candidates = host.getCandidates();
     areas = [];
+    numberMarkerIds = new Set();
     for (const raw of Array.isArray(record.data?.areas) ? record.data.areas : []) {
       const target = candidates.find(item => {
         const c = center(item);
@@ -291,9 +351,17 @@
         points: raw.points.map(point => [Number(point[0]), Number(point[1])]),
       });
     }
+    for (const raw of Array.isArray(record.data?.numberMarkerTargets) ? record.data.numberMarkerTargets : []) {
+      const target = candidates.find(item => {
+        const c = center(item);
+        return item.number === raw.number
+          && Math.abs(c.x - Number(raw.target?.x)) < 2
+          && Math.abs(c.y - Number(raw.target?.y)) < 2;
+      });
+      if (target) numberMarkerIds.add(target.id);
+    }
     originalAreas = cloneAreas(areas);
-    originalShowNumberInMarker = record.data?.showNumberInMarker === true;
-    numberLabelCheckbox.checked = originalShowNumberInMarker;
+    originalNumberMarkerIds = cloneIdSet(numberMarkerIds);
     setMode(false);
     syncOverlaySize();
   }
@@ -309,6 +377,21 @@
         points: area.points.map(point => [...point]),
       };
     });
+  }
+
+  function serializeNumberMarkerTargets() {
+    reconcileNumberMarkers(false);
+    const targets = [];
+    for (const id of numberMarkerIds) {
+      const target = candidateById(id);
+      if (!target) continue;
+      const c = center(target);
+      targets.push({
+        number: target.number,
+        target: { x: c.x, y: c.y },
+      });
+    }
+    return targets;
   }
 
   function completeDraft() {
@@ -339,17 +422,23 @@
     setMode(!mode);
   });
 
-  numberLabelCheckbox.addEventListener('change', () => {
-    if (host.isBusy()) {
-      numberLabelCheckbox.checked = !numberLabelCheckbox.checked;
-      return;
+  baseCanvas.addEventListener('click', event => {
+    if (mode || host.isBusy()) return;
+    const target = findMarkerCheckbox(host.point(event));
+    if (!target) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    if (numberMarkerIds.has(target.id)) {
+      numberMarkerIds.delete(target.id);
+      host.status.textContent = `${target.number} の枠内番号表示をOFFにしました。確定保存すると反映されます。`;
+    } else {
+      numberMarkerIds.add(target.id);
+      host.status.textContent = `${target.number} の枠内番号表示をONにしました。確定保存すると反映されます。`;
     }
-    host.setDirty(true);
     host.status.className = 'status';
-    host.status.textContent = numberLabelCheckbox.checked
-      ? '進捗画面の丸枠内に番号を表示します。確定保存すると反映されます。'
-      : '進捗画面の丸枠内番号を非表示にします。確定保存すると反映されます。';
-  });
+    host.setDirty(true);
+    render();
+  }, true);
 
   baseCanvas.addEventListener('pointerdown', event => {
     if (!mode || event.pointerType !== 'mouse' || event.button !== 0 || host.isBusy()) return;
@@ -514,9 +603,10 @@
     const candidates = host.getCandidates();
     if (host.isBusy() || !candidates.length) return;
     reconcileAreas(true);
+    reconcileNumberMarkers(true);
     host.setBusy(true);
     host.status.className = 'status';
-    host.status.textContent = '番号配置とエリアを保存中…';
+    host.status.textContent = '番号配置・エリア・枠内番号設定を保存中…';
     try {
       const response = await fetch(host.numberMapUrl, {
         method: 'POST',
@@ -525,13 +615,13 @@
           pageNumber: host.currentPage(),
           candidates: host.serializeCandidates(),
           areas: serializeAreas(),
-          showNumberInMarker: numberLabelCheckbox.checked,
+          numberMarkerTargets: serializeNumberMarkerTargets(),
         }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || '保存に失敗しました。');
       originalAreas = cloneAreas(areas);
-      originalShowNumberInMarker = numberLabelCheckbox.checked;
+      originalNumberMarkerIds = cloneIdSet(numberMarkerIds);
       host.afterSave(data);
     } catch (error) {
       host.status.className = 'status error';
@@ -543,7 +633,7 @@
 
   host.resetButton.addEventListener('click', () => {
     areas = cloneAreas(originalAreas);
-    numberLabelCheckbox.checked = originalShowNumberInMarker;
+    numberMarkerIds = cloneIdSet(originalNumberMarkerIds);
     targetId = null;
     draft = [];
     preview = null;
@@ -554,6 +644,7 @@
   window.addEventListener('weld:entry-base-drawn', () => {
     applyMapData();
     reconcileAreas(true);
+    reconcileNumberMarkers(true);
     syncOverlaySize();
   });
 
