@@ -11,6 +11,7 @@ on:
       - static/progress_entry_areas.js
       - tests/entry_polygon_area_link_e2e.py
       - tests/entry_zoom_overlay_alignment_e2e.py
+      - tests/entry_marker_number_option_e2e.py
       - .github/workflows/entry-polygon-area-link.yml
 
 jobs:
@@ -32,7 +33,7 @@ jobs:
           playwright install --with-deps chromium
 
       - name: Python syntax check
-        run: python -m py_compile projects.py tests/entry_polygon_area_link_e2e.py tests/entry_zoom_overlay_alignment_e2e.py
+        run: python -m py_compile projects.py tests/entry_polygon_area_link_e2e.py tests/entry_zoom_overlay_alignment_e2e.py tests/entry_marker_number_option_e2e.py
 
       - name: JavaScript syntax check
         run: |
@@ -49,6 +50,11 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: python tests/entry_zoom_overlay_alignment_e2e.py
+
+      - name: Entry marker number option regression
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python tests/entry_marker_number_option_e2e.py
 
       - name: Shared UI shell regression
         env:
