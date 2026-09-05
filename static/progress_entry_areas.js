@@ -50,6 +50,7 @@
     return 'rgba(95,99,104,.20)';
   };
   const statusFor = item => progressMap.get(targetKey(item))?.status || '未着手';
+  const markerRadius = item => Math.max(9, Math.max(item.bbox.w * SCALE, item.bbox.h * SCALE) * .82);
 
   function rotation() {
     const match = rotateButton.textContent.match(/(0|90|180|270)/);
@@ -122,10 +123,9 @@
 
   function drawMarker(ctx, item) {
     const c = center(item);
-    const b = item.bbox;
     const cx = c.x * SCALE;
     const cy = c.y * SCALE;
-    const r = Math.max(9, Math.max(b.w * SCALE, b.h * SCALE) * .82);
+    const r = markerRadius(item);
     const status = statusFor(item);
     const color = markerColor(status);
 
@@ -147,6 +147,16 @@
         fontSize -= 1;
         ctx.font = `800 ${fontSize}px system-ui,-apple-system,"Segoe UI",sans-serif`;
       }
+      const textWidth = Math.min(maxWidth, ctx.measureText(label).width);
+      const padX = Math.max(2, fontSize * .22);
+      const padY = Math.max(1.5, fontSize * .12);
+      ctx.fillStyle = 'rgba(255,255,255,.96)';
+      ctx.fillRect(
+        cx - textWidth / 2 - padX,
+        cy - fontSize * .58 - padY,
+        textWidth + padX * 2,
+        fontSize * 1.16 + padY * 2,
+      );
       ctx.fillStyle = color;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -167,14 +177,25 @@
       const status = statusFor(target);
       const color = markerColor(status);
       const selected = selectedKey === targetKey(target);
+      const lineWidth = selected ? Math.max(4, overlay.width / 520) : Math.max(3, overlay.width / 650);
+      const cx = c.x * SCALE;
+      const cy = c.y * SCALE;
+      const ex = end[0] * SCALE;
+      const ey = end[1] * SCALE;
+      const dx = ex - cx;
+      const dy = ey - cy;
+      const distance = Math.hypot(dx, dy);
+      const startDistance = markerRadius(target) + lineWidth / 2;
 
-      ctx.beginPath();
-      ctx.moveTo(c.x * SCALE, c.y * SCALE);
-      ctx.lineTo(end[0] * SCALE, end[1] * SCALE);
-      ctx.strokeStyle = color;
-      ctx.lineWidth = selected ? Math.max(4, overlay.width / 520) : Math.max(3, overlay.width / 650);
-      ctx.lineCap = 'round';
-      ctx.stroke();
+      if (distance > startDistance) {
+        ctx.beginPath();
+        ctx.moveTo(cx + dx / distance * startDistance, cy + dy / distance * startDistance);
+        ctx.lineTo(ex, ey);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = lineWidth;
+        ctx.lineCap = 'round';
+        ctx.stroke();
+      }
 
       ctx.beginPath();
       ctx.moveTo(area.points[0][0] * SCALE, area.points[0][1] * SCALE);
@@ -185,7 +206,7 @@
       ctx.fillStyle = markerFill(status);
       ctx.fill();
       ctx.strokeStyle = color;
-      ctx.lineWidth = selected ? Math.max(4, overlay.width / 520) : Math.max(3, overlay.width / 650);
+      ctx.lineWidth = lineWidth;
       ctx.lineJoin = 'round';
       ctx.stroke();
     }
