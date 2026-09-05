@@ -1,12 +1,17 @@
+import json
 import shutil
 import sqlite3
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from flask import Blueprint, jsonify, render_template, request, send_file, send_from_directory
+from flask import Blueprint, jsonify, render_template, request, send_file, send_from_directory, url_for
 
 from project_render import normalize_label, render_cached, vision_ocr
+
+
+MAX_ENTRY_AREAS = 200
+MAX_ENTRY_AREA_POINTS = 64
 
 
 def create_projects_blueprint(db_path: Path, data_dir: Path):
@@ -25,6 +30,24 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
                 created_at TEXT NOT NULL
             )
             """
+        )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS entry_areas (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                drawing_key TEXT NOT NULL,
+                page_number INTEGER NOT NULL,
+                target_x REAL NOT NULL,
+                target_y REAL NOT NULL,
+                number_text TEXT NOT NULL,
+                points_json TEXT NOT NULL,
+                saved_at TEXT NOT NULL,
+                UNIQUE(drawing_key, page_number, target_x, target_y)
+            )
+            """
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_entry_areas_page ON entry_areas (drawing_key, page_number)"
         )
 
     def connect():
@@ -85,6 +108,60 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
             "number": number_text,
             "source": source,
             "bbox": {"x": x, "y": y, "w": width, "h": height},
+        }
+
+    def candidate_center(candidate):
+        bbox = candidate["bbox"]
+        return bbox["x"] + bbox["w"] / 2.0, bbox["y"] + bbox["h"] / 2.0
+
+    def normalize_entry_area(raw_area, candidates):
+        if not isinstance(raw_area, dict):
+            raise ValueError("エリアの形式が不正です。")
+        number_text = normalize_label(raw_area.get("number", ""))
+        target = raw_area.get("target")
+        points = raw_area.get("points")
+        if not number_text or not isinstance(target, dict):
+            raise ValueError("エリアの接続先が不正です。")
+        if not isinstance(points, list) or not 3 <= len(points) <= MAX_ENTRY_AREA_POINTS:
+            raise ValueError("ポリゴンは3〜64点で指定してください。")
+        try:
+            target_x = float(target.get("x"))
+            target_y = float(target.get("y"))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("エリアの接続先座標が不正です。") from exc
+
+        matched = None
+        for candidate in candidates:
+            cx, cy = candidate_center(candidate)
+            if candidate["number"] == number_text and abs(cx - target_x) < 2 and abs(cy - target_y) < 2:
+                matched = candidate
+                target_x, target_y = cx, cy
+                break
+        if matched is None:
+            raise ValueError("エリアの接続先が保存対象の丸枠と一致しません。")
+
+        normalized_points = []
+        distinct_points = set()
+        for point in points:
+            if not isinstance(point, (list, tuple)) or len(point) != 2:
+                raise ValueError("ポリゴン座標が不正です。")
+            try:
+                x = float(point[0])
+                y = float(point[1])
+            except (TypeError, ValueError) as exc:
+                raise ValueError("ポリゴン座標が不正です。") from exc
+            if not (0 <= x <= 10000 and 0 <= y <= 10000):
+                raise ValueError("ポリゴン座標が範囲外です。")
+            normalized = [round(x, 2), round(y, 2)]
+            normalized_points.append(normalized)
+            distinct_points.add(tuple(normalized))
+        if len(distinct_points) < 3:
+            raise ValueError("ポリゴンには異なる3点以上が必要です。")
+
+        return {
+            "number": number_text,
+            "target": {"x": target_x, "y": target_y},
+            "points": normalized_points,
         }
 
     @blueprint.get("/projects")
@@ -209,6 +286,48 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
             pdf_url=f"../../pdfs/{row['stored_pdf_name']}",
         )
 
+    @blueprint.after_app_request
+    def inject_entry_area_assets(response):
+        if response.mimetype != "text/html":
+            return response
+        endpoint = request.endpoint or ""
+        if endpoint == "projects.project_entry":
+            html = response.get_data(as_text=True)
+            hook = """
+  const entryAreaBaseLoadNumberMap=loadNumberMap;
+  let entryAreaLastMapData=null;
+  loadNumberMap=async function(pageNumber){const data=await entryAreaBaseLoadNumberMap(pageNumber);entryAreaLastMapData={pageNumber,data};return data;};
+  const entryAreaBaseDraw=draw;
+  draw=function(){entryAreaBaseDraw();window.dispatchEvent(new CustomEvent('weld:entry-base-drawn'));};
+  window.__weldEntryAreaHost={
+    canvas,status,saveButton,resetButton,bboxEditButton,numberMapUrl,pageInput,
+    getCandidates:()=>candidates,
+    isBusy:()=>busy,
+    setBusy,
+    isDirty:()=>dirty,
+    setDirty:value=>{dirty=Boolean(value);updateState();},
+    point,findAt,cssPxToOcrX,cssPxToOcrY,
+    clearSelection,clearBboxEditSelection,
+    disableBboxEdit:()=>{if(bboxEditMode){bboxEditMode=false;clearBboxEditSelection();bboxEditButton.classList.remove('active');bboxEditButton.textContent='枠編集';}},
+    serializeCandidates:()=>candidates.map(({number,source,bbox})=>({number,source,bbox:{...bbox}})),
+    currentPage:()=>Number(pageInput.value),
+    getLastMapData:()=>entryAreaLastMapData,
+    afterSave:data=>{originalCandidates=clone(candidates);savedPage=true;dirty=false;clearSelection();clearBboxEditSelection();ocrButton.textContent='再OCR';updateState();draw();status.className='status';status.textContent=`番号配置とエリアを保存しました（番号 ${data.count}件 / エリア ${data.areaCount||0}件）`;}
+  };
+"""
+            marker = "  fetch(pdfiumInfoUrl,{cache:'no-store'})"
+            if marker in html:
+                html = html.replace(marker, hook + marker, 1)
+            script_url = url_for("static", filename="entry_polygon_areas.js")
+            html = html.replace("</body>", f'<script src="{script_url}"></script></body>', 1)
+            response.set_data(html)
+        elif endpoint == "progress.project_progress":
+            html = response.get_data(as_text=True)
+            script_url = url_for("static", filename="progress_entry_areas.js")
+            html = html.replace("</body>", f'<script src="{script_url}"></script></body>', 1)
+            response.set_data(html)
+        return response
+
     @blueprint.get("/projects/<int:project_id>/pdfium-info")
     def pdfium_info(project_id):
         pdf_path = get_project_pdf_path(project_id)
@@ -308,6 +427,27 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
                 """,
                 (drawing_key, page_number),
             ).fetchall()
+            area_rows = connection.execute(
+                """
+                SELECT number_text, target_x, target_y, points_json, saved_at
+                FROM entry_areas
+                WHERE drawing_key = ? AND page_number = ?
+                ORDER BY id
+                """,
+                (drawing_key, page_number),
+            ).fetchall()
+
+        areas = []
+        for row in area_rows:
+            try:
+                points = json.loads(row["points_json"])
+            except (TypeError, json.JSONDecodeError):
+                continue
+            areas.append({
+                "number": row["number_text"],
+                "target": {"x": row["target_x"], "y": row["target_y"]},
+                "points": points,
+            })
 
         return jsonify({
             "drawingKey": drawing_key,
@@ -325,6 +465,7 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
                 }
                 for row in rows
             ],
+            "areas": areas,
         })
 
     @blueprint.post("/projects/<int:project_id>/number-map")
@@ -332,6 +473,7 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
         body = request.get_json(silent=True) or {}
         page_number = body.get("pageNumber")
         raw_candidates = body.get("candidates")
+        raw_areas = body.get("areas") if "areas" in body else None
 
         if not isinstance(page_number, int) or page_number < 1:
             return jsonify({"error": "ページ番号が不正です。"}), 400
@@ -339,9 +481,18 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
             return jsonify({"error": "番号候補が不正です。"}), 400
         if len(raw_candidates) > 1000:
             return jsonify({"error": "番号候補が多すぎます。"}), 400
+        if raw_areas is not None and not isinstance(raw_areas, list):
+            return jsonify({"error": "エリア情報が不正です。"}), 400
+        if isinstance(raw_areas, list) and len(raw_areas) > MAX_ENTRY_AREAS:
+            return jsonify({"error": "エリアが多すぎます。"}), 400
 
         try:
             candidates = [normalize_candidate(candidate) for candidate in raw_candidates]
+            areas = (
+                [normalize_entry_area(area, candidates) for area in raw_areas]
+                if isinstance(raw_areas, list)
+                else None
+            )
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
 
@@ -372,12 +523,38 @@ def create_projects_blueprint(db_path: Path, data_dir: Path):
                     for index, candidate in enumerate(candidates)
                 ],
             )
+            if areas is not None:
+                connection.execute(
+                    "DELETE FROM entry_areas WHERE drawing_key = ? AND page_number = ?",
+                    (drawing_key, page_number),
+                )
+                connection.executemany(
+                    """
+                    INSERT INTO entry_areas (
+                        drawing_key, page_number, target_x, target_y,
+                        number_text, points_json, saved_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    [
+                        (
+                            drawing_key,
+                            page_number,
+                            area["target"]["x"],
+                            area["target"]["y"],
+                            area["number"],
+                            json.dumps(area["points"], ensure_ascii=False, separators=(",", ":")),
+                            saved_at,
+                        )
+                        for area in areas
+                    ],
+                )
 
         return jsonify({
             "drawingKey": drawing_key,
             "pageNumber": page_number,
             "savedAt": saved_at,
             "count": len(candidates),
+            "areaCount": len(areas) if areas is not None else None,
         })
 
     @blueprint.get("/pdfs/<path:stored_name>")
