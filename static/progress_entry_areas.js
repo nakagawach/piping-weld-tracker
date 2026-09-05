@@ -8,6 +8,7 @@
   const pathMatch = location.pathname.match(/^(.*\/projects\/\d+)\/progress$/);
   if (!pathMatch) return;
   const numberMapUrl = `${pathMatch[1]}/number-map`;
+  const progressDataUrl = `${pathMatch[1]}/progress-data`;
   const SCALE = 1600 / 6000;
 
   const overlay = document.createElement('canvas');
@@ -22,6 +23,7 @@
 
   let candidates = [];
   let areas = [];
+  let progressMap = new Map();
   let selectedKey = '';
   let loadToken = 0;
   let syntheticClick = false;
@@ -32,10 +34,22 @@
     x: item.bbox.x + item.bbox.w / 2,
     y: item.bbox.y + item.bbox.h / 2,
   });
+  const keyFromXY = (x, y) => `${Math.round(x)}:${Math.round(y)}`;
   const targetKey = item => {
     const c = center(item);
-    return `${Math.round(c.x)}:${Math.round(c.y)}`;
+    return keyFromXY(c.x, c.y);
   };
+  const markerColor = status => {
+    if (status === '完了') return '#188038';
+    if (status === '施工中') return '#e37400';
+    return '#5f6368';
+  };
+  const markerFill = status => {
+    if (status === '完了') return 'rgba(24,128,56,.24)';
+    if (status === '施工中') return 'rgba(227,116,0,.25)';
+    return 'rgba(95,99,104,.20)';
+  };
+  const statusFor = item => progressMap.get(targetKey(item))?.status || '未着手';
 
   function rotation() {
     const match = rotateButton.textContent.match(/(0|90|180|270)/);
@@ -106,19 +120,60 @@
     return best;
   }
 
+  function drawMarker(ctx, item) {
+    const c = center(item);
+    const b = item.bbox;
+    const cx = c.x * SCALE;
+    const cy = c.y * SCALE;
+    const r = Math.max(9, Math.max(b.w * SCALE, b.h * SCALE) * .82);
+    const status = statusFor(item);
+    const color = markerColor(status);
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = markerFill(status);
+    ctx.fill();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = Math.max(2, overlay.width / 900);
+    ctx.stroke();
+
+    const label = String(item.number ?? '');
+    if (label) {
+      let fontSize = Math.max(8, r * .9);
+      const maxWidth = Math.max(12, r * 1.55);
+      ctx.font = `800 ${fontSize}px system-ui,-apple-system,"Segoe UI",sans-serif`;
+      while (fontSize > 7 && ctx.measureText(label).width > maxWidth) {
+        fontSize -= 1;
+        ctx.font = `800 ${fontSize}px system-ui,-apple-system,"Segoe UI",sans-serif`;
+      }
+      ctx.fillStyle = color;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, cx, cy, maxWidth);
+    }
+    ctx.restore();
+  }
+
   function render() {
     if (!overlay.width || !overlay.height) return;
     const ctx = configureContext();
+
     for (const area of areas) {
       const target = area.target;
       if (!target || area.points.length < 3) continue;
       const c = center(target);
       const end = nearestPolygonPoint(c, area.points);
+      const status = statusFor(target);
+      const color = markerColor(status);
+      const selected = selectedKey === targetKey(target);
+
       ctx.beginPath();
       ctx.moveTo(c.x * SCALE, c.y * SCALE);
       ctx.lineTo(end[0] * SCALE, end[1] * SCALE);
-      ctx.strokeStyle = 'rgba(95,99,104,.72)';
-      ctx.lineWidth = Math.max(2, overlay.width / 850);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = selected ? Math.max(4, overlay.width / 520) : Math.max(3, overlay.width / 650);
+      ctx.lineCap = 'round';
       ctx.stroke();
 
       ctx.beginPath();
@@ -127,16 +182,20 @@
         ctx.lineTo(area.points[i][0] * SCALE, area.points[i][1] * SCALE);
       }
       ctx.closePath();
-      const selected = selectedKey === targetKey(target);
-      ctx.fillStyle = selected ? 'rgba(25,103,210,.10)' : 'rgba(245,124,0,.035)';
+      ctx.fillStyle = markerFill(status);
       ctx.fill();
-      ctx.strokeStyle = selected ? '#1967d2' : '#f57c00';
+      ctx.strokeStyle = color;
       ctx.lineWidth = selected ? Math.max(4, overlay.width / 520) : Math.max(3, overlay.width / 650);
       ctx.lineJoin = 'round';
       ctx.stroke();
     }
+
+    for (const item of candidates) drawMarker(ctx, item);
+
     overlay.dataset.areaCount = String(areas.length);
     overlay.dataset.areaPage = String(pageInput.value || '');
+    overlay.dataset.markerTextCount = String(candidates.filter(item => String(item.number ?? '')).length);
+    overlay.dataset.colorMode = 'progress-status';
   }
 
   function eventPoint(event) {
@@ -251,13 +310,21 @@
 
   async function loadAreas(pageNumber) {
     const token = ++loadToken;
-    const response = await fetch(`${numberMapUrl}?page=${pageNumber}&_areas=${Date.now()}`, { cache: 'no-store' });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || 'エリア情報を取得できませんでした。');
+    const [numberResponse, progressResponse] = await Promise.all([
+      fetch(`${numberMapUrl}?page=${pageNumber}&_areas=${Date.now()}`, { cache: 'no-store' }),
+      fetch(`${progressDataUrl}?page=${pageNumber}&_area_progress=${Date.now()}`, { cache: 'no-store' }),
+    ]);
+    const [numberData, progressData] = await Promise.all([numberResponse.json(), progressResponse.json()]);
+    if (!numberResponse.ok) throw new Error(numberData.error || 'エリア情報を取得できませんでした。');
+    if (!progressResponse.ok) throw new Error(progressData.error || '進捗情報を取得できませんでした。');
     if (token !== loadToken) return;
-    candidates = Array.isArray(data.candidates) ? data.candidates : [];
+
+    candidates = Array.isArray(numberData.candidates) ? numberData.candidates : [];
+    progressMap = new Map((Array.isArray(progressData.items) ? progressData.items : []).map(item => [
+      keyFromXY(item.x, item.y), item,
+    ]));
     areas = [];
-    for (const raw of Array.isArray(data.areas) ? data.areas : []) {
+    for (const raw of Array.isArray(numberData.areas) ? numberData.areas : []) {
       const target = candidates.find(item => {
         const c = center(item);
         return item.number === raw.number
@@ -322,6 +389,7 @@
     ++loadToken;
     candidates = [];
     areas = [];
+    progressMap = new Map();
     selectedKey = '';
     render();
   });
@@ -331,6 +399,7 @@
     loadAreas(pageNumber).catch(() => {
       candidates = [];
       areas = [];
+      progressMap = new Map();
       render();
     });
   });
@@ -338,7 +407,15 @@
   window.addEventListener('weld:progress-selection', event => {
     const x = Math.round(Number(event.detail?.x));
     const y = Math.round(Number(event.detail?.y));
-    selectedKey = `${x}:${y}`;
+    selectedKey = keyFromXY(x, y);
+    render();
+  });
+
+  window.addEventListener('weld:progress-saved', event => {
+    const item = event.detail || {};
+    if (Number(item.pageNumber || pageInput.value) !== Number(pageInput.value)) return;
+    if (!Number.isFinite(Number(item.x)) || !Number.isFinite(Number(item.y))) return;
+    progressMap.set(keyFromXY(item.x, item.y), item);
     render();
   });
 
