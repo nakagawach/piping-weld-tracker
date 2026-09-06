@@ -30,6 +30,7 @@
   let syntheticClick = false;
   let touchStart = null;
   let touchMoved = false;
+  let multiTouchGesture = false;
 
   const center = item => ({
     x: item.bbox.x + item.bbox.w / 2,
@@ -412,6 +413,7 @@
   viewer.addEventListener('touchstart', event => {
     if (viewer.classList.contains('memo-mode')) return;
     if (event.touches.length !== 1) {
+      if (event.touches.length > 1) multiTouchGesture = true;
       touchStart = null;
       touchMoved = true;
       return;
@@ -421,6 +423,7 @@
   }, { capture: true, passive: true });
 
   viewer.addEventListener('touchmove', event => {
+    if (event.touches.length > 1) multiTouchGesture = true;
     if (!touchStart || event.touches.length !== 1) {
       touchMoved = true;
       return;
@@ -431,7 +434,19 @@
   }, { capture: true, passive: true });
 
   viewer.addEventListener('touchend', event => {
-    if (viewer.classList.contains('memo-mode') || touchMoved || !touchStart || event.touches.length || event.changedTouches.length !== 1) {
+    if (viewer.classList.contains('memo-mode')) return;
+    if (multiTouchGesture) {
+      touchStart = null;
+      touchMoved = true;
+      if (event.touches.length === 0) {
+        multiTouchGesture = false;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        setTimeout(() => viewer.dispatchEvent(new Event('touchcancel', { bubbles: true })), 0);
+      }
+      return;
+    }
+    if (touchMoved || !touchStart || event.touches.length || event.changedTouches.length !== 1) {
       touchStart = null;
       return;
     }
@@ -443,6 +458,12 @@
     event.stopImmediatePropagation();
     openViaBaseTarget(hit);
   }, { capture: true, passive: false });
+
+  viewer.addEventListener('touchcancel', () => {
+    multiTouchGesture = false;
+    touchStart = null;
+    touchMoved = false;
+  }, { capture: true, passive: true });
 
   window.addEventListener('weld:progress-page-changing', () => {
     ++loadToken;
