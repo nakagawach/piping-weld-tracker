@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>全体進捗 - 溶接進捗管理</title>
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:#f5f6f8;color:#202124}
+    button,input,select{font:inherit}
+    button{cursor:pointer}
+    main{max-width:1100px;margin:auto;padding:20px 16px 48px}
+    .topbar{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:18px}
+    .title-wrap{display:flex;gap:12px;align-items:center;min-width:0}
+    .back{min-height:42px;border:1px solid #bdc1c6;border-radius:9px;background:#fff;padding:0 13px}
+    h1{margin:0;font-size:clamp(1.35rem,4vw,1.9rem)}
+    .sub{color:#5f6368;font-size:.88rem;margin-top:3px}
+    .refresh{min-height:42px;border:1px solid #1967d2;border-radius:9px;background:#fff;color:#1967d2;font-weight:800;padding:0 14px}
+    .kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px}
+    .kpi{background:#fff;border:1px solid #dadce0;border-radius:13px;padding:14px}
+    .kpi-label{font-size:.78rem;color:#5f6368;font-weight:700}
+    .kpi-value{margin-top:5px;font-size:clamp(1.25rem,4vw,1.7rem);font-weight:900;line-height:1.15}
+    .overview{background:#fff;border:1px solid #dadce0;border-radius:13px;padding:15px;margin-bottom:14px}
+    .overview-head{display:flex;gap:12px;justify-content:space-between;align-items:end}
+    .overview-title{font-weight:900}
+    .overview-note{font-size:.78rem;color:#5f6368}
+    .stack{display:flex;height:14px;margin-top:11px;border-radius:99px;overflow:hidden;background:#e8eaed}
+    .seg-done{background:#188038}.seg-working{background:#f9ab00}.seg-untouched{background:#9aa0a6}
+    .legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:9px;font-size:.78rem;color:#5f6368}
+    .legend span{display:inline-flex;gap:6px;align-items:center}
+    .dot{width:9px;height:9px;border-radius:50%;background:#9aa0a6}
+    .dot.done{background:#188038}.dot.working{background:#f9ab00}
+    .controls{display:grid;grid-template-columns:minmax(220px,1fr) 170px 190px;gap:9px;margin-bottom:10px}
+    .controls input,.controls select{min-height:44px;border:1px solid #bdc1c6;border-radius:9px;background:#fff;padding:0 11px;color:#202124}
+    .list-head{display:flex;justify-content:space-between;gap:10px;align-items:center;margin:4px 0 9px}
+    .list-title{font-weight:900}.result-count{color:#5f6368;font-size:.82rem}
+    .project-list{display:grid;gap:10px}
+    .project-card{width:100%;border:1px solid #dadce0;border-radius:13px;background:#fff;padding:14px;text-align:left;color:inherit}
+    .project-card:hover{border-color:#9aa0a6}
+    .project-card:focus-visible{outline:3px solid #aecbfa;outline-offset:2px}
+    .project-top{display:flex;gap:12px;justify-content:space-between;align-items:flex-start}
+    .project-name{font-size:1rem;font-weight:900;overflow-wrap:anywhere}
+    .pdf-name{margin-top:4px;color:#5f6368;font-size:.82rem;overflow-wrap:anywhere}
+    .status{flex:0 0 auto;display:inline-flex;align-items:center;min-height:26px;padding:2px 9px;border-radius:999px;background:#e8eaed;color:#3c4043;font-size:.75rem;font-weight:900}
+    .status.working{background:#fef7e0;color:#8a4f00}.status.done{background:#e6f4ea;color:#137333}.status.unentered{border:1px dashed #9aa0a6;background:#fff;color:#5f6368}
+    .project-progress-line{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;margin-top:12px}
+    .bar{height:9px;border-radius:99px;background:#e8eaed;overflow:hidden}
+    .bar span{display:block;height:100%;background:#188038}
+    .rate{font-weight:900;min-width:58px;text-align:right}
+    .meta{display:flex;gap:12px;flex-wrap:wrap;margin-top:7px;color:#5f6368;font-size:.77rem}
+    .updated{margin-left:auto}
+    .empty,.error{background:#fff;border:1px solid #dadce0;border-radius:13px;padding:26px;text-align:center;color:#5f6368}
+    .error{color:#b3261e}
+    @media(max-width:760px){
+      main{padding:14px 10px 32px}
+      .topbar{align-items:flex-start}
+      .title-wrap{align-items:flex-start}
+      .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+      .controls{grid-template-columns:1fr}
+      .project-top{align-items:flex-start}
+      .updated{width:100%;margin-left:0}
+    }
+    @media(max-width:420px){
+      .refresh{padding:0 10px}
+      .back{padding:0 10px}
+      .overview-head{align-items:flex-start;flex-direction:column}
+      .kpi{padding:12px}
+    }
+  </style>
+</head>
+<body>
+<main>
+  <div class="topbar">
+    <div class="title-wrap">
+      <button class="back" id="back" type="button">← 工事一覧</button>
+      <div><h1>全体進捗</h1><div class="sub">登録PDFを横断して現在状況を確認</div></div>
+    </div>
+    <button class="refresh" id="refresh" type="button">更新</button>
+  </div>
+
+  <section class="kpis" aria-label="全体進捗サマリー">
+    <div class="kpi"><div class="kpi-label">全体完了率</div><div class="kpi-value" id="overallRate">--</div></div>
+    <div class="kpi"><div class="kpi-label">完了</div><div class="kpi-value" id="doneCount">--</div></div>
+    <div class="kpi"><div class="kpi-label">施工中</div><div class="kpi-value" id="workingCount">--</div></div>
+    <div class="kpi"><div class="kpi-label">未着手</div><div class="kpi-value" id="untouchedCount">--</div></div>
+  </section>
+
+  <section class="overview">
+    <div class="overview-head">
+      <div><div class="overview-title">全体状況</div><div class="overview-note" id="projectSummary">PDF --件</div></div>
+      <div class="overview-note">完了件数 ÷ 全登録対象件数で算出</div>
+    </div>
+    <div class="stack" aria-label="全体状況">
+      <div class="seg-done" id="segDone"></div>
+      <div class="seg-working" id="segWorking"></div>
+      <div class="seg-untouched" id="segUntouched"></div>
+    </div>
+    <div class="legend">
+      <span><i class="dot done"></i>完了 <b id="legendDone">0</b></span>
+      <span><i class="dot working"></i>施工中 <b id="legendWorking">0</b></span>
+      <span><i class="dot"></i>未着手 <b id="legendUntouched">0</b></span>
+    </div>
+  </section>
+
+  <section class="controls" aria-label="絞り込み">
+    <input id="search" type="search" placeholder="工事名・PDF名で検索" autocomplete="off">
+    <select id="statusFilter" aria-label="状態">
+      <option value="all">すべて</option>
+      <option value="unfinished">未完了</option>
+      <option value="未エントリー">未エントリー</option>
+      <option value="未着手">未着手</option>
+      <option value="施工中">施工中</option>
+      <option value="完了">完了</option>
+    </select>
+    <select id="sort" aria-label="並び順">
+      <option value="low">進捗が低い順</option>
+      <option value="high">進捗が高い順</option>
+      <option value="recent">更新が新しい順</option>
+      <option value="old">更新が古い順</option>
+      <option value="name">工事名順</option>
+    </select>
+  </section>
+
+  <div class="list-head"><div class="list-title">PDF別進捗</div><div class="result-count" id="resultCount"></div></div>
+  <div class="project-list" id="projectList"><div class="empty">進捗を読み込んでいます…</div></div>
+</main>
+
+<script>
+const projectList=document.getElementById('projectList'),search=document.getElementById('search'),statusFilter=document.getElementById('statusFilter'),sort=document.getElementById('sort'),resultCount=document.getElementById('resultCount');
+let projects=[];
+function esc(v){const d=document.createElement('div');d.textContent=v??'';return d.innerHTML}
+function statusClass(status){if(status==='完了')return'done';if(status==='施工中')return'working';if(status==='未エントリー')return'unentered';return''}
+function fmtUpdated(value){if(!value)return'進捗更新なし';const date=new Date(value);if(Number.isNaN(date.getTime()))return'進捗更新なし';return`更新 ${new Intl.DateTimeFormat('ja-JP',{year:'numeric',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}).format(date)}`}
+function renderTotals(totals){const total=Number(totals.total)||0,done=Number(totals.done)||0,working=Number(totals.working)||0,untouched=Number(totals.untouched)||0,rate=Number(totals.completionRate)||0;document.getElementById('overallRate').textContent=`${rate.toFixed(1)}%`;document.getElementById('doneCount').textContent=`${done} / ${total}`;document.getElementById('workingCount').textContent=working;document.getElementById('untouchedCount').textContent=untouched;document.getElementById('projectSummary').textContent=`PDF ${Number(totals.projects)||0}件 ・ 未エントリー ${Number(totals.unenteredProjects)||0}件 ・ 完了 ${Number(totals.completeProjects)||0}件`;document.getElementById('legendDone').textContent=done;document.getElementById('legendWorking').textContent=working;document.getElementById('legendUntouched').textContent=untouched;const pct=n=>total?Math.max(0,Math.min(100,n/total*100)):0;document.getElementById('segDone').style.width=`${pct(done)}%`;document.getElementById('segWorking').style.width=`${pct(working)}%`;document.getElementById('segUntouched').style.width=`${pct(untouched)}%`}
+function filteredProjects(){const q=search.value.trim().toLocaleLowerCase('ja-JP'),filter=statusFilter.value,sortMode=sort.value;let items=projects.filter(item=>{if(q&&!`${item.projectName} ${item.pdfName}`.toLocaleLowerCase('ja-JP').includes(q))return false;if(filter==='unfinished')return item.status!=='完了';if(filter!=='all')return item.status===filter;return true});const timeValue=value=>{if(!value)return 0;const time=new Date(value).getTime();return Number.isNaN(time)?0:time};items=[...items].sort((a,b)=>{if(sortMode==='high')return b.completionRate-a.completionRate||b.id-a.id;if(sortMode==='recent')return timeValue(b.lastUpdatedAt)-timeValue(a.lastUpdatedAt)||b.id-a.id;if(sortMode==='old')return timeValue(a.lastUpdatedAt)-timeValue(b.lastUpdatedAt)||a.id-b.id;if(sortMode==='name')return String(a.projectName).localeCompare(String(b.projectName),'ja');return a.completionRate-b.completionRate||b.id-a.id});return items}
+function renderProjects(){const items=filteredProjects();resultCount.textContent=`${items.length}件`;if(!items.length){projectList.innerHTML='<div class="empty">条件に一致するPDFはありません。</div>';return}projectList.innerHTML=items.map(item=>{const rate=Math.max(0,Math.min(100,Number(item.completionRate)||0));return`<button class="project-card" type="button" data-progress-url="${esc(item.progressUrl)}"><div class="project-top"><div><div class="project-name">${esc(item.projectName)}</div><div class="pdf-name">${esc(item.pdfName)}</div></div><span class="status ${statusClass(item.status)}">${esc(item.status)}</span></div><div class="project-progress-line"><div class="bar" aria-label="完了率 ${rate.toFixed(1)}%"><span style="width:${rate}%"></span></div><div class="rate">${rate.toFixed(1)}%</div></div><div class="meta"><span>完了 ${item.done} / ${item.total}</span><span>施工中 ${item.working}</span><span>未着手 ${item.untouched}</span><span class="updated">${esc(fmtUpdated(item.lastUpdatedAt))}</span></div></button>`}).join('')}
+async function load(){projectList.innerHTML='<div class="empty">進捗を読み込んでいます…</div>';try{const response=await fetch('progress-dashboard-data',{cache:'no-store'});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||'全体進捗を取得できませんでした。');projects=Array.isArray(data.projects)?data.projects:[];renderTotals(data.totals||{});renderProjects()}catch(error){projectList.innerHTML=`<div class="error">${esc(error.message)}</div>`;resultCount.textContent=''}}
+document.getElementById('back').onclick=()=>{location.href='projects-screen'};document.getElementById('refresh').onclick=load;projectList.addEventListener('click',event=>{const card=event.target.closest('[data-progress-url]');if(card)location.href=card.dataset.progressUrl});search.addEventListener('input',renderProjects);statusFilter.addEventListener('change',renderProjects);sort.addEventListener('change',renderProjects);load();
+</script>
+</body>
+</html>
