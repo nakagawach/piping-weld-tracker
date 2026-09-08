@@ -49,11 +49,15 @@ def create_global_favorites_blueprint(db_path: Path):
   const wrap=document.createElement('div');
   wrap.className='ui3-root-actions';
   wrap.style.cssText='display:flex;gap:8px;align-items:center;flex-wrap:wrap';
+  const mock=document.createElement('button');
+  mock.type='button';mock.className='button';mock.dataset.progressMock='1';mock.textContent='モック確認';mock.title='固定3領域モックを開く';mock.setAttribute('aria-label','モック確認');
+  mock.style.cssText='border-color:#1967d2;color:#1967d2;font-weight:800;background:#eef5ff';
+  mock.onclick=()=>location.href='mock/progress-fixed-layout';
   const fav=document.createElement('button');
   fav.type='button';fav.className='button';fav.dataset.ui3Favorites='1';fav.textContent='★ お気に入り';fav.title='工事を横断してお気に入りページを表示';fav.setAttribute('aria-label','お気に入りページ一覧');
   fav.style.cssText='border-color:#f9ab00;color:#8a5a00;font-weight:800;background:#fff8e1';
   fav.onclick=()=>location.href='favorites';
-  newButton.parentNode.insertBefore(wrap,newButton);wrap.appendChild(fav);wrap.appendChild(newButton);
+  newButton.parentNode.insertBefore(wrap,newButton);wrap.appendChild(mock);wrap.appendChild(fav);wrap.appendChild(newButton);
 })();
 </script>
 """

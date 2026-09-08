@@ -182,6 +182,11 @@ def mock_progress_fixed_layout():
     return render_template("mock_progress_fixed_layout.html")
 
 
+@app.get("/mock/progress-fixed-layout")
+def mock_progress_fixed_layout():
+    return render_template("mock_progress_fixed_layout.html")
+
+
 @app.get("/number-map")
 def get_number_map():
     page_number = flask_request.args.get("page", type=int)
