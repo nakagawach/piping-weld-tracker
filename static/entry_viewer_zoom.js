@@ -161,3 +161,5 @@
   updateControls();
   syncIntrinsicSize();
 })();
+
+import('./entry_smart_field_draw.js');
