@@ -162,4 +162,24 @@
   syncIntrinsicSize();
 })();
 
-import('./entry_smart_field_draw.js');
+(() => {
+  const current = document.currentScript?.src;
+  if (!current || document.getElementById('entrySmartFieldDrawScript')) return;
+  const script = document.createElement('script');
+  script.id = 'entrySmartFieldDrawScript';
+  script.src = new URL('entry_smart_field_draw.js', current).href;
+  script.onload = () => {
+    const button = document.getElementById('entrySmartFieldDraw');
+    const help = document.getElementById('entrySmartFieldHelp');
+    const zoomIn = document.getElementById('entryZoomIn');
+    if (!button) return;
+    button.setAttribute('aria-label', '現場入力');
+    if (window.matchMedia('(max-width: 820px)').matches && zoomIn) {
+      zoomIn.insertAdjacentElement('afterend', button);
+      button.textContent = '✏️';
+      button.style.cssText = 'width:44px;min-width:44px;min-height:44px;padding:0;border-radius:10px;flex:0 0 auto;font-size:1.15rem';
+      if (help) help.style.display = 'none';
+    }
+  };
+  document.head.appendChild(script);
+})();
