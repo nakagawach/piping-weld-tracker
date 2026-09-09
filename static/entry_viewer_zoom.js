@@ -172,13 +172,43 @@
     const button = document.getElementById('entrySmartFieldDraw');
     const help = document.getElementById('entrySmartFieldHelp');
     const zoomIn = document.getElementById('entryZoomIn');
+    const save = document.getElementById('save');
     if (!button) return;
     button.setAttribute('aria-label', '現場入力');
+    button.title = '現場入力：長方形/正方形を手描きし、丸枠を追加・移動';
+
     if (window.matchMedia('(max-width: 820px)').matches && zoomIn) {
+      const style = document.createElement('style');
+      style.id = 'entryMobileToolIcons';
+      style.textContent = `
+        @media(max-width:820px){
+          body.ui3-entry #ocr,body.ui3-entry #bboxEdit,body.ui3-entry #areaCreate,
+          body.ui3-entry #entrySmartFieldDraw,body.ui3-entry #save{
+            width:44px!important;min-width:44px!important;height:44px!important;min-height:44px!important;
+            padding:0!important;border-radius:10px!important;flex:0 0 44px!important;font-size:0!important;
+            display:inline-flex!important;align-items:center!important;justify-content:center!important;
+          }
+          body.ui3-entry #ocr{margin-left:0!important}
+          body.ui3-entry #ocr::before{content:'⌕';font-size:1.25rem!important}
+          body.ui3-entry #bboxEdit::before{content:'▣';font-size:1.15rem!important}
+          body.ui3-entry #areaCreate::before{content:'▱';font-size:1.2rem!important}
+          body.ui3-entry #entrySmartFieldDraw::before{content:'✏️';font-size:1.1rem!important}
+          body.ui3-entry #save::before{content:'💾';font-size:1.05rem!important}
+          body.ui3-entry #entryMarkerNumberHelp,body.ui3-entry #entrySmartFieldHelp{display:none!important}
+        }`;
+      document.head.appendChild(style);
+
       zoomIn.insertAdjacentElement('afterend', button);
-      button.textContent = '✏️';
-      button.style.cssText = 'width:44px;min-width:44px;min-height:44px;padding:0;border-radius:10px;flex:0 0 auto;font-size:1.15rem';
+      if (save) button.insertAdjacentElement('afterend', save);
       if (help) help.style.display = 'none';
+
+      const labels = [
+        ['ocr','OCR実行'],['bboxEdit','枠編集'],['areaCreate','エリア作成'],['save','番号配置を確定保存']
+      ];
+      for (const [id,label] of labels) {
+        const el=document.getElementById(id);
+        if (el) {el.setAttribute('aria-label',label);el.title=label;}
+      }
     }
   };
   document.head.appendChild(script);
