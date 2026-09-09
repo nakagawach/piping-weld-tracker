@@ -8,23 +8,23 @@
   if (document.getElementById('entrySmartFieldDraw')) return;
 
   const SCALE = 1600 / 6000;
-  const MAX_POINTS = 32;
   let enabled = false;
   let drawing = false;
   let activePointerId = null;
   let stroke = [];
+  let markerDrag = null;
 
   const button = document.createElement('button');
   button.type = 'button';
   button.id = 'entrySmartFieldDraw';
   button.className = 'button';
   button.textContent = '✏️ 現場入力';
-  button.title = '指・ペンで描いて直線・長方形・ポリゴンへ自動補正';
+  button.title = '指・ペンで描いた線を長方形・正方形へ自動補正';
   areaButton.insertAdjacentElement('afterend', button);
 
   const help = document.createElement('span');
   help.id = 'entrySmartFieldHelp';
-  help.textContent = '指/ペンで囲む';
+  help.textContent = '指/ペンで描く';
   help.style.cssText = 'font-size:12px;font-weight:600;white-space:nowrap;align-self:center';
   button.insertAdjacentElement('afterend', help);
 
@@ -78,9 +78,26 @@
     return ctx;
   }
 
+  function drawMarkerPreview(ctx, drag) {
+    if (!drag) return;
+    const item = host.getCandidates().find(x => x.id === drag.itemId);
+    if (!item) return;
+    const b = item.bbox;
+    ctx.save();
+    ctx.strokeStyle = '#188038';
+    ctx.fillStyle = '#188038';
+    ctx.lineWidth = Math.max(3, overlay.width / 620);
+    ctx.strokeRect(b.x * SCALE, b.y * SCALE, b.w * SCALE, b.h * SCALE);
+    const fontPx = Math.max(14, b.h * SCALE * .8);
+    ctx.font = `${fontPx}px system-ui`;
+    ctx.fillText(item.number, b.x * SCALE, Math.max(fontPx, b.y * SCALE - 4));
+    ctx.restore();
+  }
+
   function renderStroke(points = stroke) {
     if (!overlay.width || !overlay.height) return;
     const ctx = context();
+    drawMarkerPreview(ctx, markerDrag);
     if (!points.length) return;
     ctx.beginPath();
     ctx.moveTo(points[0].x * SCALE, points[0].y * SCALE);
@@ -146,38 +163,28 @@
 
   function lineStrip(a,b) {
     const dx=b.x-a.x,dy=b.y-a.y,len=Math.max(1,Math.hypot(dx,dy));
-    const half=Math.max(host.cssPxToOcrX(8),host.cssPxToOcrY(8));
+    const half=Math.max(host.cssPxToOcrX(10),host.cssPxToOcrY(10));
     const nx=-dy/len*half,ny=dx/len*half;
     return [{x:a.x+nx,y:a.y+ny},{x:b.x+nx,y:b.y+ny},{x:b.x-nx,y:b.y-ny},{x:a.x-nx,y:a.y-ny}];
   }
 
-  function cap(points) {
-    if (points.length<=MAX_POINTS) return points;
-    return Array.from({length:MAX_POINTS},(_,i)=>points[Math.floor(i*points.length/MAX_POINTS)]);
+  function edgeLengths(points) {
+    return points.map((p,i)=>distance(p,points[(i+1)%points.length]));
   }
 
   function recognize(points) {
     if (points.length<2) return null;
-    const length=pathLength(points),direct=distance(points[0],points[points.length-1]);
+    const length=pathLength(points);
     if (!length) return null;
-    if (direct/length>=.92) return {kind:'直線',points:lineStrip(points[0],points[points.length-1])};
+    const direct=distance(points[0],points[points.length-1]);
+    if (direct/length>=.88) return {kind:'長方形',points:lineStrip(points[0],points[points.length-1])};
 
-    const xs=points.map(p=>p.x),ys=points.map(p=>p.y);
-    const diagonal=Math.hypot(Math.max(...xs)-Math.min(...xs),Math.max(...ys)-Math.min(...ys));
-    const closeTolerance=Math.max(host.cssPxToOcrX(24),host.cssPxToOcrY(24),diagonal*.16);
-    if (direct>closeTolerance) return null;
-
-    const closed=points.slice();
-    closed[closed.length-1]={...closed[0]};
-    const tolerance=Math.max(host.cssPxToOcrX(6),host.cssPxToOcrY(6),diagonal*.012);
-    let simple=simplify(closed,tolerance);
-    if (simple.length>1 && distance(simple[0],simple[simple.length-1])<=closeTolerance) simple.pop();
-    simple=cap(simple);
-    if (simple.length<3) return null;
-
-    const rect=rotatedRectangle(closed);
-    if (polygonArea(closed)/rect.area>=.68 && simple.length<=10) return {kind:'長方形',points:rect.points};
-    return {kind:'ポリゴン',points:simple};
+    const rect=rotatedRectangle(points);
+    const edges=edgeLengths(rect.points);
+    const short=Math.min(...edges),long=Math.max(...edges);
+    const minimum=Math.max(host.cssPxToOcrX(20),host.cssPxToOcrY(20));
+    if (short<minimum) return {kind:'長方形',points:lineStrip(points[0],points[points.length-1])};
+    return {kind:long/short<=1.22?'正方形':'長方形',points:rect.points};
   }
 
   function shapeCenter(points) {
@@ -257,10 +264,19 @@
     return /^(?:[A-Z]{1,4}[-/]?\d{1,4}(?:[-/][A-Z0-9]{1,4})?|\d{1,4}[-/]?[A-Z]{1,3})$/.test(t)?t:null;
   }
 
+  function enableNewMarkerNumber(item) {
+    const width=Math.max(host.cssPxToOcrX(14),20);
+    const height=Math.max(host.cssPxToOcrY(14),20);
+    const gap=Math.max(host.cssPxToOcrX(3),4);
+    dispatchClick({x:item.bbox.x+item.bbox.w+gap+width/2,y:item.bbox.y+height/2});
+  }
+
   function createCandidate(number,center) {
     const before=new Set(host.getCandidates().map(x=>x.id));
     withPrompt(number,()=>dispatchClick(center));
-    return host.getCandidates().find(x=>!before.has(x.id))||null;
+    const created=host.getCandidates().find(x=>!before.has(x.id))||null;
+    if (created) enableNewMarkerNumber(created);
+    return created;
   }
 
   function createArea(candidate,points) {
@@ -293,7 +309,6 @@
     }
     if (!window.confirm(`${shape.kind} + 丸枠 ${number} + 接続線として追加しますか？`)) return;
 
-    // 既存丸枠は移動・削除しない。既存エリア紐付けを保護する。
     let target=(nearest && String(nearest.number)===number)?nearest:null;
     if (!target) target=createCandidate(number,markerCenter(shape.points));
     if (!target) {
@@ -309,21 +324,43 @@
     host.setDirty(true);
     host.status.className='status';
     host.status.textContent=target===nearest
-      ? `${shape.kind}を補正し、既存丸枠 ${number} に接続しました。既存丸枠位置は変更していません。`
-      : `${shape.kind}を補正し、丸枠 ${number} を余白へ自動配置して接続しました。`;
+      ? `${shape.kind}を作成し、既存丸枠 ${number} に接続しました。`
+      : `${shape.kind}を作成し、丸枠 ${number} を余白へ自動配置しました。丸枠は現場入力ON中にドラッグ移動できます。`;
+  }
+
+  function forceEntryRedraw() {
+    const edit=host.bboxEditButton;
+    if (!edit || host.isBusy()) return;
+    const active=edit.classList.contains('active');
+    if (active) {
+      edit.click();
+      edit.click();
+      return;
+    }
+    edit.click();
+    edit.click();
+  }
+
+  function clampMovedBox(box,dx,dy) {
+    const page=pageBounds();
+    return {
+      ...box,
+      x:Math.max(0,Math.min(page.w-box.w,box.x+dx)),
+      y:Math.max(0,Math.min(page.h-box.h,box.y+dy)),
+    };
   }
 
   function setEnabled(value) {
-    enabled=Boolean(value); drawing=false; activePointerId=null; stroke=[]; renderStroke();
+    enabled=Boolean(value); drawing=false; activePointerId=null; stroke=[]; markerDrag=null; renderStroke();
     if (enabled) {
       host.disableBboxEdit(); host.clearSelection();
       if (areaButton.classList.contains('active')) areaButton.click();
-      button.classList.add('active'); button.textContent='✏️ 現場入力 ON'; help.textContent='指/ペンで描く';
+      button.classList.add('active'); button.textContent='✏️ 現場入力 ON'; help.textContent='描く/丸枠ドラッグ';
       overlay.style.pointerEvents='auto';
       host.status.className='status';
-      host.status.textContent='現場入力ON：直線はなぞり、エリアは一周して始点付近まで戻ってください。';
+      host.status.textContent='現場入力ON：線や四角をざっくり描くと長方形/正方形へ補正します。手動丸枠はそのままドラッグ移動できます。';
     } else {
-      button.classList.remove('active'); button.textContent='✏️ 現場入力'; help.textContent='指/ペンで囲む';
+      button.classList.remove('active'); button.textContent='✏️ 現場入力'; help.textContent='指/ペンで描く';
       overlay.style.pointerEvents='none';
       host.status.className='status';
       host.status.textContent='現場入力OFF：従来のOCR・枠編集・エリア作成を利用できます。';
@@ -333,24 +370,63 @@
   button.addEventListener('click',()=>{if(!host.isBusy())setEnabled(!enabled);});
 
   overlay.addEventListener('pointerdown',e=>{
-    if(!enabled||host.isBusy()||drawing||(e.pointerType==='mouse'&&e.button!==0))return;
-    e.preventDefault();e.stopPropagation();drawing=true;activePointerId=e.pointerId;stroke=[host.point(e)];overlay.setPointerCapture(e.pointerId);renderStroke();
+    if(!enabled||host.isBusy()||drawing||markerDrag||(e.pointerType==='mouse'&&e.button!==0))return;
+    e.preventDefault();e.stopPropagation();
+    const p=host.point(e);
+    const hit=host.findAt(p);
+    if(hit?.source==='manual'){
+      markerDrag={pointerId:e.pointerId,itemId:hit.id,startPoint:p,startBox:{...hit.bbox},moved:false};
+      activePointerId=e.pointerId;
+      overlay.setPointerCapture(e.pointerId);
+      renderStroke();
+      return;
+    }
+    drawing=true;activePointerId=e.pointerId;stroke=[p];overlay.setPointerCapture(e.pointerId);renderStroke();
   },{passive:false});
 
   overlay.addEventListener('pointermove',e=>{
-    if(!enabled||!drawing||e.pointerId!==activePointerId)return;
-    e.preventDefault();e.stopPropagation();const p=host.point(e),last=stroke[stroke.length-1];
+    if(!enabled||e.pointerId!==activePointerId)return;
+    e.preventDefault();e.stopPropagation();
+    if(markerDrag){
+      const item=host.getCandidates().find(x=>x.id===markerDrag.itemId);
+      if(!item)return;
+      const p=host.point(e),dx=p.x-markerDrag.startPoint.x,dy=p.y-markerDrag.startPoint.y;
+      item.bbox=clampMovedBox(markerDrag.startBox,dx,dy);
+      markerDrag.moved=markerDrag.moved||Math.hypot(dx,dy)>Math.max(host.cssPxToOcrX(2),host.cssPxToOcrY(2));
+      renderStroke();
+      return;
+    }
+    if(!drawing)return;
+    const p=host.point(e),last=stroke[stroke.length-1];
     const min=Math.max(host.cssPxToOcrX(2),host.cssPxToOcrY(2));
     if(!last||distance(last,p)>=min)stroke.push(p);renderStroke();
   },{passive:false});
 
+  function finishMarkerDrag(e,cancelled=false){
+    if(!markerDrag||e.pointerId!==markerDrag.pointerId)return false;
+    e.preventDefault();e.stopPropagation();
+    if(overlay.hasPointerCapture(e.pointerId))overlay.releasePointerCapture(e.pointerId);
+    const item=host.getCandidates().find(x=>x.id===markerDrag.itemId);
+    const changed=markerDrag.moved&&!cancelled;
+    if(cancelled&&item)item.bbox={...markerDrag.startBox};
+    markerDrag=null;activePointerId=null;renderStroke();
+    forceEntryRedraw();
+    if(changed){
+      host.setDirty(true);
+      host.status.className='status';
+      host.status.textContent='丸枠を移動しました。接続線も追従します。確定保存するまでDBには反映されません。';
+    }
+    return true;
+  }
+
   function finish(e,cancelled=false){
+    if(finishMarkerDrag(e,cancelled))return;
     if(!drawing||e.pointerId!==activePointerId)return;
     e.preventDefault();e.stopPropagation();if(overlay.hasPointerCapture(e.pointerId))overlay.releasePointerCapture(e.pointerId);
     drawing=false;activePointerId=null;const points=stroke.slice();stroke=[];renderStroke();
     if(cancelled||points.length<2)return;
     const shape=recognize(points);
-    if(!shape){host.status.className='status error';host.status.textContent='形を認識できませんでした。直線はまっすぐ、エリアは始点付近まで閉じて描いてください。';return;}
+    if(!shape){host.status.className='status error';host.status.textContent='形を認識できませんでした。もう少し長く描いてください。';return;}
     renderStroke(shape.points);
     requestAnimationFrame(()=>{commitShape(shape);stroke=[];renderStroke();});
   }
@@ -362,6 +438,6 @@
   window.addEventListener('resize',syncOverlay);
   if('ResizeObserver'in window)new ResizeObserver(syncOverlay).observe(viewer);
 
-  window.__weldSmartFieldDrawTest={recognize,simplify,rotatedRectangle,lineStrip};
+  window.__weldSmartFieldDrawTest={recognize,simplify,rotatedRectangle,lineStrip,edgeLengths};
   syncOverlay();
 })();
