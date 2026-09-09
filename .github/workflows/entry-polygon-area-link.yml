@@ -8,6 +8,7 @@ on:
       - projects.py
       - static/entry_polygon_areas.js
       - static/entry_viewer_zoom.js
+      - static/entry_smart_field_draw.js
       - static/progress_entry_areas.js
       - tests/entry_polygon_area_link_e2e.py
       - tests/entry_zoom_overlay_alignment_e2e.py
@@ -40,6 +41,7 @@ jobs:
         run: |
           node --check static/entry_polygon_areas.js
           node --check static/entry_viewer_zoom.js
+          node --check static/entry_smart_field_draw.js
           node --check static/progress_entry_areas.js
 
       - name: Entry polygon area regression
