@@ -13,6 +13,11 @@
   let activePointerId = null;
   let stroke = [];
   let markerDrag = null;
+  let sessionShapes = [];
+  let selectedSessionId = null;
+  let nextSessionId = 1;
+  let undoStack = [];
+  let lastPage = host.currentPage();
 
   const button = document.createElement('button');
   button.type = 'button';
@@ -22,11 +27,31 @@
   button.title = '指・ペンで描いた線を長方形・正方形へ自動補正';
   areaButton.insertAdjacentElement('afterend', button);
 
+  const undoButton = document.createElement('button');
+  undoButton.type = 'button';
+  undoButton.id = 'entrySmartUndo';
+  undoButton.className = 'button';
+  undoButton.textContent = '↶';
+  undoButton.title = '直前の現場入力操作を元に戻す';
+  undoButton.setAttribute('aria-label', '元に戻す');
+  undoButton.disabled = true;
+  button.insertAdjacentElement('afterend', undoButton);
+
+  const deleteButton = document.createElement('button');
+  deleteButton.type = 'button';
+  deleteButton.id = 'entrySmartDelete';
+  deleteButton.className = 'button danger';
+  deleteButton.textContent = '🗑';
+  deleteButton.title = '選択した現場入力エリアを削除';
+  deleteButton.setAttribute('aria-label', '選択したエリアを削除');
+  deleteButton.disabled = true;
+  undoButton.insertAdjacentElement('afterend', deleteButton);
+
   const help = document.createElement('span');
   help.id = 'entrySmartFieldHelp';
   help.textContent = '指/ペンで描く';
   help.style.cssText = 'font-size:12px;font-weight:600;white-space:nowrap;align-self:center';
-  button.insertAdjacentElement('afterend', help);
+  deleteButton.insertAdjacentElement('afterend', help);
 
   const overlay = document.createElement('canvas');
   overlay.id = 'entrySmartFieldCanvas';
@@ -37,6 +62,9 @@
 
   const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
   const centerOf = item => ({x:item.bbox.x + item.bbox.w / 2, y:item.bbox.y + item.bbox.h / 2});
+  const cloneBox = box => ({x:box.x,y:box.y,w:box.w,h:box.h});
+  const cloneCandidate = item => ({...item,bbox:cloneBox(item.bbox)});
+  const cloneShape = shape => ({...shape,points:shape.points.map(p=>({...p}))});
 
   function rotation() {
     const m = rotateButton.textContent.match(/(0|90|180|270)/);
@@ -94,9 +122,27 @@
     ctx.restore();
   }
 
+  function drawSelectedShape(ctx) {
+    const selected = sessionShapes.find(x => x.id === selectedSessionId);
+    if (!selected || selected.points.length < 3) return;
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(selected.points[0].x * SCALE, selected.points[0].y * SCALE);
+    for (let i=1;i<selected.points.length;i++) ctx.lineTo(selected.points[i].x * SCALE, selected.points[i].y * SCALE);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(179,38,30,.08)';
+    ctx.strokeStyle = '#b3261e';
+    ctx.lineWidth = Math.max(4, overlay.width / 520);
+    ctx.setLineDash([10,6]);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
   function renderStroke(points = stroke) {
     if (!overlay.width || !overlay.height) return;
     const ctx = context();
+    drawSelectedShape(ctx);
     drawMarkerPreview(ctx, markerDrag);
     if (!points.length) return;
     ctx.beginPath();
@@ -143,6 +189,17 @@
     return Math.abs(sum)/2;
   }
 
+  function pointInPolygon(point, points) {
+    let inside = false;
+    for (let i=0,j=points.length-1;i<points.length;j=i++) {
+      const xi=points[i].x, yi=points[i].y, xj=points[j].x, yj=points[j].y;
+      const intersects=((yi>point.y)!==(yj>point.y))
+        && point.x < (xj-xi)*(point.y-yi)/((yj-yi)||1e-9)+xi;
+      if (intersects) inside=!inside;
+    }
+    return inside;
+  }
+
   function rotatedRectangle(points) {
     const c=points.reduce((a,p)=>({x:a.x+p.x,y:a.y+p.y}),{x:0,y:0});
     c.x/=points.length; c.y/=points.length;
@@ -163,7 +220,7 @@
 
   function lineStrip(a,b) {
     const dx=b.x-a.x,dy=b.y-a.y,len=Math.max(1,Math.hypot(dx,dy));
-    const half=Math.max(host.cssPxToOcrX(10),host.cssPxToOcrY(10));
+    const half=Math.max(host.cssPxToOcrX(6),host.cssPxToOcrY(6));
     const nx=-dy/len*half,ny=dx/len*half;
     return [{x:a.x+nx,y:a.y+ny},{x:b.x+nx,y:b.y+ny},{x:b.x-nx,y:b.y-ny},{x:a.x-nx,y:a.y-ny}];
   }
@@ -178,7 +235,6 @@
     if (!length) return null;
     const direct=distance(points[0],points[points.length-1]);
     if (direct/length>=.88) return {kind:'長方形',points:lineStrip(points[0],points[points.length-1])};
-
     const rect=rotatedRectangle(points);
     const edges=edgeLengths(rect.points);
     const short=Math.min(...edges),long=Math.max(...edges);
@@ -292,9 +348,62 @@
     return Number(areaCanvas?.dataset.areaCount||0)>before;
   }
 
+  function deleteAreaForShape(shape) {
+    const areaCanvas=document.getElementById('entryAreaCanvas');
+    if (!shape || !areaCanvas) return false;
+    const before=Number(areaCanvas.dataset.areaCount||0);
+    if (areaButton.classList.contains('active')) areaButton.click();
+    areaButton.click();
+    dispatchClick(shapeCenter(shape.points));
+    const selected=areaCanvas.dataset.selectedArea;
+    if (!selected) {
+      if (areaButton.classList.contains('active')) areaButton.click();
+      return false;
+    }
+    document.dispatchEvent(new KeyboardEvent('keydown',{key:'Delete',bubbles:true,cancelable:true}));
+    if (areaButton.classList.contains('active')) areaButton.click();
+    return Number(areaCanvas.dataset.areaCount||0)<before;
+  }
+
   function nextNumber() {
     const nums=host.getCandidates().map(x=>/^\d+$/.test(String(x.number))?Number(x.number):null).filter(Number.isInteger);
     return nums.length?String(Math.max(...nums)+1):'';
+  }
+
+  function updateActionButtons() {
+    undoButton.disabled = undoStack.length===0;
+    deleteButton.disabled = selectedSessionId===null;
+  }
+
+  function pushUndo(action) {
+    undoStack.push(action);
+    if (undoStack.length>30) undoStack.shift();
+    updateActionButtons();
+  }
+
+  function registerSessionShape(target,shape,createdMarker) {
+    const record={
+      id:nextSessionId++,
+      page:host.currentPage(),
+      targetId:target.id,
+      number:String(target.number),
+      points:shape.points.map(p=>({...p})),
+      createdMarker:Boolean(createdMarker),
+    };
+    sessionShapes.push(record);
+    selectedSessionId=record.id;
+    updateActionButtons();
+    renderStroke();
+    return record;
+  }
+
+  function removeCandidateById(id) {
+    const list=host.getCandidates();
+    const index=list.findIndex(x=>x.id===id);
+    if(index<0)return null;
+    const removed=list[index];
+    list.splice(index,1);
+    return removed;
   }
 
   function commitShape(shape) {
@@ -310,35 +419,37 @@
     if (!window.confirm(`${shape.kind} + 丸枠 ${number} + 接続線として追加しますか？`)) return;
 
     let target=(nearest && String(nearest.number)===number)?nearest:null;
-    if (!target) target=createCandidate(number,markerCenter(shape.points));
+    let createdMarker=false;
+    if (!target) {
+      target=createCandidate(number,markerCenter(shape.points));
+      createdMarker=Boolean(target);
+    }
     if (!target) {
       host.status.className='status error';
       host.status.textContent='丸枠を作成できませんでした。既存データは変更していません。';
       return;
     }
     if (!createArea(target,shape.points)) {
+      if(createdMarker) removeCandidateById(target.id);
       host.status.className='status error';
       host.status.textContent=`丸枠 ${number} は確認できましたが、エリア自動作成を確認できませんでした。確定保存はせず内容を確認してください。`;
       return;
     }
+    const session=registerSessionShape(target,shape,createdMarker);
+    pushUndo({type:'create',sessionId:session.id});
     host.setDirty(true);
     host.status.className='status';
-    host.status.textContent=target===nearest
-      ? `${shape.kind}を作成し、既存丸枠 ${number} に接続しました。`
-      : `${shape.kind}を作成し、丸枠 ${number} を余白へ自動配置しました。丸枠は現場入力ON中にドラッグ移動できます。`;
+    host.status.textContent=createdMarker
+      ? `${shape.kind}を作成し、丸枠 ${number} を余白へ自動配置しました。エリアをタップすると削除できます。`
+      : `${shape.kind}を作成し、既存丸枠 ${number} に接続しました。エリアをタップすると削除できます。`;
   }
 
   function forceEntryRedraw() {
     const edit=host.bboxEditButton;
     if (!edit || host.isBusy()) return;
     const active=edit.classList.contains('active');
-    if (active) {
-      edit.click();
-      edit.click();
-      return;
-    }
-    edit.click();
-    edit.click();
+    if (active) { edit.click(); edit.click(); return; }
+    edit.click(); edit.click();
   }
 
   function clampMovedBox(box,dx,dy) {
@@ -350,24 +461,109 @@
     };
   }
 
+  function hitSessionShape(point) {
+    for(let i=sessionShapes.length-1;i>=0;i--){
+      const shape=sessionShapes[i];
+      if(shape.page===host.currentPage()&&pointInPolygon(point,shape.points))return shape;
+    }
+    return null;
+  }
+
+  function selectAt(point) {
+    const hit=hitSessionShape(point);
+    selectedSessionId=hit?.id??null;
+    updateActionButtons();
+    renderStroke();
+    host.status.className='status';
+    host.status.textContent=hit
+      ? `現場入力エリア ${hit.number} を選択しました。🗑で削除、↶で直前操作を戻せます。`
+      : '現場入力エリアの選択を解除しました。';
+    return Boolean(hit);
+  }
+
+  function deleteSelectedShape(pushHistory=true) {
+    const shape=sessionShapes.find(x=>x.id===selectedSessionId);
+    if(!shape)return false;
+    const target=host.getCandidates().find(x=>x.id===shape.targetId)||null;
+    const markerSnapshot=shape.createdMarker&&target?cloneCandidate(target):null;
+    const snapshot=cloneShape(shape);
+    if(!deleteAreaForShape(shape)){
+      host.status.className='status error';
+      host.status.textContent='エリア削除を確認できませんでした。保存は行っていません。';
+      return false;
+    }
+    if(shape.createdMarker&&target) removeCandidateById(target.id);
+    sessionShapes=sessionShapes.filter(x=>x.id!==shape.id);
+    selectedSessionId=null;
+    if(pushHistory)pushUndo({type:'delete',shape:snapshot,marker:markerSnapshot});
+    forceEntryRedraw();
+    host.setDirty(true);
+    updateActionButtons();
+    renderStroke();
+    host.status.className='status';
+    host.status.textContent=shape.createdMarker
+      ? `エリア ${shape.number}・接続線・現場入力で作った丸枠を削除しました。💾保存までDBには反映されません。`
+      : `エリア ${shape.number} と接続線を削除しました。既存丸枠は残しています。💾保存までDBには反映されません。`;
+    return true;
+  }
+
+  function undoLast() {
+    const action=undoStack.pop();
+    if(!action){updateActionButtons();return;}
+    if(action.type==='create'){
+      const shape=sessionShapes.find(x=>x.id===action.sessionId);
+      if(shape){selectedSessionId=shape.id;deleteSelectedShape(false);}
+    }else if(action.type==='move'){
+      const item=host.getCandidates().find(x=>x.id===action.itemId);
+      if(item){item.bbox=cloneBox(action.before);forceEntryRedraw();host.setDirty(true);}
+      host.status.className='status';
+      host.status.textContent='丸枠移動を元に戻しました。';
+    }else if(action.type==='delete'){
+      let target=host.getCandidates().find(x=>x.id===action.shape.targetId)||null;
+      if(!target&&action.marker){
+        target=cloneCandidate(action.marker);
+        host.getCandidates().push(target);
+        forceEntryRedraw();
+        enableNewMarkerNumber(target);
+      }
+      if(target&&createArea(target,action.shape.points)){
+        sessionShapes.push(cloneShape(action.shape));
+        selectedSessionId=action.shape.id;
+        nextSessionId=Math.max(nextSessionId,action.shape.id+1);
+        forceEntryRedraw();
+        host.setDirty(true);
+        host.status.className='status';
+        host.status.textContent='削除した現場入力エリアを元に戻しました。';
+      }else{
+        host.status.className='status error';
+        host.status.textContent='削除の取り消しを完了できませんでした。保存せず内容を確認してください。';
+      }
+    }
+    updateActionButtons();
+    renderStroke();
+  }
+
   function setEnabled(value) {
-    enabled=Boolean(value); drawing=false; activePointerId=null; stroke=[]; markerDrag=null; renderStroke();
+    enabled=Boolean(value); drawing=false; activePointerId=null; stroke=[]; markerDrag=null; selectedSessionId=null; renderStroke();
     if (enabled) {
       host.disableBboxEdit(); host.clearSelection();
       if (areaButton.classList.contains('active')) areaButton.click();
-      button.classList.add('active'); button.textContent='✏️ 現場入力 ON'; help.textContent='描く/丸枠ドラッグ';
+      button.classList.add('active'); button.textContent='✏️ 現場入力 ON'; help.textContent='描く/丸枠移動/タップ選択';
       overlay.style.pointerEvents='auto';
       host.status.className='status';
-      host.status.textContent='現場入力ON：線や四角をざっくり描くと長方形/正方形へ補正します。手動丸枠はそのままドラッグ移動できます。';
+      host.status.textContent='現場入力ON：線や四角を描く→長方形化。手動丸枠はドラッグ、作成済みエリアはタップして🗑削除できます。';
     } else {
       button.classList.remove('active'); button.textContent='✏️ 現場入力'; help.textContent='指/ペンで描く';
       overlay.style.pointerEvents='none';
       host.status.className='status';
       host.status.textContent='現場入力OFF：従来のOCR・枠編集・エリア作成を利用できます。';
     }
+    updateActionButtons();
   }
 
   button.addEventListener('click',()=>{if(!host.isBusy())setEnabled(!enabled);});
+  undoButton.addEventListener('click',()=>{if(!host.isBusy())undoLast();});
+  deleteButton.addEventListener('click',()=>{if(!host.isBusy())deleteSelectedShape(true);});
 
   overlay.addEventListener('pointerdown',e=>{
     if(!enabled||host.isBusy()||drawing||markerDrag||(e.pointerType==='mouse'&&e.button!==0))return;
@@ -407,14 +603,16 @@
     e.preventDefault();e.stopPropagation();
     if(overlay.hasPointerCapture(e.pointerId))overlay.releasePointerCapture(e.pointerId);
     const item=host.getCandidates().find(x=>x.id===markerDrag.itemId);
+    const snapshot=markerDrag;
     const changed=markerDrag.moved&&!cancelled;
     if(cancelled&&item)item.bbox={...markerDrag.startBox};
     markerDrag=null;activePointerId=null;renderStroke();
     forceEntryRedraw();
-    if(changed){
+    if(changed&&item){
+      pushUndo({type:'move',itemId:item.id,before:cloneBox(snapshot.startBox)});
       host.setDirty(true);
       host.status.className='status';
-      host.status.textContent='丸枠を移動しました。接続線も追従します。確定保存するまでDBには反映されません。';
+      host.status.textContent='丸枠を移動しました。接続線・枠内番号表示も追従します。↶で戻せます。';
     }
     return true;
   }
@@ -424,20 +622,51 @@
     if(!drawing||e.pointerId!==activePointerId)return;
     e.preventDefault();e.stopPropagation();if(overlay.hasPointerCapture(e.pointerId))overlay.releasePointerCapture(e.pointerId);
     drawing=false;activePointerId=null;const points=stroke.slice();stroke=[];renderStroke();
-    if(cancelled||points.length<2)return;
+    if(cancelled)return;
+    if(points.length<2||pathLength(points)<Math.max(host.cssPxToOcrX(8),host.cssPxToOcrY(8))){
+      if(points.length)selectAt(points[0]);
+      return;
+    }
     const shape=recognize(points);
     if(!shape){host.status.className='status error';host.status.textContent='形を認識できませんでした。もう少し長く描いてください。';return;}
+    selectedSessionId=null;updateActionButtons();
     renderStroke(shape.points);
     requestAnimationFrame(()=>{commitShape(shape);stroke=[];renderStroke();});
   }
   overlay.addEventListener('pointerup',e=>finish(e,false),{passive:false});
   overlay.addEventListener('pointercancel',e=>finish(e,true),{passive:false});
 
-  window.addEventListener('weld:entry-base-drawn',syncOverlay);
+  function placeActionButtons(){
+    const mobile=window.matchMedia('(max-width: 820px)').matches;
+    for(const el of [undoButton,deleteButton]){
+      if(mobile){
+        el.style.cssText='width:44px;min-width:44px;min-height:44px;padding:0;border-radius:10px;flex:0 0 auto;font-size:1.05rem';
+      }else{
+        el.style.removeProperty('width');el.style.removeProperty('min-width');el.style.removeProperty('min-height');el.style.removeProperty('padding');el.style.removeProperty('border-radius');el.style.removeProperty('flex');el.style.removeProperty('font-size');
+      }
+    }
+    if(mobile&&button.parentNode){
+      button.insertAdjacentElement('afterend',undoButton);
+      undoButton.insertAdjacentElement('afterend',deleteButton);
+      if(help)help.style.display='none';
+    }else if(help){
+      help.style.removeProperty('display');
+    }
+  }
+
+  window.addEventListener('weld:entry-base-drawn',()=>{
+    const page=host.currentPage();
+    if(page!==lastPage){
+      lastPage=page;sessionShapes=[];selectedSessionId=null;undoStack=[];updateActionButtons();
+    }
+    syncOverlay();
+  });
   window.addEventListener('weld:entry-zoom-changed',syncOverlay);
-  window.addEventListener('resize',syncOverlay);
+  window.addEventListener('resize',()=>{syncOverlay();placeActionButtons();});
   if('ResizeObserver'in window)new ResizeObserver(syncOverlay).observe(viewer);
 
-  window.__weldSmartFieldDrawTest={recognize,simplify,rotatedRectangle,lineStrip,edgeLengths};
+  window.__weldSmartFieldDrawTest={recognize,simplify,rotatedRectangle,lineStrip,edgeLengths,pointInPolygon};
+  updateActionButtons();
   syncOverlay();
+  setTimeout(placeActionButtons,0);
 })();
