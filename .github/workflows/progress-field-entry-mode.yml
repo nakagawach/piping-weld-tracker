@@ -1,0 +1,33 @@
+name: Progress Field Entry Mode Checks
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  field-entry:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt playwright
+          python -m playwright install --with-deps chromium
+      - name: Syntax checks
+        run: |
+          node --check static/progress_field_entry_mode.js
+          node --check static/entry_smart_field_draw.js
+          node --check static/progress_list_panel_base.js
+          python -m py_compile tests/progress_field_entry_mode_e2e.py
+      - name: Progress field entry regression
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python tests/progress_field_entry_mode_e2e.py

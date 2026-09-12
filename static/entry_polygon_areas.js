@@ -59,6 +59,9 @@
     y: item.bbox.y + item.bbox.h / 2,
   });
   const candidateById = id => host.getCandidates().find(item => item.id === id) || null;
+  const areaStrokeWidth = () => document.getElementById('entrySmartFieldDraw')?.classList.contains('active')
+    ? Math.max(1.25, overlay.width / 1300)
+    : Math.max(3, overlay.width / 620);
 
   function rotation() {
     const match = rotateButton.textContent.match(/(0|90|180|270)/);
@@ -127,7 +130,7 @@
     ctx.fillStyle = selected ? 'rgba(245,124,0,.10)' : 'rgba(245,124,0,.045)';
     ctx.fill();
     ctx.strokeStyle = '#f57c00';
-    ctx.lineWidth = Math.max(3, overlay.width / 620);
+    ctx.lineWidth = areaStrokeWidth();
     ctx.lineJoin = 'round';
     ctx.stroke();
     if (selected) {
@@ -252,7 +255,7 @@
       for (let i = 1; i < draft.length; i++) ctx.lineTo(draft[i][0] * SCALE, draft[i][1] * SCALE);
       if (preview) ctx.lineTo(preview[0] * SCALE, preview[1] * SCALE);
       ctx.strokeStyle = '#f57c00';
-      ctx.lineWidth = Math.max(3, overlay.width / 620);
+      ctx.lineWidth = areaStrokeWidth();
       ctx.stroke();
       ctx.setLineDash([]);
     }
