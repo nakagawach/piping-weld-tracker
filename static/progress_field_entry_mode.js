@@ -76,7 +76,9 @@
     const childPage=await waitFor(()=>{const input=doc.getElementById('page'),canvas=doc.getElementById('canvas');return input&&Number(input.max||0)>=targetPage&&canvas?.width?input:null});
     if(Number(childPage.value)!==targetPage){childPage.value=String(targetPage);childPage.dispatchEvent(new Event('change',{bubbles:true}));await waitFor(()=>Number(doc.getElementById('page')?.value)===targetPage&&doc.getElementById('canvas')?.width)}
     const childRotate=doc.getElementById('rotate');if(childRotate){let guard=0;while(angleFromText(childRotate.textContent)!==targetRotation&&guard++<4)childRotate.click()}
-    const smart=await waitFor(()=>doc.getElementById('entrySmartFieldDraw'));if(!smart.classList.contains('active'))smart.click();
+    const smart=await waitFor(()=>{const b=doc.getElementById('entrySmartFieldDraw'),h=win.__weldEntryAreaHost;return b&&h&&!h.isBusy()?b:null});
+    if(!smart.classList.contains('active'))smart.click();
+    await waitFor(()=>smart.classList.contains('active')?smart:null,3000,30);
     installEmbeddedUi(doc);
   }
 
