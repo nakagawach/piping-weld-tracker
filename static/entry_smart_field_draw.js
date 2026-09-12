@@ -10,6 +10,7 @@
   const SCALE=1600/6000;
   let enabled=false,drawing=false,activePointerId=null,stroke=[],markerDrag=null;
   let sessions=[],selectedId=null,nextId=1,undoStack=[];
+  let lastPage=host.currentPage();
 
   const button=document.createElement('button');button.type='button';button.id='entrySmartFieldDraw';button.className='button';button.textContent='✏️ 現場入力';button.title='指・ペンで描いた線を細長い長方形、囲みを長方形/正方形へ補正';areaButton.insertAdjacentElement('afterend',button);
   const undoButton=document.createElement('button');undoButton.type='button';undoButton.id='entrySmartUndo';undoButton.className='button';undoButton.textContent='↶';undoButton.title='元に戻す';undoButton.disabled=true;button.insertAdjacentElement('afterend',undoButton);
@@ -105,7 +106,7 @@
   function finishMarker(e,cancelled=false){if(!markerDrag||e.pointerId!==markerDrag.pointerId)return false;e.preventDefault();e.stopPropagation();if(overlay.hasPointerCapture(e.pointerId))overlay.releasePointerCapture(e.pointerId);const item=host.getCandidates().find(x=>x.id===markerDrag.itemId),before=cloneBox(markerDrag.startBox),changed=markerDrag.moved&&!cancelled;if(cancelled&&item)item.bbox=before;if(changed&&item){pushUndo({type:'move',itemId:item.id,before});host.setDirty(true);forceRedraw();host.status.className='status';host.status.textContent='丸枠を移動しました。接続線も追従します。'}markerDrag=null;activePointerId=null;render();return true}
   function finish(e,cancelled=false){if(finishMarker(e,cancelled))return;if(!drawing||e.pointerId!==activePointerId)return;e.preventDefault();e.stopPropagation();if(overlay.hasPointerCapture(e.pointerId))overlay.releasePointerCapture(e.pointerId);drawing=false;activePointerId=null;const pts=stroke.slice();stroke=[];render();if(cancelled||pts.length<2)return;const shape=recognize(pts);if(!shape){host.status.className='status error';host.status.textContent='形を認識できませんでした。';return}render(shape.points);requestAnimationFrame(()=>{commitShape(shape);stroke=[];render()})}
   overlay.addEventListener('pointerup',e=>finish(e,false),{passive:false});overlay.addEventListener('pointercancel',e=>finish(e,true),{passive:false});
-  window.addEventListener('weld:entry-base-drawn',()=>{sessions=[];selectedId=null;undoStack=[];updateButtons();syncOverlay()});window.addEventListener('weld:entry-zoom-changed',syncOverlay);window.addEventListener('resize',syncOverlay);if('ResizeObserver'in window)new ResizeObserver(syncOverlay).observe(viewer);
+  window.addEventListener('weld:entry-base-drawn',()=>{const page=host.currentPage();if(page!==lastPage){lastPage=page;sessions=[];selectedId=null;undoStack=[];updateButtons()}syncOverlay()});window.addEventListener('weld:entry-zoom-changed',syncOverlay);window.addEventListener('resize',syncOverlay);if('ResizeObserver'in window)new ResizeObserver(syncOverlay).observe(viewer);
   window.__weldSmartFieldDrawTest={recognize,lineStrip,rotatedRectangle,markerCenter};
   syncOverlay();
 })();
